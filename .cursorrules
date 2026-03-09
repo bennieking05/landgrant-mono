@@ -1,0 +1,73 @@
+# LandRight Cursor Rules
+
+## Project Overview
+LandRight is an attorney-in-the-loop eminent domain platform with a Python/FastAPI backend and React/Vite frontend.
+
+## Repository Structure
+```
+backend/        # FastAPI service, Celery workers, RBAC, rules engine
+frontend/       # Vite + React portal (landowners, agents, counsel)
+infra/          # Terraform IaC for GCP
+rules/          # Versioned YAML rule packs per jurisdiction
+templates/      # Markdown/DOCX templates + JSON schema metadata
+docs/           # Architecture, RBAC, data model, governance, ops
+artifacts/      # Test outputs, reports, generated files (gitignored)
+```
+
+## Testing Conventions
+
+### Backend (Python)
+- **Framework**: pytest (with pytest-asyncio for async tests)
+- **Test location**: `backend/tests/`
+- **Run command**: `cd backend && pytest`
+- **Plugins allowed**: pytest-* plugins only (e.g., pytest-json-report, pytest-cov)
+- **No new test frameworks**: Do not introduce unittest, nose, or other frameworks
+
+### Frontend (TypeScript/React)
+- **E2E Framework**: Playwright (per test-strategy.md)
+- **Test location**: `frontend/tests/`
+- **Unit tests**: Vitest if needed (aligned with Vite toolchain)
+
+### Test Artifacts
+- Store all test outputs in `/artifacts/` (gitignored)
+- Regression CSVs: `/artifacts/regression/regression_YYYY-MM-DD_HH-mm-ss.csv`
+- Screenshots/traces: `/artifacts/e2e/`
+
+## Scripts & Automation
+- Backend scripts live in `backend/scripts/`
+- Scripts should be runnable as modules: `python -m scripts.<script_name>`
+- Use existing dependencies; avoid adding new CLIs unless necessary
+
+## Code Style
+
+### Python
+- Formatter: black
+- Linter: ruff
+- Type hints required for public APIs
+- Follow existing patterns in `backend/app/`
+
+### TypeScript/React
+- Strict TypeScript
+- Tailwind CSS for styling
+- Follow existing component patterns in `frontend/src/components/`
+
+## Documentation
+- All docs in `/docs/` as Markdown
+- ADRs in `/docs/adr/`
+- Keep docs aligned with code changes
+
+## Dependencies
+- **Do not introduce new frameworks** without ADR approval
+- Prefer extending existing tooling (pytest plugins, Vite plugins)
+- Pin versions in requirements-dev.txt and package.json
+
+## CI/CD Considerations
+- All test commands must exit non-zero on failure
+- Regression scripts must produce machine-readable output (CSV/JSON)
+- Health endpoints: `/health/live`, `/health/invite`, `/health/esign`
+
+## Ports (Local Development)
+- Backend API: 8050
+- Frontend (Vite): 3050
+- PostgreSQL: 55432
+- Redis: 56379

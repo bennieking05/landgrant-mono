@@ -1,0 +1,296 @@
+# Michigan Eminent Domain Rules
+# Based on Michigan Constitution Art. X §2 and MCLA §213 et seq.
+
+version: 1.0.0
+jurisdiction: MI
+extends: base
+maintainer: Alicia
+description: Michigan eminent domain rules - 125% residence multiplier and strongest post-Kelo protections
+
+citations:
+  primary: "MCLA §213.51 et seq."
+  constitution: "Mich. Const. Art. X §2"
+  additional:
+    - "MCLA §213.23"  # Good faith offer
+    - "MCLA §213.55"  # Valuation
+    - "MCLA §213.56"  # Business losses
+    - "County of Wayne v. Hathcock (2004)"
+
+# Initiation Procedure
+initiation:
+  landowner_bill_of_rights: false
+  pre_condemnation_offer_required: true
+  appraisal_based_offer: true
+  appraisal_copy_required: true
+  appraisal_notice_days: 45  # Owner must get offer and appraisal 45 days before filing
+  good_faith_negotiation: true
+  good_faith_citation: "MCLA §213.23"
+  resolution_required: false
+  public_hearing_required: false
+  
+  # Two-phase process
+  process_phases:
+    - phase: necessity
+      description: "Court (or commission) determines if taking is necessary and for public use"
+    - phase: valuation
+      description: "Compensation determined by jury unless waived"
+  
+  # Quick-take provisions
+  quick_take:
+    available: true
+    type: order_vesting_title
+    court_approval_required: true
+    deposit_required: true
+    deposit_description: "Good-faith offer amount"
+    citation: "MCLA §213.58"
+    timing: "After necessity determination"
+
+# Compensation Rules
+# Michigan has ENHANCED compensation - 125% for owner-occupied residences
+compensation:
+  base: fair_market_value
+  valuation_date: "Suit filing date"
+  valuation_citation: "MCLA §213.55"
+  highest_and_best_use: true
+  includes_severance: true
+  
+  # 125% RESIDENCE MULTIPLIER - Constitutional requirement
+  residence_multiplier: 1.25
+  residence_multiplier_citation: "Mich. Const. Art. X §2"
+  residence_conditions:
+    - owner_occupied
+    - principal_residence
+  
+  # No heritage multiplier
+  heritage_multiplier: null
+  
+  # Business compensation - COMPREHENSIVE
+  business_goodwill: false
+  business_losses:
+    compensable: true
+    includes_interruption_costs: true
+    includes_relocation_costs: true
+    citation: "MCLA §213.56"
+  going_concern_value:
+    compensable: true
+    conditions: "If business cannot relocate"
+    citation: "MCLA §213.56"
+  lost_profits:
+    compensable: false
+  lost_access: false
+  
+  # Personal property moving expenses
+  moving_expenses:
+    constitutionally_guaranteed: true
+    citation: "Mich. Const. Art. X §2"
+  
+  # Attorney fees - MANDATORY reimbursement
+  attorney_fees:
+    automatic: true
+    mandatory: true
+    includes_expert_fees: true
+    includes_litigation_costs: true
+    citation: "MCLA §213.66"
+    notes: "Condemnor must pay regardless of outcome, as long as taking occurs"
+  
+  # Relocation
+  relocation_assistance: true
+
+# Owner Rights
+owner_rights:
+  bill_of_rights_document: false
+  
+  # Trial rights
+  jury_trial: true
+  jury_for_compensation: true
+  jury_citation: "Either party may demand jury for just compensation"
+  bench_trial: false
+  commissioners_panel: condemnation_commission
+  commission_optional: true
+  
+  # Challenge rights - LIMITED WINDOW
+  public_use_challenge: true
+  necessity_challenge: true
+  challenge_window_limited: true
+  challenge_window_description: "Very limited time period after service of complaint"
+  challenge_deadline_days: 21  # 21 days after service to contest necessity
+  
+  # Burden of proof - enhanced for blight
+  burden_on_condemnor: true
+  burden_standard: preponderance
+  blight_burden_standard: clear_and_convincing
+  blight_burden_citation: "2006 constitutional amendment"
+  
+  # Notice periods
+  notice_periods:
+    appraisal_and_offer: 45  # At least 45 days before filing
+    necessity_objection: 21  # 21 days to contest necessity after summons
+    
+  # Case prioritization
+  case_priority: true
+  priority_notes: "Condemnation cases given priority on court dockets"
+  
+  # Abandonment protection
+  abandonment_protection: true
+  abandonment_citation: "If agency abandons or lacks authority, must pay owner's expenses"
+
+# Public Use Limitations
+# Michigan has among the NATION'S STRONGEST post-Kelo protections
+public_use:
+  economic_development_banned: true
+  economic_development_citation: "Mich. Const. Art. X §2 (2006 amendment)"
+  economic_development_definition: "Public use does not include taking for transfer to private entity for economic development"
+  
+  tax_revenue_purpose_banned: true
+  tax_enhancement_banned: true
+  
+  blight_for_private: restricted
+  blight_proof_standard: clear_and_convincing
+  blight_parcel_specific: true
+  blight_burden_on_agency: true
+  blight_citation: "2006 constitutional amendment"
+  
+  private_transfer_restrictions:
+    banned: true
+    constitutional_prohibition: true
+    citation: "Mich. Const. Art. X §2"
+  
+  # Hathcock decision predates Kelo
+  hathcock_decision:
+    year: 2004
+    case: "County of Wayne v. Hathcock"
+    holding: "Economic development alone not valid public use under Michigan Constitution"
+    predates_kelo: true
+  
+  post_kelo_reform_year: 2006
+  reform_type: constitutional
+  reform_details:
+    - "Explicit prohibition on economic development takings"
+    - "Clear and convincing evidence required for blight"
+    - "125% compensation for residences"
+    - "Parcel-specific blight determination required"
+
+# Deadline chains
+deadline_chains:
+  - anchor_event: offer_served
+    description: Deadlines triggered when good-faith offer with appraisal is served
+    deadlines:
+      - id: minimum_wait_before_filing
+        description: Cannot file complaint until 45 days after offer served
+        offset_days: 45
+        direction: after
+        citation: "MCLA §213.23"
+        type: floor
+
+  - anchor_event: complaint_served
+    description: Deadlines after condemnation complaint is served
+    deadlines:
+      - id: necessity_objection_deadline
+        description: Owner has 21 days to contest necessity/public use
+        offset_days: 21
+        direction: after
+        citation: "MCLA §213.55"
+        type: deadline
+        critical: true
+        notes: "After this window closes, taking will proceed if challenge fails"
+
+  - anchor_event: necessity_determined
+    description: Deadlines after court determines necessity
+    deadlines:
+      - id: quick_take_eligible
+        description: Government can motion for order vesting title
+        offset_days: 0
+        direction: after
+        citation: "MCLA §213.58"
+        type: eligibility
+
+# Triggers
+triggers:
+  - id: mi_offer_served
+    description: Generate deadline chain when offer is served in Michigan
+    match: case.jurisdiction == 'MI' and events.offer_served is not None
+    deadline_chain: offer_served
+    notices:
+      - template_id: mi_offer
+        delivery: [certified_mail, personal_service]
+        recipients:
+          - owner_primary
+    evidence_hooks:
+      - citation: "MCLA §213.23"
+        fields:
+          - events.offer_served
+          - offer.total_amount
+          - appraisal.value
+          - appraisal.date
+          - owner.name
+          - parcel.pin
+
+  - id: mi_complaint_served
+    description: Generate deadline chain when complaint is served
+    match: case.jurisdiction == 'MI' and events.complaint_served is not None
+    deadline_chain: complaint_served
+    notices:
+      - template_id: mi_necessity_notice
+        delivery: [personal_service]
+        recipients:
+          - owner_primary
+    evidence_hooks:
+      - citation: "MCLA §213.55"
+        fields:
+          - events.complaint_served
+          - necessity.challenge_deadline
+
+  - id: mi_residence_compensation
+    description: Apply 125% multiplier for owner-occupied residence
+    match: case.jurisdiction == 'MI' and parcel.owner_occupied == true and parcel.principal_residence == true
+    evidence_hooks:
+      - citation: "Mich. Const. Art. X §2"
+        fields:
+          - parcel.owner_occupied
+          - parcel.principal_residence
+          - compensation.base_fmv
+          - compensation.enhanced_amount
+
+# Critical periods
+critical_periods:
+  - id: necessity_objection_window
+    description: "21-day window to contest necessity is CRITICAL - failure waives right"
+    citation: "MCLA §213.55"
+    warning_days: [14, 7, 3, 1]
+
+  - id: offer_wait_period
+    description: "45-day wait period after offer before filing"
+    citation: "MCLA §213.23"
+    warning_days: [21, 14, 7]
+
+# Special Michigan provisions
+special_provisions:
+  - id: constitutional_125_percent
+    description: "Owner-occupied principal residences receive 125% of FMV"
+    citation: "Mich. Const. Art. X §2"
+    enacted: 2006
+    conditions:
+      - owner_occupied
+      - principal_residence
+    calculation: "fair_market_value * 1.25"
+
+  - id: mandatory_attorney_fees
+    description: "Condemnor must pay owner's attorney, expert, and litigation costs"
+    citation: "MCLA §213.66"
+    automatic: true
+    notes: "Makes owner financially whole regardless of outcome"
+
+  - id: business_going_concern
+    description: "Business owners can recover going-concern value if cannot relocate"
+    citation: "MCLA §213.56"
+    conditions:
+      - business_cannot_relocate
+    includes:
+      - business_interruption_costs
+      - going_concern_value
+
+  - id: hathcock_standard
+    description: "Pre-Kelo Michigan Supreme Court case rejecting economic development takings"
+    case: "County of Wayne v. Hathcock"
+    year: 2004
+    holding: "Economic development alone insufficient for public use under Michigan Constitution"

@@ -1,0 +1,286 @@
+# Indiana Eminent Domain Rules
+# Based on Indiana Code 32-24
+
+version: 1.0.0
+jurisdiction: IN
+extends: base
+maintainer: Alicia
+description: Indiana eminent domain procedural rules per IC 32-24
+
+citations:
+  primary: "IC 32-24"
+  constitution: "Ind. Const. Art. I §21"
+  additional:
+    - "IC 32-24-1-5"
+    - "IC 32-24-1-6"
+    - "IC 32-24-1-8"
+    - "IC 32-24-1-11"
+    - "IC 32-24-1-12"
+    - "IC 32-24-4-4"
+
+# Initiation Procedure
+initiation:
+  landowner_bill_of_rights: false
+  pre_condemnation_offer_required: true
+  appraisal_based_offer: true
+  good_faith_negotiation: true
+  resolution_required: true
+  resolution_body: "city/town council or county commissioners"
+  public_hearing_required: false
+  
+  # Timeline requirements
+  initial_offer_days: 30  # Owner has 30 days to accept or reject
+  notice_of_intent_required: true
+  notice_of_intent_delivery: certified_mail
+  
+  # Quick-take provisions
+  quick_take:
+    available: true
+    type: deposit_and_possession
+    court_approval_required: true
+    deposit_required: true
+    citation: "IC 32-24-1"
+    notes: "Available for certain highway projects"
+
+# Compensation Rules
+compensation:
+  base: fair_market_value
+  highest_and_best_use: true
+  includes_severance: true
+  
+  # Recovery for loss of ingress/egress in partial takings
+  loss_of_access_in_partial: true
+  loss_of_access_citation: "Treated as damage to remainder"
+  
+  # No multipliers
+  residence_multiplier: null
+  heritage_multiplier: null
+  
+  # Business compensation
+  business_goodwill: false
+  business_losses: false
+  lost_profits:
+    compensable: false
+  lost_access: false
+  
+  # Attorney fees
+  attorney_fees:
+    automatic: false
+    threshold_based: true
+    threshold_description: "If final award exceeds appraisers' award by substantial amount"
+    citation: "IC 32-24-1-14"
+  
+  # Relocation
+  relocation_assistance: true
+  relocation_citation: "Federal guidelines and Indiana state law"
+
+# Owner Rights
+owner_rights:
+  bill_of_rights_document: false
+  
+  # Trial rights
+  jury_trial: true
+  bench_trial: false
+  commissioners_panel: appraisers
+  commissioners_description: "Court-appointed appraisers assess damages"
+  
+  # Challenge rights
+  public_use_challenge: true
+  public_use_challenge_process: "Court proceeding within eminent domain case"
+  necessity_challenge: true
+  burden_on_condemnor: false
+  clear_and_convincing_standard: false
+  
+  # Post-Kelo: court findings required for private commercial facility takings
+  private_facility_court_findings: true
+  private_facility_citation: "IC 32-24 post-2006 amendments"
+  
+  # Notice periods
+  notice_periods:
+    notice_of_intent_days: 30  # Certified mail at least 30 days before filing
+    objection_window_days: 30  # 30 days from notice service to file objections
+    objection_extension_days: 30  # Can be extended up to 30 additional days
+    exceptions_window_days: 45  # 45 days to file exceptions to appraisers' report
+
+# Public Use Limitations
+# Indiana has post-Kelo reforms
+public_use:
+  economic_development_banned: true
+  economic_development_notes: "Cannot condemn for purely private commercial uses"
+  tax_revenue_purpose_banned: true
+  blight_for_private: restricted
+  blight_proof_standard: preponderance
+  blight_parcel_specific: true
+  blight_definition_narrowed: true
+  
+  private_transfer_restrictions:
+    banned: true
+    exceptions:
+      - "certified_blighted_area"
+    approval_required: "local legislative body with findings of public benefit"
+  
+  post_kelo_reform_year: 2006
+  reform_type: statutory
+  citation: "IC 32-24 (2006 amendments)"
+
+# Statutory deadline chains anchored to key procedural events
+deadline_chains:
+  # Chain 1: From offer service
+  - anchor_event: offer_served
+    description: Deadlines triggered when written acquisition offer is served on owner
+    deadlines:
+      - id: earliest_complaint_filing
+        description: Condemnation complaint cannot be filed earlier than 30 days after offer served
+        offset_days: 30
+        direction: after
+        citation: "IC 32-24-1-5"
+        type: floor  # earliest possible date, not a due date
+      - id: owner_response_window
+        description: Owner has 30 days to accept or reject offer
+        offset_days: 30
+        direction: after
+        citation: "IC 32-24-1-5"
+        type: deadline
+
+  # Chain 2: From complaint filing
+  - anchor_event: complaint_filed
+    description: Deadlines triggered when condemnation complaint is filed
+    deadlines:
+      - id: notice_service_deadline
+        description: Notice to appear must be served (10 days before hearing or 3 weekly publications with last at least 5 days before)
+        offset_days: 10
+        direction: before_hearing
+        citation: "IC 32-24-1-7"
+        type: service_requirement
+        notes: "Alternative: 3 weekly publications, last publication at least 5 days before hearing"
+
+  # Chain 3: From notice service
+  - anchor_event: notice_served
+    description: Deadlines triggered when IC 32-24-1-6 notice is served on defendant
+    deadlines:
+      - id: defendant_objection_deadline
+        description: Defendants have 30 days from notice service to file written objections
+        offset_days: 30
+        direction: after
+        citation: "IC 32-24-1-8"
+        type: deadline
+        extendable: true
+        max_extension_days: 30
+        extension_citation: "IC 32-24-1-8"
+
+  # Chain 4: From appraisers report
+  - anchor_event: appraisers_report_mailed
+    description: Deadlines triggered when clerk mails appraisers' report by certified mail
+    deadlines:
+      - id: exceptions_deadline
+        description: Parties have 45 days after mailing to file written exceptions to appraisers' report
+        offset_days: 45
+        direction: after
+        citation: "IC 32-24-1-11"
+        type: deadline
+      - id: defendant_payment_request_eligible
+        description: After 45 days, if plaintiff paid appraised damages, defendants may request proportionate shares
+        offset_days: 45
+        direction: after
+        citation: "IC 32-24-1-11"
+        type: eligibility
+
+  # Chain 5: Relative to trial date (works backwards)
+  - anchor_event: trial_date_set
+    description: Deadlines calculated relative to scheduled trial on damages
+    deadlines:
+      - id: settlement_offer_deadline
+        description: Plaintiff must serve settlement offer not later than 45 days before trial
+        offset_days: -45
+        direction: before
+        citation: "IC 32-24-1-12"
+        type: deadline
+      - id: settlement_response_deadline
+        description: Recipient has 5 days to accept or counter settlement offer
+        offset_days: 5
+        direction: after_settlement_offer
+        citation: "IC 32-24-1-12"
+        type: deadline
+        relative_to: settlement_offer_served
+
+# Triggers for automatic deadline generation based on case data
+triggers:
+  - id: in_offer_served
+    description: Generate deadline chain when offer is served in Indiana
+    match: case.jurisdiction == 'IN' and events.offer_served is not None
+    deadline_chain: offer_served
+    notices:
+      - template_id: in_offer
+        delivery: [personal_service, certified_mail]
+        recipients:
+          - owner_primary
+        fallback_delivery: publication
+        fallback_citation: "IC 32-24-1-5"
+    evidence_hooks:
+      - citation: "IC 32-24-1-3"
+        fields:
+          - events.offer_served
+          - offer.total_amount
+          - offer.appraisal_date
+          - owner.name
+          - parcel.pin
+
+  - id: in_complaint_filed
+    description: Generate deadline chain when complaint is filed
+    match: case.jurisdiction == 'IN' and events.complaint_filed is not None
+    deadline_chain: complaint_filed
+    evidence_hooks:
+      - citation: "IC 32-24-1-5"
+        fields:
+          - events.complaint_filed
+          - events.offer_served
+
+  - id: in_notice_served
+    description: Generate deadline chain when notice is served
+    match: case.jurisdiction == 'IN' and events.notice_served is not None
+    deadline_chain: notice_served
+    evidence_hooks:
+      - citation: "IC 32-24-1-6"
+        fields:
+          - events.notice_served
+          - service.method
+
+  - id: in_appraisers_report
+    description: Generate deadline chain when appraisers report is mailed
+    match: case.jurisdiction == 'IN' and events.appraisers_report_mailed is not None
+    deadline_chain: appraisers_report_mailed
+    evidence_hooks:
+      - citation: "IC 32-24-1-11"
+        fields:
+          - events.appraisers_report_mailed
+          - appraisers.appraised_value
+
+  - id: in_trial_scheduled
+    description: Generate deadline chain when trial date is set
+    match: case.jurisdiction == 'IN' and events.trial_date_set is not None
+    deadline_chain: trial_date_set
+    evidence_hooks:
+      - citation: "IC 32-24-1-12"
+        fields:
+          - events.trial_date_set
+
+# Critical period warnings
+critical_periods:
+  - id: objection_window
+    description: "30-day objection period is jurisdictional; courts treat these dates as critical"
+    citation: "IC 32-24-1-8"
+    warning_days: [7, 3, 1]
+
+  - id: exceptions_window
+    description: "45-day exceptions period is critical for preserving defenses"
+    citation: "IC 32-24-1-11"
+    warning_days: [14, 7, 3, 1]
+
+# Payment election rules (for offers over $5,000)
+payment_rules:
+  - id: annual_payment_election
+    description: Owner may elect annual payments for offers over $5,000
+    citation: "IC 32-24-4-4"
+    threshold_amount: 5000
+    max_payment_years: 20
+    includes_interest: true

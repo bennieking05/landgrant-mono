@@ -1,0 +1,1 @@
+"""LandRight FastAPI application package."""

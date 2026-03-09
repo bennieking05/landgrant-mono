@@ -1,0 +1,32 @@
+{
+  "id": "tx_bill_of_rights",
+  "version": "1.0.0",
+  "jurisdiction": "TX",
+  "locale": "en-US",
+  "variables": {
+    "service_date": {"type": "string", "format": "date", "required": true, "description": "Date Bill of Rights is provided"},
+    "condemning_authority_name": {"type": "string", "required": true, "description": "Name of the condemning authority"},
+    "condemning_authority_address": {"type": "string", "required": true, "description": "Address of condemning authority"},
+    "owner_name": {"type": "string", "required": true, "description": "Property owner full name"},
+    "owner_address_line1": {"type": "string", "required": true, "description": "Owner street address"},
+    "owner_address_city": {"type": "string", "required": true},
+    "owner_address_state": {"type": "string", "required": true},
+    "owner_address_zip": {"type": "string", "required": true},
+    "property_address": {"type": "string", "required": true, "description": "Property street address"},
+    "project_name": {"type": "string", "required": true, "description": "Name of the acquisition project"},
+    "parcel_pin": {"type": "string", "required": true, "description": "Parcel/Tax ID number"},
+    "contact_name": {"type": "string", "required": true, "description": "Contact person name"},
+    "contact_phone": {"type": "string", "required": true},
+    "contact_email": {"type": "string", "required": false}
+  },
+  "tracked_dates": [
+    {"field": "service_date", "event": "bill_of_rights_served", "citation": "Tex. Prop. Code §21.0112"}
+  ],
+  "deadline_anchors": {
+    "bill_of_rights_served": "service_date"
+  },
+  "redactions": ["owner_name", "owner_address_line1"],
+  "privilege": "non_privileged",
+  "classifications": ["binder", "communication", "disclosure"],
+  "notes": "Must be provided at least 7 days before final offer per Tex. Prop. Code §21.0112"
+}

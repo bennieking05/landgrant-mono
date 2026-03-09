@@ -1,0 +1,277 @@
+# California Eminent Domain Rules
+# Based on California Code of Civil Procedure §1230 et seq. (Eminent Domain Law)
+
+version: 1.0.0
+jurisdiction: CA
+extends: base
+maintainer: Alicia
+description: California eminent domain procedural rules - requires Resolution of Necessity and compensates business goodwill
+
+citations:
+  primary: "Cal. Code Civ. Proc. §1230 et seq."
+  constitution: "Cal. Const. Art. I §19"
+  additional:
+    - "Cal. Code Civ. Proc. §1245.210-1245.270"  # Resolution of Necessity
+    - "Cal. Code Civ. Proc. §1263.510"  # Business goodwill
+    - "Cal. Code Civ. Proc. §1250.410"  # Litigation expenses
+    - "Cal. Reloc. Assistance Act"
+
+# Initiation Procedure
+# California requires Resolution of Necessity with public hearing
+initiation:
+  landowner_bill_of_rights: false
+  pre_condemnation_offer_required: true
+  appraisal_based_offer: true
+  good_faith_negotiation: true
+  
+  # Resolution of Necessity requirement
+  resolution_required: true
+  resolution_type: resolution_of_necessity
+  resolution_citation: "Cal. Code Civ. Proc. §1245.210"
+  resolution_findings_required:
+    - public_use_necessary
+    - project_planned_to_minimize_private_injury
+    - property_necessary_for_project
+  resolution_vote: supermajority
+  
+  # Public hearing requirement
+  public_hearing_required: true
+  hearing_notice_days: 15  # 15-20 days notice to owner
+  
+  # Timeline requirements
+  offer_before_hearing_days: 20  # Offer based on appraisal at least 20 days before hearing
+  
+  # Quick-take provisions
+  quick_take:
+    available: true
+    type: deposit_and_possession
+    court_approval_required: true
+    deposit_required: true
+    deposit_description: "Deposit of probable just compensation"
+    citation: "Cal. Code Civ. Proc. §1255.010"
+    notes: "After lawsuit filed, deposit lets government take early possession"
+
+# Compensation Rules
+# California uniquely compensates loss of business goodwill
+compensation:
+  base: fair_market_value
+  fmv_definition: "Highest price in an open market considering highest and best use"
+  highest_and_best_use: true
+  includes_severance: true
+  severance_citation: "Cal. Code Civ. Proc. §1263.410"
+  
+  # No multipliers
+  residence_multiplier: null
+  heritage_multiplier: null
+  
+  # Business goodwill - UNIQUE to California
+  business_goodwill: true
+  business_goodwill_citation: "Cal. Code Civ. Proc. §1263.510"
+  business_goodwill_requirements:
+    - business_conducted_on_property
+    - loss_cannot_reasonably_be_avoided_by_relocation
+  business_goodwill_notes: "Statutory right in addition to property's market value"
+  
+  business_losses: false
+  lost_profits:
+    compensable: false
+  lost_access: false
+  
+  # Attorney fees - conditional based on reasonableness
+  attorney_fees:
+    automatic: false
+    threshold_based: true
+    reasonableness_test: true
+    reasonableness_citation: "Cal. Code Civ. Proc. §1250.410"
+    conditions:
+      - owner_final_demand_reasonable
+      - government_offer_unreasonable_relative_to_trial_result
+    includes_expert_fees: true
+    notes: "If government low-balled, owner gets fees"
+  
+  # Owner not liable for government costs
+  owner_not_liable_for_gov_costs: true
+  owner_costs_citation: "Cal. Code Civ. Proc. §1268.710"
+  
+  # Relocation
+  relocation_assistance: true
+  relocation_citation: "California Relocation Assistance Act"
+
+# Owner Rights
+owner_rights:
+  bill_of_rights_document: false
+  
+  # Trial rights
+  jury_trial: true
+  jury_trial_default: true
+  jury_verdict_final: true
+  jury_citation: "Full jury trial on compensation as matter of right"
+  bench_trial: false
+  commissioners_panel: null  # California goes directly to jury
+  
+  # Resolution of Necessity objection
+  resolution_hearing_participation: true
+  resolution_objection_allowed: true
+  resolution_challenge_method: writ_of_mandate
+  resolution_challenge_deadline_days: 30
+  resolution_challenge_success_rate: "rare"
+  
+  # Challenge rights
+  public_use_challenge: true
+  necessity_challenge: true
+  burden_on_condemnor: false  # Courts usually defer to resolution
+  clear_and_convincing_standard: false
+  
+  # Notice periods
+  notice_periods:
+    resolution_hearing_notice: 20  # Personal service or certified mail
+    appraisal_summary_provided: "Before hearing"
+    deposit_notice: "Owner notified of deposit and can withdraw immediately"
+
+# Public Use Limitations
+# California took a more moderate approach to post-Kelo reform
+public_use:
+  economic_development_banned: false  # Limited reform
+  tax_revenue_purpose_banned: false
+  
+  # Prop 99 (2008) limited protection
+  prop_99:
+    year: 2008
+    protection: owner_occupied_single_family_residence
+    citation: "Cal. Const. Art. I §19(b)"
+    limitation: "Only protects homes, not other property types"
+  
+  blight_for_private: restricted
+  blight_required_for_redevelopment: true
+  redevelopment_note: "CA dissolved redevelopment agencies in 2012 (fiscal reasons), reducing use"
+  
+  private_transfer_restrictions:
+    banned: false
+    limited_protection: true
+    protection_scope: "Owner-occupied single-family residences only"
+  
+  post_kelo_reform_year: 2008
+  reform_type: constitutional
+  reform_scope: limited
+  citation: "Proposition 99"
+
+# Deadline chains
+deadline_chains:
+  - anchor_event: resolution_hearing_scheduled
+    description: Deadlines related to Resolution of Necessity hearing
+    deadlines:
+      - id: owner_notice_of_hearing
+        description: Owner must receive notice of resolution hearing
+        offset_days: 20
+        direction: before_hearing
+        citation: "Cal. Code Civ. Proc. §1245.235"
+        type: service_requirement
+        delivery: [personal_service, certified_mail]
+      - id: offer_before_hearing
+        description: Appraisal-based offer must be made before hearing
+        offset_days: 20
+        direction: before_hearing
+        citation: "Cal. Code Civ. Proc. §1245.230"
+        type: deadline
+
+  - anchor_event: resolution_adopted
+    description: Deadlines after Resolution of Necessity is adopted
+    deadlines:
+      - id: resolution_challenge_deadline
+        description: Owner can challenge resolution via writ of mandate
+        offset_days: 30
+        direction: after
+        citation: "Cal. Code Civ. Proc. §1250.370"
+        type: deadline
+
+  - anchor_event: complaint_filed
+    description: Deadlines after condemnation complaint is filed
+    deadlines:
+      - id: deposit_for_possession
+        description: Government can deposit probable compensation for early possession
+        offset_days: null
+        direction: after
+        citation: "Cal. Code Civ. Proc. §1255.010"
+        type: eligibility
+
+# Triggers
+triggers:
+  - id: ca_resolution_required
+    description: Ensure Resolution of Necessity process is followed
+    match: case.jurisdiction == 'CA' and project.public_entity == true
+    notices:
+      - template_id: ca_resolution_notice
+        delivery: [personal_service, certified_mail]
+        recipients:
+          - owner_primary
+    evidence_hooks:
+      - citation: "Cal. Code Civ. Proc. §1245.210"
+        fields:
+          - resolution.hearing_date
+          - resolution.notice_date
+          - owner.name
+          - parcel.apn
+
+  - id: ca_appraisal_offer
+    description: Generate deadline when appraisal-based offer is made
+    match: case.jurisdiction == 'CA' and events.offer_served is not None
+    deadline_chain: resolution_hearing_scheduled
+    evidence_hooks:
+      - citation: "Cal. Code Civ. Proc. §1245.230"
+        fields:
+          - events.offer_served
+          - offer.total_amount
+          - appraisal.value
+          - appraisal.summary
+
+  - id: ca_business_goodwill
+    description: Trigger business goodwill evaluation if business on property
+    match: case.jurisdiction == 'CA' and parcel.has_business == true
+    notices:
+      - template_id: ca_goodwill_notice
+        delivery: [certified_mail]
+        recipients:
+          - owner_primary
+          - business_owner
+    evidence_hooks:
+      - citation: "Cal. Code Civ. Proc. §1263.510"
+        fields:
+          - business.name
+          - business.years_at_location
+          - business.relocation_feasibility
+
+# Critical periods
+critical_periods:
+  - id: resolution_hearing
+    description: "Resolution of Necessity hearing notice period"
+    citation: "Cal. Code Civ. Proc. §1245.235"
+    warning_days: [10, 5, 2]
+
+  - id: resolution_challenge
+    description: "30-day window to challenge resolution via writ of mandate"
+    citation: "Cal. Code Civ. Proc. §1250.370"
+    warning_days: [14, 7, 3, 1]
+
+# Special California provisions
+special_provisions:
+  - id: resolution_of_necessity
+    description: "Formal resolution with 3 required findings before condemnation"
+    citation: "Cal. Code Civ. Proc. §1245.210"
+    required_findings:
+      - description: "Public project is necessary"
+      - description: "Project is planned to minimize private injury"
+      - description: "Property to be taken is necessary for the project"
+    vote_required: supermajority
+
+  - id: business_goodwill_compensation
+    description: "California uniquely compensates loss of business goodwill"
+    citation: "Cal. Code Civ. Proc. §1263.510"
+    conditions:
+      - "Business conducted on taken property"
+      - "Loss cannot reasonably be avoided by relocating"
+    notes: "Statutory right in addition to property's market value"
+
+  - id: redevelopment_dissolution
+    description: "CA dissolved redevelopment agencies in 2012"
+    year: 2012
+    effect: "Reduced but did not eliminate use of eminent domain for redevelopment"

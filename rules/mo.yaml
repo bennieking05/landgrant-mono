@@ -1,0 +1,291 @@
+# Missouri Eminent Domain Rules
+# Based on Missouri Revised Statutes Chapter 523 and Constitution Art. I §26
+
+version: 1.0.0
+jurisdiction: MO
+extends: base
+maintainer: Alicia
+description: Missouri eminent domain rules - Heritage value bonuses (150%/125%) and strong post-Kelo reforms
+
+citations:
+  primary: "RSMo Ch. 523"
+  constitution: "Mo. Const. Art. I §26"
+  additional:
+    - "RSMo §523.001"  # Definitions
+    - "RSMo §523.039"  # Notice requirements
+    - "RSMo §523.040"  # Good faith offer
+    - "RSMo §523.256"  # Attorney fees
+
+# Initiation Procedure
+# Missouri strengthened notice requirements after 2006
+initiation:
+  landowner_bill_of_rights: false
+  pre_condemnation_offer_required: true
+  appraisal_based_offer: true
+  good_faith_negotiation: true
+  resolution_required: true
+  resolution_type: ordinance_or_resolution
+  public_hearing_required: false
+  
+  # Enhanced notice requirements (2006 reform)
+  notice_of_intent_days: 60  # At least 60 days before filing
+  notice_of_intent_citation: "RSMo §523.039"
+  final_offer_days: 30  # Written final offer at least 30 days before filing
+  final_offer_explanation_required: true  # Must explain how offer was calculated
+  final_offer_citation: "RSMo §523.040"
+  
+  # Quick-take provisions
+  quick_take:
+    available: true
+    type: deposit_and_possession
+    court_approval_required: false
+    deposit_required: true
+    deposit_description: "Commissioners' award can be paid to take possession"
+    citation: "RSMo §523.040"
+    notes: "Either party can request jury trial on damages afterward"
+
+# Compensation Rules
+# Missouri has HERITAGE VALUE BONUSES - unique in the country
+compensation:
+  base: fair_market_value
+  highest_and_best_use: true
+  includes_severance: true
+  
+  # No residence-only multiplier
+  residence_multiplier: null
+  
+  # HERITAGE VALUE BONUSES - unique to Missouri
+  heritage_multiplier:
+    long_term_family:
+      multiplier: 1.50
+      years_required: 50
+      description: "Property owned within same family for 50+ years"
+      citation: "RSMo §523.039"
+    homestead:
+      multiplier: 1.25
+      conditions: "Owner's primary residence (not covered by 50-year rule)"
+      citation: "RSMo §523.039"
+    exceptions:
+      - public_utilities
+  
+  # Business compensation
+  business_goodwill: false
+  business_losses: false
+  lost_profits:
+    compensable: false
+  lost_access: false
+  
+  # Attorney fees - threshold based
+  attorney_fees:
+    automatic: false
+    threshold_based: true
+    threshold_percent: 20
+    threshold_description: "If jury award exceeds commissioners' award by 20%+"
+    citation: "RSMo §523.256"
+  
+  # Relocation
+  relocation_assistance: true
+
+# Owner Rights
+owner_rights:
+  bill_of_rights_document: false
+  
+  # Trial rights
+  jury_trial: true
+  commissioners_panel: three_commissioners
+  commissioners_citation: "Court appoints commissioners to assess damages"
+  jury_after_commissioners: true
+  jury_citation: "Either party can request jury trial de novo after commissioners"
+  
+  # Challenge rights
+  public_use_challenge: true
+  necessity_challenge: true
+  necessity_review_limited: true
+  necessity_review_scope: "Courts limit review to whether statutory procedures followed"
+  
+  # Citizen's right to appeal (2006 reform)
+  citizens_appeal_right: true
+  blight_designation_appeal: true
+  blight_appeal_citation: "2006 reform - owners can appeal blight designations in court"
+  
+  burden_on_condemnor: false
+  clear_and_convincing_standard: false
+  
+  # Notice periods
+  notice_periods:
+    notice_of_intent: 60
+    final_offer: 30
+    exceptions_to_commissioners: 30  # 30 days to file exceptions to award
+
+# Public Use Limitations
+# Missouri had comprehensive post-Kelo changes
+public_use:
+  economic_development_banned: true
+  economic_development_citation: "RSMo §523.271"
+  economic_development_definition: "Cannot condemn solely for economic development purposes"
+  
+  tax_revenue_purpose_banned: true
+  job_creation_alone_insufficient: true
+  
+  blight_for_private: restricted
+  blight_definition_tightened: true
+  blight_proof_standard: preponderance
+  blight_requirement: "Must constitute serious threat to public health/safety"
+  blight_citation: "2006 reform"
+  
+  private_transfer_restrictions:
+    banned: true
+    exception: "Cannot be predominant for private use"
+  
+  post_kelo_reform_year: 2006
+  reform_type: statutory
+  reform_details:
+    - "Heritage value bonuses (150%/125%)"
+    - "60-day notice of intent requirement"
+    - "30-day final offer requirement with explanation"
+    - "Tightened blight definition"
+    - "Citizen's right to appeal blight designations"
+
+# Deadline chains
+deadline_chains:
+  - anchor_event: notice_of_intent_served
+    description: Deadlines triggered when 60-day notice of intent is served
+    deadlines:
+      - id: earliest_filing_date
+        description: Cannot file petition until 60 days after notice
+        offset_days: 60
+        direction: after
+        citation: "RSMo §523.039"
+        type: floor
+
+  - anchor_event: final_offer_served
+    description: Deadlines triggered when final written offer is served
+    deadlines:
+      - id: earliest_filing_after_offer
+        description: Cannot file petition until 30 days after final offer
+        offset_days: 30
+        direction: after
+        citation: "RSMo §523.040"
+        type: floor
+
+  - anchor_event: commissioners_award
+    description: Deadlines after commissioners make their award
+    deadlines:
+      - id: exceptions_deadline
+        description: Either party has 30 days to file exceptions to commissioners' award
+        offset_days: 30
+        direction: after
+        citation: "RSMo §523.050"
+        type: deadline
+      - id: possession_after_deposit
+        description: Condemnor can take possession after depositing award
+        offset_days: 0
+        direction: after
+        citation: "RSMo §523.040"
+        type: eligibility
+
+# Triggers
+triggers:
+  - id: mo_notice_of_intent
+    description: Generate deadline chain when notice of intent is served in Missouri
+    match: case.jurisdiction == 'MO' and events.notice_of_intent_served is not None
+    deadline_chain: notice_of_intent_served
+    notices:
+      - template_id: mo_notice_of_intent
+        delivery: [certified_mail, personal_service]
+        recipients:
+          - owner_primary
+    evidence_hooks:
+      - citation: "RSMo §523.039"
+        fields:
+          - events.notice_of_intent_served
+          - project.description
+          - owner.name
+          - parcel.pin
+
+  - id: mo_final_offer
+    description: Generate deadline chain when final offer is served
+    match: case.jurisdiction == 'MO' and events.final_offer_served is not None
+    deadline_chain: final_offer_served
+    notices:
+      - template_id: mo_final_offer
+        delivery: [certified_mail, personal_service]
+        recipients:
+          - owner_primary
+    evidence_hooks:
+      - citation: "RSMo §523.040"
+        fields:
+          - events.final_offer_served
+          - offer.total_amount
+          - offer.calculation_explanation
+
+  - id: mo_heritage_value_family
+    description: Apply 150% heritage value for 50+ year family-owned property
+    match: case.jurisdiction == 'MO' and parcel.family_ownership_years >= 50
+    evidence_hooks:
+      - citation: "RSMo §523.039"
+        fields:
+          - parcel.family_ownership_years
+          - compensation.base_fmv
+          - compensation.heritage_bonus
+
+  - id: mo_heritage_value_homestead
+    description: Apply 125% heritage value for owner-occupied homestead
+    match: case.jurisdiction == 'MO' and parcel.owner_occupied == true and parcel.family_ownership_years < 50
+    evidence_hooks:
+      - citation: "RSMo §523.039"
+        fields:
+          - parcel.owner_occupied
+          - compensation.base_fmv
+          - compensation.homestead_bonus
+
+# Critical periods
+critical_periods:
+  - id: notice_of_intent_period
+    description: "60-day notice of intent waiting period"
+    citation: "RSMo §523.039"
+    warning_days: [30, 14, 7]
+
+  - id: final_offer_period
+    description: "30-day final offer waiting period"
+    citation: "RSMo §523.040"
+    warning_days: [14, 7, 3]
+
+  - id: commissioners_exceptions
+    description: "30-day window to file exceptions to commissioners' award"
+    citation: "RSMo §523.050"
+    warning_days: [14, 7, 3, 1]
+
+# Special Missouri provisions
+special_provisions:
+  - id: heritage_value_150
+    description: "Property held 50+ years in same family receives 150% of FMV"
+    citation: "RSMo §523.039"
+    multiplier: 1.50
+    conditions:
+      - property_owned_by_same_family_50_years
+    exceptions:
+      - public_utility_takings
+
+  - id: heritage_value_125
+    description: "Owner-occupied homestead (not 50+ years) receives 125% of FMV"
+    citation: "RSMo §523.039"
+    multiplier: 1.25
+    conditions:
+      - owner_occupied
+      - not_covered_by_50_year_rule
+    exceptions:
+      - public_utility_takings
+
+  - id: enhanced_notice_requirements
+    description: "2006 reform requires 60-day notice and 30-day final offer with explanation"
+    citation: "RSMo §523.039, §523.040"
+    requirements:
+      - notice_of_intent_60_days
+      - final_offer_30_days
+      - offer_calculation_explanation
+
+  - id: procedure_compliance_void
+    description: "Failure to follow notice procedures can void the taking"
+    citation: "RSMo §523.039"
+    consequence: "Taking can be voided if condemnor doesn't follow procedures"

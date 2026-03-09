@@ -1,0 +1,67 @@
+{
+  "id": "ca_resolution_notice",
+  "version": "1.0.0",
+  "jurisdiction": "CA",
+  "locale": "en-US",
+  "variables": {
+    "notice_date": {"type": "string", "format": "date", "required": true, "description": "Date notice is issued"},
+    "delivery_method": {"type": "string", "required": true, "enum": ["personal service", "certified mail"], "description": "Method of service"},
+    "condemning_authority_name": {"type": "string", "required": true, "description": "Name of condemning authority"},
+    "condemning_authority_short": {"type": "string", "required": false, "description": "Short name or abbreviation"},
+    "owner_name": {"type": "string", "required": true, "description": "Property owner full name"},
+    "owner_address_line1": {"type": "string", "required": true},
+    "owner_address_city": {"type": "string", "required": true},
+    "owner_address_state": {"type": "string", "required": true},
+    "owner_address_zip": {"type": "string", "required": true},
+    "property_address": {"type": "string", "required": true, "description": "Property street address"},
+    "parcel_apn": {"type": "string", "required": true, "description": "Assessor's Parcel Number"},
+    "parcel_legal_description": {"type": "string", "required": false, "description": "Legal description"},
+    "project_name": {"type": "string", "required": true, "description": "Name of the acquisition project"},
+    "project_purpose": {"type": "string", "required": true, "description": "Purpose of the public project"},
+    "property_description": {"type": "string", "required": true, "description": "Description of property to be acquired"},
+    "property_interest": {"type": "string", "required": true, "description": "Type of interest to be acquired (fee simple, easement, etc.)"},
+    "hearing_date": {"type": "string", "format": "date", "required": true, "description": "Date of Resolution of Necessity hearing"},
+    "hearing_time": {"type": "string", "required": true, "description": "Time of hearing (e.g., 10:00 AM)"},
+    "hearing_location": {"type": "string", "required": true, "description": "Name of hearing venue"},
+    "hearing_address": {"type": "string", "required": true},
+    "hearing_city": {"type": "string", "required": true},
+    "hearing_state": {"type": "string", "required": true, "default": "CA"},
+    "hearing_zip": {"type": "string", "required": true},
+    "land_value": {"type": "number", "required": false, "description": "Appraised land value"},
+    "improvements_value": {"type": "number", "required": false, "description": "Value of improvements"},
+    "total_appraised_value": {"type": "number", "required": false, "description": "Total appraised value"},
+    "offer_amount": {"type": "number", "required": false, "description": "Current offer amount"},
+    "appraisal_enclosed": {"type": "boolean", "required": false, "default": true, "description": "Whether appraisal summary is enclosed"},
+    "contact_name": {"type": "string", "required": true, "description": "Contact person name"},
+    "contact_title": {"type": "string", "required": false},
+    "contact_department": {"type": "string", "required": false},
+    "contact_address": {"type": "string", "required": true},
+    "contact_city": {"type": "string", "required": true},
+    "contact_state": {"type": "string", "required": true, "default": "CA"},
+    "contact_zip": {"type": "string", "required": true},
+    "contact_phone": {"type": "string", "required": true},
+    "contact_email": {"type": "string", "required": false},
+    "signatory_name": {"type": "string", "required": true, "description": "Name of person signing"},
+    "signatory_title": {"type": "string", "required": true}
+  },
+  "tracked_dates": [
+    {"field": "notice_date", "event": "resolution_notice_served", "citation": "Cal. Code Civ. Proc. §1245.235"},
+    {"field": "hearing_date", "event": "resolution_hearing_scheduled", "citation": "Cal. Code Civ. Proc. §1245.235"}
+  ],
+  "deadline_anchors": {
+    "resolution_notice_served": "notice_date",
+    "resolution_hearing": "hearing_date"
+  },
+  "deadlines_generated": [
+    {
+      "id": "min_notice_before_hearing",
+      "description": "Notice must be at least 20 days before hearing",
+      "calculation": "hearing_date - 20 days >= notice_date",
+      "citation": "Cal. Code Civ. Proc. §1245.235"
+    }
+  ],
+  "redactions": ["owner_name", "owner_address_line1"],
+  "privilege": "non_privileged",
+  "classifications": ["binder", "communication", "notice", "hearing"],
+  "notes": "Notice must be served by personal delivery or certified mail at least 20 days before the hearing"
+}

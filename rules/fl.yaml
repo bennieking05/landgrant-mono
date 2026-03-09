@@ -1,0 +1,236 @@
+# Florida Eminent Domain Rules
+# Based on Florida Statutes Chapter 73 and Constitution Art. X §6
+
+version: 1.0.0
+jurisdiction: FL
+extends: base
+maintainer: Alicia
+description: Florida eminent domain procedural rules - uniquely requires "full compensation"
+
+citations:
+  primary: "Fla. Stat. Ch. 73"
+  constitution: "Fla. Const. Art. X §6(a)"
+  additional:
+    - "Fla. Stat. §73.015"
+    - "Fla. Stat. §73.014"
+    - "Fla. Stat. §73.071"
+    - "Fla. Stat. Ch. 74"  # Quick-take
+
+# Initiation Procedure
+# Florida requires good-faith presuit negotiation
+initiation:
+  landowner_bill_of_rights: true
+  bill_of_rights_citation: "Florida Landowner Bill of Rights"
+  pre_condemnation_offer_required: true
+  presuit_negotiation_required: true
+  presuit_citation: "Fla. Stat. §73.015"
+  appraisal_based_offer: true
+  good_faith_negotiation: true
+  resolution_required: false
+  public_hearing_required: false
+  
+  # Timeline requirements
+  offer_notice_days: 30  # Notice of Order of Taking hearing
+  
+  # Quick-take provisions (Chapter 74)
+  quick_take:
+    available: true
+    type: order_of_taking
+    court_approval_required: true
+    deposit_required: true
+    citation: "Fla. Stat. Ch. 74"
+    hearing_required: true
+    hearing_requirements:
+      - public_purpose
+      - reasonable_necessity
+      - valid_appraisal_estimate
+    notes: "Upon entry of order and deposit, title transfers; owner can withdraw deposit immediately"
+
+# Compensation Rules
+# Florida's Constitution uniquely guarantees "full compensation"
+compensation:
+  base: full_compensation
+  constitutional_standard: "full compensation"
+  constitutional_citation: "Fla. Const. Art. X §6(a)"
+  highest_and_best_use: true
+  includes_severance: true
+  severance_citation: "Fla. Stat. §73.071"
+  
+  # Florida includes "stigma" damages in severance
+  stigma_damages: true
+  stigma_description: "Fear or perception affecting value can be compensated"
+  
+  # No multipliers
+  residence_multiplier: null
+  heritage_multiplier: null
+  
+  # Business compensation (limited)
+  business_goodwill: false
+  business_losses:
+    compensable: true
+    conditions: "Partial takings of certain businesses (5+ years on property)"
+    citation: "Fla. Stat. §73.071(3)(b)"
+  lost_profits:
+    compensable: false
+  lost_access: false
+  
+  # Attorney fees - AUTOMATIC in Florida
+  attorney_fees:
+    automatic: true
+    includes_expert_fees: true
+    includes_appraisal_fees: true
+    includes_costs: true
+    paid_by_condemnor: true
+    sliding_scale: true
+    sliding_scale_description: "Calculated on benefit achieved for owner"
+    does_not_reduce_award: true
+    citation: "Fla. Stat. §73.092"
+    appellate_fees: true
+    appellate_citation: "Owner entitled to appellate fees if they prevail"
+  
+  # Relocation
+  relocation_assistance: true
+  moving_costs: true
+  incidental_damages: true
+
+# Owner Rights
+owner_rights:
+  bill_of_rights_document: true
+  
+  # Trial rights
+  jury_trial: true
+  jury_trial_absolute: true
+  jury_trial_citation: "Absolute right to jury trial on compensation"
+  bench_trial: false
+  commissioners_panel: null  # No commissioners in FL; direct to jury
+  
+  # Order of Taking hearing
+  order_of_taking_hearing: true
+  hearing_rights:
+    - contest_public_purpose
+    - contest_necessity
+  hearing_notes: "Overturning a taking is rare if statutory steps met"
+  
+  # Challenge rights
+  public_use_challenge: true
+  necessity_challenge: true
+  burden_on_condemnor: false
+  clear_and_convincing_standard: false
+  
+  # Notice periods
+  notice_periods:
+    order_of_taking_hearing: 30  # At least 30 days notice of hearing
+    appraisal_disclosure: "Prior to hearing"
+    objection_window_days: null  # Can litigate without risking fees
+
+# Public Use Limitations
+# Florida has one of the STRONGEST prohibitions on private takings
+public_use:
+  economic_development_banned: true
+  tax_revenue_purpose_banned: true
+  
+  # Florida even eliminated blight as justification
+  blight_for_private: prohibited
+  blight_elimination_banned: true
+  blight_citation: "Fla. Stat. §73.014"
+  blight_description: "Prohibits use of eminent domain to eliminate nuisance, slum, or blight conditions for private redevelopment"
+  
+  private_transfer_restrictions:
+    banned: true
+    exceptions:
+      - "private_utility_companies_for_corridors"
+  
+  post_kelo_reform_year: 2006
+  reform_type: both
+  reform_details:
+    - type: statutory
+      citation: "HB 1567"
+      year: 2006
+    - type: constitutional
+      citation: "Constitutional Amendment"
+      year: 2006
+
+# Deadline chains
+deadline_chains:
+  - anchor_event: petition_filed
+    description: Deadlines triggered when condemnation petition is filed
+    deadlines:
+      - id: order_of_taking_hearing_notice
+        description: Notice of Order of Taking hearing must be given
+        offset_days: 30
+        direction: before_hearing
+        citation: "Fla. Stat. §74.031"
+        type: service_requirement
+
+  - anchor_event: order_of_taking_entered
+    description: Deadlines after Order of Taking is entered
+    deadlines:
+      - id: deposit_withdrawal_available
+        description: Owner can withdraw deposited funds immediately
+        offset_days: 0
+        direction: after
+        citation: "Fla. Stat. Ch. 74"
+        type: eligibility
+      - id: compensation_trial_scheduling
+        description: Jury trial on full compensation to be scheduled
+        offset_days: null
+        direction: after
+        citation: "Fla. Stat. §73.071"
+        type: deadline
+        notes: "No specific deadline; owner can litigate compensation while having access to deposit"
+
+# Triggers
+triggers:
+  - id: fl_presuit_negotiation
+    description: Ensure good-faith presuit negotiation before filing
+    match: case.jurisdiction == 'FL' and events.offer_rejected is not None
+    notices:
+      - template_id: fl_offer
+        delivery: [certified_mail, personal_service]
+        recipients:
+          - owner_primary
+    evidence_hooks:
+      - citation: "Fla. Stat. §73.015"
+        fields:
+          - events.offer_served
+          - events.offer_rejected
+          - offer.total_amount
+          - negotiation.attempts
+
+  - id: fl_order_of_taking
+    description: Generate requirements when Order of Taking proceeding begins
+    match: case.jurisdiction == 'FL' and events.petition_filed is not None
+    deadline_chain: petition_filed
+    notices:
+      - template_id: fl_order_of_taking_notice
+        delivery: [certified_mail, personal_service]
+        recipients:
+          - owner_primary
+    evidence_hooks:
+      - citation: "Fla. Stat. Ch. 74"
+        fields:
+          - events.petition_filed
+          - appraisal.value
+          - deposit.amount
+
+# Critical periods
+critical_periods:
+  - id: order_of_taking_hearing
+    description: "Order of Taking hearing notice period"
+    citation: "Fla. Stat. §74.031"
+    warning_days: [14, 7, 3]
+
+# Special Florida provisions
+special_provisions:
+  - id: full_compensation_standard
+    description: "Florida's unique 'full compensation' standard makes owner whole"
+    citation: "Fla. Const. Art. X §6(a)"
+    includes:
+      - fair_market_value
+      - severance_damages
+      - attorney_fees
+      - expert_fees
+      - appraisal_fees
+      - court_costs
+      - moving_costs
+      - incidental_damages

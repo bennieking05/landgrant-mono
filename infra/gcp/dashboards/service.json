@@ -1,0 +1,32 @@
+{
+  "displayName": "LandRight Attorney Workflows",
+  "gridLayout": {
+    "columns": 2,
+    "widgets": [
+      {
+        "title": "Binder Export Errors",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "prometheusQuery": "sum(rate(binder_export_failures[5m]))"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "title": "Docket Webhook Latency",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "prometheusQuery": "histogram_quantile(0.95, rate(docket_webhook_latency_seconds_bucket[5m]))"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

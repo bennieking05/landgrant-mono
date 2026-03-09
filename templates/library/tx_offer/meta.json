@@ -1,0 +1,49 @@
+{
+  "id": "tx_offer",
+  "version": "1.0.0",
+  "jurisdiction": "TX",
+  "locale": "en-US",
+  "variables": {
+    "condemning_authority_name": {"type": "string", "required": true, "description": "Name of the condemning authority"},
+    "condemning_authority_short": {"type": "string", "required": false, "description": "Short name or abbreviation"},
+    "owner_name": {"type": "string", "required": true, "description": "Property owner full name"},
+    "owner_address_line1": {"type": "string", "required": true, "description": "Owner street address"},
+    "owner_address_city": {"type": "string", "required": true},
+    "owner_address_state": {"type": "string", "required": true},
+    "owner_address_zip": {"type": "string", "required": true},
+    "property_address": {"type": "string", "required": true, "description": "Property street address"},
+    "project_name": {"type": "string", "required": true, "description": "Name of the acquisition project"},
+    "parcel_pin": {"type": "string", "required": true, "description": "Parcel/Tax ID number"},
+    "parcel_legal_description": {"type": "string", "required": false, "description": "Legal description of property"},
+    "land_value": {"type": "number", "required": true, "description": "Appraised land value"},
+    "improvements_value": {"type": "number", "required": false, "description": "Value of improvements"},
+    "severance_damages": {"type": "number", "required": false, "description": "Damages to remainder"},
+    "temporary_easement_amount": {"type": "number", "required": false, "description": "Temporary easement compensation"},
+    "total_offer_amount": {"type": "number", "required": true, "description": "Total compensation offered"},
+    "property_interest_description": {"type": "string", "required": true, "description": "Description of property interests to be acquired"},
+    "initial_offer_wait_days": {"type": "integer", "required": true, "default": 30, "description": "Days before final offer can be made (Tex. Prop. Code §21.0113)"},
+    "service_date": {"type": "string", "format": "date", "required": true, "description": "Date offer is served to owner"},
+    "appraisal_date": {"type": "string", "format": "date", "required": true, "description": "Date of appraisal"},
+    "appraisal_enclosed": {"type": "boolean", "required": false, "default": true, "description": "Whether appraisal copy is enclosed"},
+    "appraiser_name": {"type": "string", "required": true, "description": "Name of appraiser"},
+    "appraiser_certification": {"type": "string", "required": false, "description": "Appraiser certification (e.g., MAI, SRA)"},
+    "contact_name": {"type": "string", "required": true, "description": "Contact person name"},
+    "contact_title": {"type": "string", "required": false},
+    "contact_company": {"type": "string", "required": true},
+    "contact_address": {"type": "string", "required": true},
+    "contact_phone": {"type": "string", "required": true},
+    "contact_email": {"type": "string", "required": false},
+    "signatory_name": {"type": "string", "required": true, "description": "Name of person signing"},
+    "signatory_title": {"type": "string", "required": true}
+  },
+  "tracked_dates": [
+    {"field": "service_date", "event": "offer_served", "citation": "Tex. Prop. Code §21.0113"},
+    {"field": "appraisal_date", "event": "appraisal_completed", "citation": "Tex. Prop. Code §21.0111"}
+  ],
+  "deadline_anchors": {
+    "offer_served": "service_date"
+  },
+  "redactions": ["owner_name", "owner_address_line1", "contact_phone", "contact_email"],
+  "privilege": "non_privileged",
+  "classifications": ["binder", "communication", "offer"]
+}

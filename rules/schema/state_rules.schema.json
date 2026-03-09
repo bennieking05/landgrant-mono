@@ -1,0 +1,447 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://landright.io/schemas/state_rules.schema.json",
+  "title": "State Eminent Domain Rules",
+  "description": "Schema for state-specific eminent domain rules that extend base.yaml",
+  "type": "object",
+  "required": ["version", "jurisdiction"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the rules file"
+    },
+    "jurisdiction": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$",
+      "description": "Two-letter state code (e.g., TX, CA, FL)"
+    },
+    "extends": {
+      "type": "string",
+      "enum": ["base"],
+      "description": "Base rules file to extend"
+    },
+    "maintainer": {
+      "type": "string",
+      "description": "Person responsible for maintaining this rules file"
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of jurisdiction-specific rules"
+    },
+    "citations": {
+      "type": "object",
+      "properties": {
+        "primary": {
+          "type": "string",
+          "description": "Primary statutory citation"
+        },
+        "constitution": {
+          "type": "string",
+          "description": "Constitutional provision citation"
+        },
+        "additional": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional relevant citations"
+        }
+      }
+    },
+    "initiation": {
+      "type": "object",
+      "description": "Pre-condemnation and initiation procedure requirements",
+      "properties": {
+        "landowner_bill_of_rights": {
+          "type": "boolean",
+          "description": "Whether state requires a Landowner Bill of Rights document"
+        },
+        "pre_condemnation_offer_required": {
+          "type": "boolean"
+        },
+        "appraisal_based_offer": {
+          "type": "boolean"
+        },
+        "good_faith_negotiation": {
+          "type": "boolean"
+        },
+        "resolution_required": {
+          "type": "boolean",
+          "description": "Whether a Resolution of Necessity is required"
+        },
+        "public_hearing_required": {
+          "type": "boolean"
+        },
+        "initial_offer_days": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Days owner has to respond to initial offer"
+        },
+        "final_offer_days": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Days owner has to respond to final offer"
+        },
+        "intent_notice_days": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Days notice required before filing"
+        },
+        "quick_take": {
+          "type": "object",
+          "properties": {
+            "available": { "type": "boolean" },
+            "type": {
+              "type": "string",
+              "enum": [
+                "deposit_and_possession",
+                "declaration_of_taking",
+                "order_of_taking",
+                "certificate_of_take",
+                null
+              ]
+            },
+            "court_approval_required": { "type": "boolean" },
+            "deposit_required": { "type": "boolean" },
+            "citation": { "type": "string" }
+          }
+        }
+      }
+    },
+    "compensation": {
+      "type": "object",
+      "description": "Compensation and valuation rules",
+      "properties": {
+        "base": {
+          "type": "string",
+          "enum": ["fair_market_value", "full_compensation"],
+          "description": "Base compensation standard"
+        },
+        "highest_and_best_use": {
+          "type": "boolean"
+        },
+        "includes_severance": {
+          "type": "boolean",
+          "description": "Whether severance damages are included"
+        },
+        "residence_multiplier": {
+          "type": ["number", "null"],
+          "minimum": 1.0,
+          "description": "Multiplier for owner-occupied residence (e.g., 1.25 for MI)"
+        },
+        "heritage_multiplier": {
+          "type": "object",
+          "properties": {
+            "long_term_family": {
+              "type": ["number", "null"],
+              "description": "Multiplier for property held 50+ years in same family (MO: 1.50)"
+            },
+            "homestead": {
+              "type": ["number", "null"],
+              "description": "Multiplier for homestead property (MO: 1.25)"
+            }
+          }
+        },
+        "business_goodwill": {
+          "type": "boolean",
+          "description": "Whether business goodwill is compensable (CA: true)"
+        },
+        "business_losses": {
+          "type": "boolean",
+          "description": "Whether business interruption losses are compensable"
+        },
+        "lost_profits": {
+          "type": "object",
+          "properties": {
+            "compensable": { "type": "boolean" },
+            "max_years": {
+              "type": ["integer", "null"],
+              "description": "Maximum years of lost profits (VA: 3)"
+            }
+          }
+        },
+        "lost_access": {
+          "type": "boolean",
+          "description": "Whether loss of access is compensable (VA: true)"
+        },
+        "attorney_fees": {
+          "type": "object",
+          "properties": {
+            "automatic": {
+              "type": "boolean",
+              "description": "Whether fees are automatically awarded (FL: true)"
+            },
+            "threshold_based": {
+              "type": "boolean",
+              "description": "Whether fees depend on award exceeding offer by threshold"
+            },
+            "threshold_percent": {
+              "type": ["number", "null"],
+              "description": "Percent above offer that triggers fee award"
+            },
+            "awarded_if": {
+              "type": "string",
+              "description": "Condition for fee award (e.g., 'award_exceeds_offer_by_25_percent')"
+            },
+            "citation": { "type": "string" }
+          }
+        },
+        "relocation_assistance": {
+          "type": "boolean"
+        },
+        "replacement_housing": {
+          "type": "object",
+          "properties": {
+            "provided": { "type": "boolean" },
+            "max_amount": { "type": ["number", "null"] }
+          }
+        }
+      }
+    },
+    "owner_rights": {
+      "type": "object",
+      "description": "Property owner rights and protections",
+      "properties": {
+        "bill_of_rights_document": {
+          "type": "boolean"
+        },
+        "jury_trial": {
+          "type": "boolean",
+          "description": "Whether jury trial on compensation is available"
+        },
+        "bench_trial": {
+          "type": "boolean",
+          "description": "Whether compensation determined by judge (e.g., MA)"
+        },
+        "commissioners_panel": {
+          "type": "string",
+          "enum": [
+            "three_commissioners",
+            "special_commissioners",
+            "board_of_view",
+            "jury_of_view",
+            "appraisers",
+            null
+          ]
+        },
+        "public_use_challenge": {
+          "type": "boolean",
+          "description": "Whether owner can challenge public use in court"
+        },
+        "public_use_challenge_days": {
+          "type": ["integer", "null"],
+          "description": "Days to file public use challenge (e.g., NY: 30)"
+        },
+        "necessity_challenge": {
+          "type": "boolean"
+        },
+        "burden_on_condemnor": {
+          "type": "boolean",
+          "description": "Whether burden of proving public use is on condemnor"
+        },
+        "clear_and_convincing_standard": {
+          "type": "boolean",
+          "description": "Whether clear and convincing evidence required (NV, MI blight)"
+        },
+        "notice_periods": {
+          "type": "object",
+          "properties": {
+            "hearing_notice_days": { "type": "integer" },
+            "objection_window_days": { "type": "integer" },
+            "appeal_deadline_days": { "type": "integer" },
+            "landowner_bill_of_rights": {
+              "type": ["integer", "null"],
+              "description": "Days before final offer to provide bill of rights (TX: 7)"
+            },
+            "final_offer_consideration": {
+              "type": ["integer", "null"],
+              "description": "Days to consider final offer"
+            }
+          }
+        }
+      }
+    },
+    "public_use": {
+      "type": "object",
+      "description": "Public use limitations and post-Kelo reforms",
+      "properties": {
+        "economic_development_banned": {
+          "type": "boolean",
+          "description": "Whether takings for economic development are prohibited"
+        },
+        "tax_revenue_purpose_banned": {
+          "type": "boolean",
+          "description": "Whether takings to increase tax revenue are prohibited"
+        },
+        "blight_for_private": {
+          "type": "string",
+          "enum": ["allowed", "restricted", "prohibited"],
+          "description": "Whether blight can justify private transfer"
+        },
+        "blight_proof_standard": {
+          "type": "string",
+          "enum": ["preponderance", "clear_and_convincing"]
+        },
+        "blight_parcel_specific": {
+          "type": "boolean",
+          "description": "Whether blight must be proven for each parcel"
+        },
+        "private_transfer_restrictions": {
+          "type": "object",
+          "properties": {
+            "banned": { "type": "boolean" },
+            "moratorium_years": {
+              "type": ["integer", "null"],
+              "description": "Years before property can be transferred to private party (MS: 10)"
+            }
+          }
+        },
+        "post_kelo_reform_year": {
+          "type": ["integer", "null"]
+        },
+        "reform_type": {
+          "type": "string",
+          "enum": ["statutory", "constitutional", "both", "court_decision", null]
+        },
+        "citation": { "type": "string" }
+      }
+    },
+    "deadline_chains": {
+      "type": "array",
+      "description": "Statutory deadline chains anchored to procedural events",
+      "items": {
+        "type": "object",
+        "required": ["anchor_event", "deadlines"],
+        "properties": {
+          "anchor_event": { "type": "string" },
+          "description": { "type": "string" },
+          "deadlines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "offset_days", "citation"],
+              "properties": {
+                "id": { "type": "string" },
+                "description": { "type": "string" },
+                "offset_days": { "type": "integer" },
+                "direction": {
+                  "type": "string",
+                  "enum": ["after", "before", "before_hearing", "after_hearing"]
+                },
+                "citation": { "type": "string" },
+                "type": {
+                  "type": "string",
+                  "enum": ["deadline", "floor", "eligibility", "service_requirement"]
+                },
+                "extendable": { "type": "boolean" },
+                "max_extension_days": { "type": "integer" },
+                "notes": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "triggers": {
+      "type": "array",
+      "description": "Triggers for automatic deadline generation and notifications",
+      "items": {
+        "type": "object",
+        "required": ["id", "match"],
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "match": {
+            "type": "string",
+            "description": "Expression evaluated against case/parcel data"
+          },
+          "deadline_chain": { "type": "string" },
+          "deadlines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "offset_days": { "type": "integer" },
+                "citation": { "type": "string" }
+              }
+            }
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "template_id": { "type": "string" },
+                "delivery": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "recipients": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "fallback_delivery": { "type": "string" },
+                "fallback_citation": { "type": "string" }
+              }
+            }
+          },
+          "offers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "minimum_percent_of_appraisal": { "type": "number" },
+                "quick_take_formula": { "type": "string" },
+                "deposit_account": { "type": "string" }
+              }
+            }
+          },
+          "evidence_hooks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "citation": { "type": "string" },
+                "fields": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "critical_periods": {
+      "type": "array",
+      "description": "Critical statutory periods requiring warnings",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "citation": { "type": "string" },
+          "warning_days": {
+            "type": "array",
+            "items": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "payment_rules": {
+      "type": "array",
+      "description": "Special payment election rules",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "citation": { "type": "string" },
+          "threshold_amount": { "type": "number" },
+          "max_payment_years": { "type": "integer" },
+          "includes_interest": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "in_offer",
+  "version": "1.0.0",
+  "jurisdiction": "IN",
+  "locale": "en-US",
+  "variables": {
+    "condemning_authority_name": {"type": "string", "required": true, "description": "Name of the condemning authority"},
+    "condemning_authority_short": {"type": "string", "required": false, "description": "Short name or abbreviation"},
+    "owner_name": {"type": "string", "required": true, "description": "Property owner full name"},
+    "owner_address_line1": {"type": "string", "required": true, "description": "Owner street address"},
+    "owner_address_city": {"type": "string", "required": true},
+    "owner_address_state": {"type": "string", "required": true},
+    "owner_address_zip": {"type": "string", "required": true},
+    "project_name": {"type": "string", "required": true, "description": "Name of the acquisition project"},
+    "parcel_pin": {"type": "string", "required": true, "description": "State/county PIN identifier"},
+    "parcel_local_number": {"type": "string", "required": false, "description": "Local parcel number if different"},
+    "easement_type": {"type": "string", "required": true, "description": "Type of interest being acquired (permanent easement, fee simple, etc.)"},
+    "easement_purpose": {"type": "string", "required": true, "description": "Purpose description (e.g., transmission of gas through pipelines)"},
+    "permanent_easement_amount": {"type": "number", "required": true, "description": "Offer amount for permanent easement"},
+    "temporary_workspace_amount": {"type": "number", "required": false, "description": "Offer amount for temporary construction workspace"},
+    "total_offer_amount": {"type": "number", "required": true, "description": "Total compensation offered"},
+    "appraisal_date": {"type": "string", "format": "date", "required": true, "description": "Date of appraisal on which offer is based"},
+    "service_date": {"type": "string", "format": "date", "required": true, "description": "Date offer is served to owner"},
+    "response_window_days": {"type": "integer", "required": true, "default": 30, "description": "Days owner has to accept or reject (IC 32-24-1-5)"},
+    "payment_window_days": {"type": "integer", "required": false, "default": 90, "description": "Days until payment after acceptance"},
+    "possession_window_days": {"type": "integer", "required": false, "default": 30, "description": "Days after payment until possession required"},
+    "contact_name": {"type": "string", "required": true, "description": "Contact person name"},
+    "contact_title": {"type": "string", "required": false},
+    "contact_company": {"type": "string", "required": false},
+    "contact_address": {"type": "string", "required": true},
+    "contact_phone": {"type": "string", "required": true},
+    "signatory_name": {"type": "string", "required": true, "description": "Name of person signing on behalf of authority"},
+    "signatory_title": {"type": "string", "required": true}
+  },
+  "tracked_dates": [
+    {"field": "service_date", "event": "offer_served", "citation": "IC 32-24-1-5"},
+    {"field": "appraisal_date", "event": "appraisal_completed", "citation": "IC 32-24-1-3"}
+  ],
+  "deadline_anchors": {
+    "offer_served": "service_date"
+  },
+  "redactions": ["owner_name", "owner_address_line1"],
+  "privilege": "non_privileged",
+  "classifications": ["binder", "communication", "offer"]
+}

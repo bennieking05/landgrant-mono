@@ -1,0 +1,220 @@
+# Texas Eminent Domain Rules
+# Based on Texas Property Code Chapter 21 and Constitution Art. I §17
+
+version: 1.0.0
+jurisdiction: TX
+extends: base
+maintainer: Alicia
+description: Texas eminent domain procedural rules per Tex. Prop. Code Ch. 21
+
+citations:
+  primary: "Tex. Prop. Code Ch. 21"
+  constitution: "Tex. Const. Art. I §17"
+  additional:
+    - "Tex. Gov't Code Ch. 2206"
+    - "Tex. Prop. Code §21.0113"
+    - "Tex. Prop. Code §21.0114"
+
+# Initiation Procedure
+# Texas has one of the most detailed processes with Landowner's Bill of Rights
+initiation:
+  landowner_bill_of_rights: true
+  bill_of_rights_citation: "Tex. Prop. Code §21.0112"
+  pre_condemnation_offer_required: true
+  appraisal_based_offer: true
+  good_faith_negotiation: true
+  resolution_required: false
+  public_hearing_required: false
+  
+  # Timeline requirements
+  initial_offer_days: 30  # Wait at least 30 days after initial offer
+  final_offer_days: 14    # Owner has 14 days to consider final offer
+  bill_of_rights_notice_days: 7  # Provide bill of rights at least 7 days before final offer
+  
+  # Quick-take provisions
+  quick_take:
+    available: true
+    type: deposit_and_possession
+    court_approval_required: false  # Can take after commissioners' award
+    deposit_required: true
+    citation: "Tex. Prop. Code §21.021"
+    notes: "Condemnor can deposit awarded amount and take possession after commissioners' award, even if objections filed"
+
+# Compensation Rules
+# Texas defines "adequate compensation" as FMV plus damage to remainder
+compensation:
+  base: fair_market_value
+  constitutional_term: "adequate compensation"
+  highest_and_best_use: true
+  includes_severance: true
+  severance_citation: "Tex. Prop. Code §21.042"
+  
+  # No multipliers in Texas
+  residence_multiplier: null
+  heritage_multiplier: null
+  
+  # Business compensation
+  business_goodwill: false
+  business_losses: false  # Unless affects real property value
+  lost_profits:
+    compensable: false
+  lost_access: false
+  
+  # Attorney fees
+  attorney_fees:
+    automatic: false
+    threshold_based: false
+    awarded_if: "condemnor_lacks_authority_or_fails_procedure"
+    notes: "2011 amendments strengthened fee recovery if entity abuses process"
+    citation: "Tex. Prop. Code §21.019"
+  
+  # Relocation
+  relocation_assistance: true
+  relocation_citation: "Texas Relocation Assistance Act"
+
+# Owner Rights
+owner_rights:
+  bill_of_rights_document: true
+  
+  # Trial rights
+  jury_trial: true
+  bench_trial: false
+  commissioners_panel: special_commissioners
+  commissioners_description: "Three local landowners appointed by court"
+  
+  # Challenge rights
+  public_use_challenge: true
+  necessity_challenge: true
+  burden_on_condemnor: false  # But 2009/2015 reforms narrowed public use
+  clear_and_convincing_standard: false
+  
+  # Notice periods
+  notice_periods:
+    hearing_notice_days: null  # No specific hearing required
+    objection_window_days: null  # Object to commissioners' award to get jury trial
+    appeal_deadline_days: null
+    landowner_bill_of_rights: 7
+    final_offer_consideration: 14
+    initial_offer_wait: 30
+
+# Public Use Limitations
+# Texas has strong post-Kelo reforms
+public_use:
+  economic_development_banned: true
+  tax_revenue_purpose_banned: true
+  blight_for_private: restricted
+  blight_proof_standard: preponderance
+  blight_parcel_specific: false
+  blight_notes: "Cannot designate area blighted just for economic development"
+  
+  private_transfer_restrictions:
+    banned: true
+    exceptions:
+      - "genuine_blight_clearance"
+      - "common_carriers"
+  
+  post_kelo_reform_year: 2005
+  additional_reforms:
+    - year: 2007
+      description: "Statutory tightening of public use definition"
+    - year: 2009
+      description: "Constitutional amendment (Art I §17) entrenching protections"
+  reform_type: both
+  citation: "Tex. Gov't Code §2206.001"
+
+# Deadline chains for procedural events
+deadline_chains:
+  - anchor_event: offer_served
+    description: Deadlines triggered when initial written offer is served
+    deadlines:
+      - id: initial_offer
+        description: Minimum wait period after initial offer before final offer
+        offset_days: 30
+        direction: after
+        citation: "Tex. Prop. Code §21.0113"
+        type: floor
+
+  - anchor_event: final_offer_served
+    description: Deadlines triggered when final offer is served
+    deadlines:
+      - id: final_offer_response
+        description: Owner consideration period for final offer
+        offset_days: 14
+        direction: after
+        citation: "Tex. Prop. Code §21.0113"
+        type: floor
+
+  - anchor_event: commissioners_award
+    description: Deadlines after special commissioners make their award
+    deadlines:
+      - id: commissioners_objection
+        description: Period to file objections to commissioners' award for jury trial
+        offset_days: 20
+        direction: after
+        citation: "Tex. Prop. Code §21.018"
+        type: deadline
+
+# Triggers for automatic deadline generation
+triggers:
+  - id: tx_valuation_threshold
+    description: Require legal review when parcel value exceeds statutory limits or dispute escalates
+    match: parcel.assessed_value > 250000 or case.dispute_level == 'HIGH'
+    deadlines:
+      - id: initial_offer
+        offset_days: 30
+        citation: "Tex. Prop. Code §21.0113"
+      - id: good_faith_meeting
+        offset_days: 45
+        citation: "Tex. Prop. Code §21.0114"
+    notices:
+      - template_id: tx_offer
+        delivery: [certified_mail, portal]
+        recipients:
+          - owner_primary
+          - lienholders
+    offers:
+      - minimum_percent_of_appraisal: 1.0
+        quick_take_formula: appraisal_value * 1.1
+        deposit_account: "state_treasury"
+    evidence_hooks:
+      - citation: "Tex. Prop. Code §21.0113(d)"
+        fields:
+          - parcel.assessed_value
+          - appraisal.summary
+          - comms.last_contact_at
+
+  - id: tx_offer_served
+    description: Generate deadline chain when offer is served in Texas
+    match: case.jurisdiction == 'TX' and events.offer_served is not None
+    deadline_chain: offer_served
+    notices:
+      - template_id: tx_bill_of_rights
+        delivery: [certified_mail, personal_service]
+        recipients:
+          - owner_primary
+    evidence_hooks:
+      - citation: "Tex. Prop. Code §21.0112"
+        fields:
+          - events.offer_served
+          - offer.total_amount
+          - owner.name
+          - parcel.pin
+
+# Critical period warnings
+critical_periods:
+  - id: final_offer_window
+    description: "14-day final offer consideration period"
+    citation: "Tex. Prop. Code §21.0113"
+    warning_days: [7, 3, 1]
+
+  - id: commissioners_objection_window
+    description: "20-day period to object to commissioners' award"
+    citation: "Tex. Prop. Code §21.018"
+    warning_days: [10, 5, 2]
+
+# Filing deadline
+deadlines:
+  - id: filing_deadline
+    description: Petition must be filed within 60 days after final offer rejection
+    offset_days: 60
+    citation: "Tex. Prop. Code §21.012"

@@ -1,0 +1,281 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://landright.io/schemas/offer_template.schema.json",
+  "title": "Offer Letter Template Variables",
+  "description": "Schema for all possible variables in offer letter templates across jurisdictions",
+  "type": "object",
+  "required": [
+    "jurisdiction",
+    "offer_type",
+    "owner_name",
+    "parcel_id",
+    "project_name",
+    "total_offer_amount",
+    "appraisal_date",
+    "condemning_authority_name",
+    "signatory_name",
+    "signatory_title",
+    "contact_name",
+    "contact_phone"
+  ],
+  "properties": {
+    "jurisdiction": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$",
+      "description": "Two-letter state code"
+    },
+    "offer_type": {
+      "type": "string",
+      "enum": ["initial_offer", "final_offer", "revised_offer"],
+      "description": "Type of offer being made"
+    },
+    "offer_type_title": {
+      "type": "string",
+      "description": "Human-readable offer type title (e.g., 'Initial Offer Letter')"
+    },
+    "formatted_date": {
+      "type": "string",
+      "description": "Formatted date of the letter"
+    },
+    "condemning_authority_name": {
+      "type": "string",
+      "description": "Full name of the condemning authority"
+    },
+    "condemning_authority_short": {
+      "type": "string",
+      "description": "Short name or abbreviation of condemning authority"
+    },
+    "owner_name": {
+      "type": "string",
+      "description": "Property owner's full name"
+    },
+    "owner_salutation": {
+      "type": "string",
+      "description": "Salutation (Mr., Ms., Dr., etc.)"
+    },
+    "owner_address_line1": {
+      "type": "string",
+      "description": "Owner's street address"
+    },
+    "owner_address_line2": {
+      "type": "string",
+      "description": "Owner's address line 2 (apt, suite, etc.)"
+    },
+    "owner_address_city": {
+      "type": "string"
+    },
+    "owner_address_state": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "owner_address_zip": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string",
+      "description": "Name of the acquisition project"
+    },
+    "parcel_id": {
+      "type": "string",
+      "description": "State/county PIN or parcel identifier"
+    },
+    "parcel_local_number": {
+      "type": "string",
+      "description": "Local parcel number if different from PIN"
+    },
+    "legal_description": {
+      "type": "string",
+      "description": "Legal description of the property"
+    },
+    "easement_type": {
+      "type": "string",
+      "description": "Type of interest being acquired (permanent easement, fee simple, etc.)"
+    },
+    "easement_purpose": {
+      "type": "string",
+      "description": "Purpose description (e.g., 'transmission of gas through pipelines')"
+    },
+    "appraisal_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of appraisal on which offer is based"
+    },
+    "permanent_easement_amount": {
+      "type": "number",
+      "description": "Offer amount for permanent easement"
+    },
+    "temporary_workspace_amount": {
+      "type": "number",
+      "description": "Offer amount for temporary construction workspace"
+    },
+    "severance_damages_amount": {
+      "type": "number",
+      "description": "Amount for damage to remaining property"
+    },
+    "residence_multiplier": {
+      "type": "number",
+      "description": "Multiplier applied (e.g., 1.25 for MI)"
+    },
+    "residence_multiplier_amount": {
+      "type": "number",
+      "description": "Additional amount from residence multiplier"
+    },
+    "heritage_bonus_amount": {
+      "type": "number",
+      "description": "Heritage value bonus amount (MO)"
+    },
+    "total_offer_amount": {
+      "type": "number",
+      "description": "Total compensation offered"
+    },
+    "includes_severance_damages": {
+      "type": "boolean",
+      "description": "Whether severance damages are included in offer"
+    },
+    "service_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date offer is served to owner"
+    },
+    "response_window_days": {
+      "type": "integer",
+      "description": "Days owner has to respond"
+    },
+    "jury_trial_available": {
+      "type": "boolean",
+      "description": "Whether jury trial is available for compensation"
+    },
+    "public_use_challenge_available": {
+      "type": "boolean",
+      "description": "Whether owner can challenge public use"
+    },
+    "contact_name": {
+      "type": "string",
+      "description": "Contact person name"
+    },
+    "contact_title": {
+      "type": "string"
+    },
+    "contact_company": {
+      "type": "string"
+    },
+    "contact_address": {
+      "type": "string"
+    },
+    "contact_phone": {
+      "type": "string"
+    },
+    "contact_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "signatory_name": {
+      "type": "string",
+      "description": "Name of person signing on behalf of authority"
+    },
+    "signatory_title": {
+      "type": "string"
+    },
+    "is_owner_occupied_residence": {
+      "type": "boolean",
+      "description": "Whether property is owner-occupied residence (for MI 125%)"
+    },
+    "heritage_value_eligible": {
+      "type": "boolean",
+      "description": "Whether owner may be eligible for MO heritage value bonus"
+    },
+    "business_on_property": {
+      "type": "boolean",
+      "description": "Whether a business operates on the property (for CA goodwill)"
+    },
+    "resolution_hearing_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of Resolution of Necessity hearing (CA)"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "jurisdiction": { "const": "TX" } }
+      },
+      "then": {
+        "properties": {
+          "bill_of_rights_provided": {
+            "type": "boolean",
+            "default": true
+          },
+          "bill_of_rights_date": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "jurisdiction": { "const": "MI" } }
+      },
+      "then": {
+        "properties": {
+          "is_owner_occupied_residence": {
+            "type": "boolean"
+          },
+          "is_principal_residence": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "jurisdiction": { "const": "MO" } }
+      },
+      "then": {
+        "properties": {
+          "family_ownership_years": {
+            "type": "integer",
+            "description": "Years property has been owned by same family"
+          },
+          "heritage_value_type": {
+            "type": "string",
+            "enum": ["long_term_family", "homestead", "none"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "jurisdiction": { "const": "CA" } }
+      },
+      "then": {
+        "properties": {
+          "resolution_of_necessity_adopted": {
+            "type": "boolean"
+          },
+          "resolution_hearing_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "resolution_hearing_notice_date": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "jurisdiction": { "const": "IN" } }
+      },
+      "then": {
+        "properties": {
+          "notice_of_intent_date": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    }
+  ]
+}

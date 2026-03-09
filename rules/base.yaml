@@ -1,0 +1,151 @@
+# Base Eminent Domain Rules Schema
+# Common procedural framework that all state rule files extend
+# State-specific files use "extends: base" and override values as needed
+
+version: 1.0.0
+type: base
+description: Common eminent domain procedural framework for all U.S. jurisdictions
+
+# Universal anchor events that trigger deadline chains
+# States reference these events; specific deadlines vary by jurisdiction
+anchor_events:
+  - id: offer_served
+    description: Written acquisition offer served on property owner
+  - id: complaint_filed
+    description: Condemnation complaint/petition filed in court
+  - id: notice_served
+    description: Notice to appear or notice of taking served on owner
+  - id: appraisers_report_mailed
+    description: Appraisers or commissioners report mailed to parties
+  - id: trial_date_set
+    description: Trial date for damages determination scheduled
+  - id: resolution_adopted
+    description: Resolution of necessity adopted by governing body
+  - id: quick_take_deposit
+    description: Deposit made for quick-take possession
+
+# Common compensation factors - states enable/disable or set multipliers
+compensation_defaults:
+  # Base valuation standard (all states)
+  fair_market_value: true
+  highest_and_best_use: true
+  
+  # Partial taking damages (universal)
+  severance_damages: true
+  
+  # Relocation assistance (federal baseline, states may expand)
+  relocation_assistance:
+    enabled: true
+    citation: "Uniform Relocation Assistance Act (42 USC §4601)"
+  
+  # Business-related compensation (varies significantly)
+  business_goodwill: false  # CA enables
+  business_losses: false    # Most states exclude
+  lost_profits: false       # VA enables for 3 years
+  lost_access: false        # VA enables
+  
+  # Multipliers (null = no multiplier, states override)
+  residence_multiplier: null      # MI: 1.25, LA: 1.25
+  heritage_multiplier: null       # MO: 1.50 (50+ years), 1.25 (homestead)
+  
+  # Attorney fees (highly variable)
+  attorney_fees:
+    automatic: false
+    threshold_based: false
+    threshold_percent: null  # e.g., 25% above offer
+    bad_faith_only: false
+
+# Common notice requirements - default values that states override
+notice_defaults:
+  # Pre-condemnation notice periods
+  offer_notice_days: 30
+  final_offer_notice_days: 14
+  intent_to_condemn_days: 30
+  
+  # Post-filing notice periods
+  hearing_notice_days: 20
+  objection_window_days: 30
+  
+  # Delivery methods (states specify required methods)
+  delivery_methods:
+    - certified_mail
+    - personal_service
+    - publication
+
+# Initiation procedure defaults
+initiation_defaults:
+  pre_condemnation_offer_required: true
+  appraisal_based_offer: true
+  good_faith_negotiation: true
+  resolution_required: false      # States like CA require
+  public_hearing_required: false  # States like CA, NY require
+  
+  # Quick-take availability
+  quick_take:
+    available: false
+    type: null  # deposit_and_possession, declaration_of_taking, etc.
+    court_approval_required: true
+
+# Owner rights defaults
+owner_rights_defaults:
+  jury_trial_compensation: true
+  public_use_challenge: true
+  necessity_challenge: true
+  
+  # Burden of proof on public use
+  burden_on_condemnor: false  # Most states defer to legislative determination
+  clear_and_convincing: false # Some states require (NV, MI for blight)
+  
+  # Commissioners/panel process
+  commissioners_panel: true
+  panel_type: three_commissioners  # varies: special_commissioners, board_of_view, etc.
+  
+  # Bill of rights document
+  landowner_bill_of_rights: false  # TX, FL require
+
+# Public use limitations defaults (post-Kelo baseline)
+public_use_defaults:
+  # Economic development restrictions
+  economic_development_banned: false
+  tax_revenue_purpose_banned: false
+  
+  # Blight requirements for private transfer
+  blight_required_for_private: false
+  blight_proof_standard: preponderance  # or clear_and_convincing
+  blight_parcel_specific: false
+  
+  # Post-Kelo reform status
+  post_kelo_reform: false
+  reform_year: null
+  reform_type: null  # statutory, constitutional, or both
+
+# Template associations - base templates that states can override
+template_defaults:
+  offer_letter: base_offer
+  final_offer_letter: base_final_offer
+  notice_of_intent: base_notice_intent
+  bill_of_rights: null  # Only states with requirements
+
+# Evidence hooks - common fields to capture for compliance
+evidence_fields:
+  offer:
+    - offer.total_amount
+    - offer.appraisal_date
+    - offer.service_date
+    - offer.delivery_method
+  owner:
+    - owner.name
+    - owner.address
+    - owner.notification_date
+  parcel:
+    - parcel.pin
+    - parcel.assessed_value
+    - parcel.legal_description
+  appraisal:
+    - appraisal.value
+    - appraisal.date
+    - appraisal.appraiser_name
+  timeline:
+    - events.offer_served
+    - events.response_received
+    - events.complaint_filed

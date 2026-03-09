@@ -1,0 +1,37 @@
+{
+  "name": "landright-frontend",
+  "private": true,
+  "scripts": {
+    "dev": "vite --port 3050 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 3050 --strictPort",
+    "lint": "tsc --noEmit",
+    "test:e2e": "playwright test --project=chromium",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
+    "test:evidence": "playwright test tests/evidence/ --project=chromium",
+    "test:regression": "playwright test --project=chromium && playwright test tests/evidence/ --project=chromium",
+    "test:smoke": "playwright test tests/e2e/landowner.spec.ts --project=chromium"
+  },
+  "dependencies": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "lucide-react": "0.424.0",
+    "react-router-dom": "7.1.1",
+    "mapbox-gl": "^3.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@vitejs/plugin-react": "4.3.4",
+    "@types/mapbox-gl": "^3.4.1",
+    "@types/node": "20.11.30",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "autoprefixer": "10.4.17",
+    "postcss": "8.4.35",
+    "tailwindcss": "3.4.3",
+    "typescript": "5.4.5",
+    "vite": "6.0.7"
+  }
+}

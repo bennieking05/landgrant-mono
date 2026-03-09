@@ -1,0 +1,64 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+backend/.venv/
+backend/venv/
+.venv/
+venv/
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker
+docker-compose*.yml
+
+# Infrastructure (not needed in container)
+infra/
+.terraform/
+*.tfstate*
+*.tfvars
+
+# CI/CD
+.github/
+cloudbuild.yaml
+
+# Documentation
+*.md
+docs/
+
+# Test artifacts
+artifacts/
+backend/tests/
+frontend/tests/
+
+# Local development
+local_storage/
+*.sqlite
+*.db
+.env
+.env.*
+backend/.env
+backend/.env.*
+
+# Cursor/Editor
+.cursor/

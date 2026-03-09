@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.docker/
+
+# Tests
+tests/
+pytest.ini
+conftest.py
+
+# Local dev
+local_storage/
+*.sqlite
+*.db
+.env.local
+.env.*.local
+
+# Docs
+*.md
+docs/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Scripts (not needed in container)
+scripts/

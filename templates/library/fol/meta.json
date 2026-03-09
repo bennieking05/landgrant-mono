@@ -1,0 +1,19 @@
+{
+  "id": "fol",
+  "version": "1.0.0",
+  "jurisdiction": "TX",
+  "locale": "en-US",
+  "variables": {
+    "owner_name": {"type": "string", "required": true},
+    "parcel_id": {"type": "string", "required": true},
+    "project_name": {"type": "string", "required": true},
+    "appraisal_date": {"type": "string", "format": "date", "required": true},
+    "offer_amount": {"type": "number", "required": true},
+    "citation_list": {"type": "array", "items": "string", "required": true},
+    "response_window_days": {"type": "integer", "required": true},
+    "agent_name": {"type": "string", "required": true}
+  },
+  "redactions": ["owner_name"],
+  "privilege": "non_privileged",
+  "classifications": ["binder", "communication"]
+}

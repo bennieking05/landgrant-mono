@@ -1,0 +1,137 @@
+# ------------------------------------------------------------------------------
+# Cloud Build Configuration for LandRight
+# Builds and deploys both backend API and frontend
+# ------------------------------------------------------------------------------
+
+substitutions:
+  _REGION: us-central1
+  _PROJECT_ID: genuine-park-487014-a7
+  _API_IMAGE: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/landright/api
+  _WORKER_IMAGE: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/landright/worker
+  _FRONTEND_BUCKET: ${_PROJECT_ID}-frontend
+
+steps:
+  # ------------------------------------------------------------------------------
+  # Backend API
+  # ------------------------------------------------------------------------------
+  - id: 'build-api'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_API_IMAGE}:$COMMIT_SHA'
+      - '-t'
+      - '${_API_IMAGE}:latest'
+      - '-f'
+      - 'backend/Dockerfile'
+      - '.'
+
+  - id: 'push-api'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_API_IMAGE}'
+    waitFor: ['build-api']
+
+  - id: 'deploy-api'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'services'
+      - 'update'
+      - 'landright-api'
+      - '--region=${_REGION}'
+      - '--image=${_API_IMAGE}:$COMMIT_SHA'
+    waitFor: ['push-api']
+
+  # ------------------------------------------------------------------------------
+  # Backend Worker
+  # ------------------------------------------------------------------------------
+  - id: 'build-worker'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_WORKER_IMAGE}:$COMMIT_SHA'
+      - '-t'
+      - '${_WORKER_IMAGE}:latest'
+      - '-f'
+      - 'backend/Dockerfile.worker'
+      - '.'
+
+  - id: 'push-worker'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_WORKER_IMAGE}'
+    waitFor: ['build-worker']
+
+  - id: 'deploy-worker'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'services'
+      - 'update'
+      - 'landright-worker'
+      - '--region=${_REGION}'
+      - '--image=${_WORKER_IMAGE}:$COMMIT_SHA'
+    waitFor: ['push-worker']
+
+  # ------------------------------------------------------------------------------
+  # Frontend
+  # ------------------------------------------------------------------------------
+  - id: 'install-frontend'
+    name: 'node:20-slim'
+    dir: 'frontend'
+    entrypoint: 'npm'
+    args: ['ci']
+
+  - id: 'build-frontend'
+    name: 'node:20-slim'
+    dir: 'frontend'
+    entrypoint: 'npm'
+    args: ['run', 'build']
+    env:
+      - 'VITE_API_URL=https://landright-api-${_PROJECT_ID}.${_REGION}.run.app'
+    waitFor: ['install-frontend']
+
+  - id: 'deploy-frontend'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gsutil'
+    args:
+      - '-m'
+      - 'rsync'
+      - '-r'
+      - '-d'
+      - 'frontend/dist'
+      - 'gs://${_FRONTEND_BUCKET}'
+    waitFor: ['build-frontend']
+
+  # Set cache headers for static assets
+  - id: 'set-cache-headers'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gsutil -m setmeta -h "Cache-Control:public, max-age=31536000" \
+          "gs://${_FRONTEND_BUCKET}/assets/**"
+        gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" \
+          "gs://${_FRONTEND_BUCKET}/index.html"
+    waitFor: ['deploy-frontend']
+
+images:
+  - '${_API_IMAGE}:$COMMIT_SHA'
+  - '${_API_IMAGE}:latest'
+  - '${_WORKER_IMAGE}:$COMMIT_SHA'
+  - '${_WORKER_IMAGE}:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_MEDIUM'
+
+timeout: '1800s'  # 30 minutes
