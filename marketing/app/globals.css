@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-slate-950 text-white font-sans;
+@layer base {
+  :root {
+    --color-page-from: #f8fafc;
+    --color-page-via: #ffffff;
+    --color-page-to: #f1f5f9;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #334155;
+    --color-text-muted: #64748b;
+    --color-card-border: rgb(15 23 42 / 0.12);
+    --color-card-bg: rgb(255 255 255 / 0.85);
+    --color-chip-border: rgb(15 23 42 / 0.12);
+  }
+
+  .dark {
+    --color-page-from: #020617;
+    --color-page-via: #0f172a;
+    --color-page-to: #020617;
+    --color-text-primary: #f8fafc;
+    --color-text-secondary: #e2e8f0;
+    --color-text-muted: #94a3b8;
+    --color-card-border: rgb(255 255 255 / 0.1);
+    --color-card-bg: rgb(255 255 255 / 0.05);
+    --color-chip-border: rgb(255 255 255 / 0.1);
+  }
+
+  body {
+    @apply font-sans antialiased;
+    background-color: var(--color-page-via);
+    color: var(--color-text-primary);
+  }
 }
