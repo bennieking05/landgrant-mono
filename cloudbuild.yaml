@@ -1,14 +1,17 @@
 # ------------------------------------------------------------------------------
-# Cloud Build Configuration for LandRight
+# Cloud Build Configuration for LandGrant
 # Builds and deploys both backend API and frontend
 # ------------------------------------------------------------------------------
 
+# Use concrete Artifact Registry paths (not nested ${_REGION}/${_PROJECT_ID}) so
+# `gcloud builds submit --substitutions=COMMIT_SHA=...` and GitHub Actions validate.
 substitutions:
   _REGION: us-central1
-  _PROJECT_ID: genuine-park-487014-a7
-  _API_IMAGE: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/landright/api
-  _WORKER_IMAGE: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/landright/worker
-  _FRONTEND_BUCKET: ${_PROJECT_ID}-frontend
+  _PROJECT_ID: clearpath-490715
+  _API_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landright/api
+  _WORKER_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landright/worker
+  _MARKETING_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landright/marketing
+  _FRONTEND_BUCKET: clearpath-490715-frontend
 
 steps:
   # ------------------------------------------------------------------------------
@@ -82,6 +85,41 @@ steps:
     waitFor: ['push-worker']
 
   # ------------------------------------------------------------------------------
+  # Marketing Site
+  # ------------------------------------------------------------------------------
+  - id: 'build-marketing'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_MARKETING_IMAGE}:$COMMIT_SHA'
+      - '-t'
+      - '${_MARKETING_IMAGE}:latest'
+      - '-f'
+      - 'marketing/Dockerfile'
+      - 'marketing'
+
+  - id: 'push-marketing'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_MARKETING_IMAGE}'
+    waitFor: ['build-marketing']
+
+  - id: 'deploy-marketing'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'services'
+      - 'update'
+      - 'landright-marketing'
+      - '--region=${_REGION}'
+      - '--image=${_MARKETING_IMAGE}:$COMMIT_SHA'
+    waitFor: ['push-marketing']
+
+  # ------------------------------------------------------------------------------
   # Frontend
   # ------------------------------------------------------------------------------
   - id: 'install-frontend'
@@ -96,7 +134,7 @@ steps:
     entrypoint: 'npm'
     args: ['run', 'build']
     env:
-      - 'VITE_API_URL=https://landright-api-${_PROJECT_ID}.${_REGION}.run.app'
+      - 'VITE_API_BASE=https://landright-api-${_PROJECT_ID}.${_REGION}.run.app'
     waitFor: ['install-frontend']
 
   - id: 'deploy-frontend'
@@ -129,6 +167,8 @@ images:
   - '${_API_IMAGE}:latest'
   - '${_WORKER_IMAGE}:$COMMIT_SHA'
   - '${_WORKER_IMAGE}:latest'
+  - '${_MARKETING_IMAGE}:$COMMIT_SHA'
+  - '${_MARKETING_IMAGE}:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY
