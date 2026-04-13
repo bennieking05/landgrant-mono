@@ -1,13 +1,13 @@
 variable "project_id" {
   type        = string
-  description = "GCP project that hosts LandRight."
-  default     = "landright-483916"
+  description = "GCP project that hosts LandGrant."
+  default     = "clearpath-490715"
 }
 
 variable "billing_account" {
   type        = string
   description = "Billing account ID to link to the project."
-  default     = "012FC5-228A56-495D5E"
+  default     = "010525-01B070-3501CE"
 }
 
 variable "region" {
@@ -124,13 +124,31 @@ variable "frontend_domain" {
 variable "app_domain" {
   description = "Domain for the frontend application"
   type        = string
-  default     = "app.landrightiq.com"
+  default     = "app.landgrantiq.com"
 }
 
 variable "api_domain" {
   description = "Domain for the API"
   type        = string
-  default     = "api.landrightiq.com"
+  default     = "api.landgrantiq.com"
+}
+
+variable "apex_domain" {
+  description = "Optional apex hostname (e.g. landgrantiq.com). When set, marketing is mapped via Cloud Run domain mapping with Google-managed TLS; DNS uses Cloud Run anycast A records (see terraform output dns_instructions), not the frontend load balancer IP."
+  type        = string
+  default     = ""
+}
+
+variable "redirect_apex_to_app" {
+  description = "If true and apex_domain is set, HTTP(S) requests to the apex host 301-redirect to app_domain (recommended). If false, apex serves the same SPA as app (not recommended for production)."
+  type        = bool
+  default     = true
+}
+
+variable "redirect_www_to_apex" {
+  description = "If true and apex_domain is set, www.<apex> 301-redirects to the apex host (@), e.g. www.landgrantiq.com -> landgrantiq.com."
+  type        = bool
+  default     = true
 }
 
 # ------------------------------------------------------------------------------
