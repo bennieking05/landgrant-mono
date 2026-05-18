@@ -21,13 +21,13 @@
 set -e
 
 # Configuration
-JIRA_URL="https://landrightiq.atlassian.net"
+JIRA_URL="https://landgrantiq.atlassian.net"
 PROJECT="KAN"
 
 # Get credentials from .netrc
 get_auth() {
-    local password=$(grep -A2 "machine landrightiq.atlassian.net" ~/.netrc | grep password | awk '{print $2}')
-    local login=$(grep -A2 "machine landrightiq.atlassian.net" ~/.netrc | grep login | awk '{print $2}')
+    local password=$(grep -A2 "machine landgrantiq.atlassian.net" ~/.netrc | grep password | awk '{print $2}')
+    local login=$(grep -A2 "machine landgrantiq.atlassian.net" ~/.netrc | grep login | awk '{print $2}')
     echo -n "$login:$password" | base64
 }
 

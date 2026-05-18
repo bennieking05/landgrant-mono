@@ -1,10 +1,10 @@
 # Quality Gates
 
-This document describes the quality gates enforced in the LandRight repository.
+This document describes the quality gates enforced in the LandGrant repository.
 
 ## Overview
 
-LandRight enforces a **mandatory quality gate** that requires:
+LandGrant enforces a **mandatory quality gate** that requires:
 
 1. **Playwright regression tests** must pass (0 failures)
 2. **Evidence screenshots** must be captured for UI changes
@@ -141,7 +141,7 @@ git config --unset core.hooksPath
 
 ### Workflow
 
-The CI pipeline (`landright-ci`) runs on:
+The CI pipeline (`landgrant-ci`) runs on:
 - All pushes to `main`
 - All pull requests to `main`
 

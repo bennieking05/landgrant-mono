@@ -43,6 +43,3 @@ def preview_notification(
         user_id=getattr(user, "id", None),
     )
     return preview.__dict__
-
-
-

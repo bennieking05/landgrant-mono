@@ -1,8 +1,8 @@
 # Jira Setup Guide
 
-> **Purpose**: Configure Jira for LandRight MVP backlog management  
+> **Purpose**: Configure Jira for LandGrant MVP backlog management  
 > **Created**: January 24, 2026  
-> **Backlog Source**: `/docs/backlog/landright_backlog.csv`
+> **Backlog Source**: `/docs/backlog/landgrant_backlog.csv`
 
 ---
 
@@ -19,7 +19,7 @@
 1. Navigate to **Projects** → **Create project**
 2. Select **Scrum** template (recommended) or **Kanban**
 3. Configure:
-   - **Name**: LandRight MVP
+   - **Name**: LandGrant MVP
    - **Key**: LRMVP
    - **Lead**: [Assign project lead]
 
@@ -113,7 +113,7 @@ jira epic create -p LRMVP -s "Notices & Service (Legal Playbooks)" -d "Notice an
 
 ### Prepare CSV
 
-The import file is located at: `/docs/backlog/landright_backlog.csv`
+The import file is located at: `/docs/backlog/landgrant_backlog.csv`
 
 CSV columns:
 - Issue Type
@@ -127,7 +127,7 @@ CSV columns:
 
 1. Navigate to **Project Settings** → **External System Import**
 2. Select **CSV**
-3. Upload `landright_backlog.csv`
+3. Upload `landgrant_backlog.csv`
 4. Map columns:
 
 | CSV Column | Jira Field |
@@ -229,7 +229,7 @@ project = LRMVP AND Milestone = M3 AND labels = frontend
 ### Add Gadgets
 
 1. Go to **Dashboards** → **Create dashboard**
-2. Name: "LandRight MVP Tracking"
+2. Name: "LandGrant MVP Tracking"
 3. Add gadgets:
 
 | Gadget | Configuration |
@@ -309,7 +309,7 @@ Run these queries to verify complete coverage:
 ## Appendix: CSV Column Mapping Reference
 
 ```
-landright_backlog.csv structure:
+landgrant_backlog.csv structure:
 
 Issue Type,Summary,Description,Epic Link,Labels,Milestone
 Epic,"Projects & Parcels","Core project and parcel management...",,scope-mvp exhibit-a,
@@ -332,6 +332,6 @@ For import issues:
 
 ## Related Documents
 
-- [Backlog (Markdown)](backlog/landright_backlog.md)
-- [Backlog (CSV)](backlog/landright_backlog.csv)
+- [Backlog (Markdown)](backlog/landgrant_backlog.md)
+- [Backlog (CSV)](backlog/landgrant_backlog.csv)
 - [Coverage Verification](backlog/coverage_verification.md)

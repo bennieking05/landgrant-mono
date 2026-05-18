@@ -8,16 +8,22 @@ fallback stub mode for development.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Optional
 from uuid import uuid4
 from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_persona, get_current_user, get_db
+from app.api.deps import (
+    get_current_persona,
+    get_current_user,
+    get_db,
+    verify_webhook_signature,
+)
 from app.core.config import get_settings
 from app.db import models
 from app.db.models import Persona
@@ -27,6 +33,8 @@ from app.services.hashing import sha256_hex
 router = APIRouter(prefix="/esign", tags=["esign"])
 
 settings = get_settings()
+
+_WEBHOOK_RELAXED_ENVS = frozenset({"dev", "test"})
 
 
 class EsignStatus(str, Enum):
@@ -101,7 +109,7 @@ def _create_stub_envelope(
     """Create a stub envelope for development/testing."""
     envelope_id = f"ENV-{uuid4().hex[:12].upper()}"
     now = datetime.utcnow()
-    
+
     signing_urls = {}
     signer_statuses = []
     for i, signer in enumerate(signers):
@@ -109,16 +117,18 @@ def _create_stub_envelope(
         token = uuid4().hex
         base_url = return_url or "http://localhost:3050/sign"
         signing_urls[signer.email] = f"{base_url}?envelope={envelope_id}&token={token}"
-        signer_statuses.append({
-            "email": signer.email,
-            "name": signer.name,
-            "role": signer.role,
-            "routing_order": signer.routing_order,
-            "status": "sent",
-            "signed_at": None,
-            "declined_at": None,
-        })
-    
+        signer_statuses.append(
+            {
+                "email": signer.email,
+                "name": signer.name,
+                "role": signer.role,
+                "routing_order": signer.routing_order,
+                "status": "sent",
+                "signed_at": None,
+                "declined_at": None,
+            }
+        )
+
     envelope = {
         "envelope_id": envelope_id,
         "document_id": document_id,
@@ -136,7 +146,7 @@ def _create_stub_envelope(
         "voided_at": None,
         "provider": "stub",
     }
-    
+
     _envelope_store[envelope_id] = envelope
     return envelope
 
@@ -153,7 +163,7 @@ async def _create_docusign_envelope(
 ) -> dict[str, Any]:
     """
     Create a DocuSign envelope.
-    
+
     In production, this would use the DocuSign API to:
     1. Create an envelope with the document
     2. Add signers with their tabs (signature locations)
@@ -176,20 +186,20 @@ async def initiate_signing(
 ):
     """
     Initiate document signing with specified signers.
-    
+
     Creates an envelope and sends signing requests to all signers.
     Returns signing URLs that can be embedded or sent to signers.
     """
     authorize(persona, "esign", Action.WRITE)
-    
+
     if len(payload.signers) == 0:
         raise HTTPException(status_code=400, detail="At least one signer is required")
-    
+
     # Verify document exists
     document = db.get(models.Document, payload.document_id)
     if not document:
         raise HTTPException(status_code=404, detail="document_not_found")
-    
+
     # Create envelope (DocuSign or stub)
     if settings.docusign_configured:
         envelope = await _create_docusign_envelope(
@@ -212,7 +222,7 @@ async def initiate_signing(
             message=payload.message,
             return_url=payload.return_url,
         )
-    
+
     # Persist envelope record
     esign_record = models.EsignEnvelope(
         id=envelope["envelope_id"],
@@ -231,7 +241,7 @@ async def initiate_signing(
         created_by=getattr(user, "id", None),
     )
     db.add(esign_record)
-    
+
     # Audit log
     db.add(
         models.AuditEvent(
@@ -246,15 +256,17 @@ async def initiate_signing(
                 "parcel_id": payload.parcel_id,
                 "signer_emails": [s.email for s in payload.signers],
             },
-            hash=sha256_hex({
-                "envelope_id": envelope["envelope_id"],
-                "action": "initiate",
-            }),
+            hash=sha256_hex(
+                {
+                    "envelope_id": envelope["envelope_id"],
+                    "action": "initiate",
+                }
+            ),
         )
     )
-    
+
     db.commit()
-    
+
     return InitiateResponse(
         envelope_id=envelope["envelope_id"],
         status=envelope["status"],
@@ -271,11 +283,11 @@ async def get_signing_status(
 ):
     """
     Get the current status of a signing envelope.
-    
+
     Returns detailed status including per-signer status.
     """
     authorize(persona, "esign", Action.READ)
-    
+
     # Check DB first
     esign_record = db.get(models.EsignEnvelope, envelope_id)
     if esign_record:
@@ -285,11 +297,23 @@ async def get_signing_status(
             document_id=esign_record.document_id,
             parcel_id=esign_record.parcel_id,
             signers=esign_record.signers_json or [],
-            created_at=esign_record.created_at.isoformat() + "Z" if esign_record.created_at else "",
-            updated_at=esign_record.updated_at.isoformat() + "Z" if esign_record.updated_at else "",
-            completed_at=esign_record.completed_at.isoformat() + "Z" if esign_record.completed_at else None,
+            created_at=(
+                esign_record.created_at.isoformat() + "Z"
+                if esign_record.created_at
+                else ""
+            ),
+            updated_at=(
+                esign_record.updated_at.isoformat() + "Z"
+                if esign_record.updated_at
+                else ""
+            ),
+            completed_at=(
+                esign_record.completed_at.isoformat() + "Z"
+                if esign_record.completed_at
+                else None
+            ),
         )
-    
+
     # Fall back to in-memory store (dev mode)
     if envelope_id in _envelope_store:
         envelope = _envelope_store[envelope_id]
@@ -303,7 +327,7 @@ async def get_signing_status(
             updated_at=envelope["updated_at"],
             completed_at=envelope.get("completed_at"),
         )
-    
+
     raise HTTPException(status_code=404, detail="envelope_not_found")
 
 
@@ -312,31 +336,39 @@ async def handle_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    x_landgrant_signature: Optional[str] = Header(
+        default=None, alias="X-LandGrant-Signature"
+    ),
 ):
     """
     Handle e-sign provider webhooks.
-    
+
     Updates envelope status based on provider notifications.
     Supports DocuSign Connect webhooks and stub mode callbacks.
     """
-    # Parse webhook payload
+    raw = await request.body()
+    if settings.environment not in _WEBHOOK_RELAXED_ENVS:
+        if not verify_webhook_signature(
+            raw, x_landgrant_signature, settings.session_secret
+        ):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
     try:
-        body = await request.json()
-    except Exception:
+        body = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="invalid_json")
-    
+
     # Extract envelope ID and event type
     envelope_id = body.get("envelope_id") or body.get("envelopeId")
     event = body.get("event") or body.get("status")
-    
+
     if not envelope_id:
         raise HTTPException(status_code=400, detail="missing_envelope_id")
-    
+
     # Update in database
     esign_record = db.get(models.EsignEnvelope, envelope_id)
     if esign_record:
         old_status = esign_record.status
-        
+
         # Map webhook event to status
         status_map = {
             "sent": EsignStatus.SENT.value,
@@ -347,25 +379,26 @@ async def handle_webhook(
             "voided": EsignStatus.VOIDED.value,
             "expired": EsignStatus.EXPIRED.value,
         }
-        new_status = status_map.get(event.lower() if event else "", esign_record.status)
-        
+        ev = str(event).lower() if event is not None else ""
+        new_status = status_map.get(ev, esign_record.status)
+
         esign_record.status = new_status
         esign_record.updated_at = datetime.utcnow()
-        
+
         if new_status == EsignStatus.COMPLETED.value:
             esign_record.completed_at = datetime.utcnow()
-        
+
         # Update signer status if provided
         signer_email = body.get("signer_email") or body.get("signerEmail")
         if signer_email and esign_record.signers_json:
             for signer in esign_record.signers_json:
                 if signer.get("email") == signer_email:
-                    signer["status"] = event.lower() if event else signer["status"]
-                    if event and event.lower() == "signed":
+                    signer["status"] = ev if ev else signer["status"]
+                    if ev == "signed":
                         signer["signed_at"] = datetime.utcnow().isoformat() + "Z"
-                    elif event and event.lower() == "declined":
+                    elif ev == "declined":
                         signer["declined_at"] = datetime.utcnow().isoformat() + "Z"
-        
+
         # Audit log
         db.add(
             models.AuditEvent(
@@ -381,24 +414,27 @@ async def handle_webhook(
                     "new_status": new_status,
                     "signer_email": signer_email,
                 },
-                hash=sha256_hex({
-                    "envelope_id": envelope_id,
-                    "event": event,
-                    "timestamp": datetime.utcnow().isoformat(),
-                }),
+                hash=sha256_hex(
+                    {
+                        "envelope_id": envelope_id,
+                        "event": event,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                ),
             )
         )
-        
+
         db.commit()
-    
+
     # Also update in-memory store for dev mode
     if envelope_id in _envelope_store:
         envelope = _envelope_store[envelope_id]
-        envelope["status"] = event.lower() if event else envelope["status"]
+        ev = str(event).lower() if event is not None else ""
+        envelope["status"] = ev if ev else envelope["status"]
         envelope["updated_at"] = datetime.utcnow().isoformat() + "Z"
-        if event and event.lower() == "completed":
+        if ev == "completed":
             envelope["completed_at"] = datetime.utcnow().isoformat() + "Z"
-    
+
     return {"status": "received", "envelope_id": envelope_id}
 
 
@@ -412,31 +448,33 @@ async def void_envelope(
 ):
     """
     Void an existing envelope.
-    
+
     Cancels the signing request. Cannot void completed envelopes.
     """
     authorize(persona, "esign", Action.WRITE)
-    
+
     esign_record = db.get(models.EsignEnvelope, envelope_id)
     if not esign_record:
         if envelope_id not in _envelope_store:
             raise HTTPException(status_code=404, detail="envelope_not_found")
-    
+
     # Check if envelope can be voided
-    current_status = esign_record.status if esign_record else _envelope_store[envelope_id]["status"]
+    current_status = (
+        esign_record.status if esign_record else _envelope_store[envelope_id]["status"]
+    )
     if current_status in [EsignStatus.COMPLETED.value, EsignStatus.VOIDED.value]:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot void envelope with status: {current_status}"
+            detail=f"Cannot void envelope with status: {current_status}",
         )
-    
+
     # Update status
     if esign_record:
         esign_record.status = EsignStatus.VOIDED.value
         esign_record.updated_at = datetime.utcnow()
         esign_record.metadata_json = esign_record.metadata_json or {}
         esign_record.metadata_json["void_reason"] = reason
-        
+
         db.add(
             models.AuditEvent(
                 id=str(uuid4()),
@@ -448,18 +486,20 @@ async def void_envelope(
                     "envelope_id": envelope_id,
                     "reason": reason,
                 },
-                hash=sha256_hex({
-                    "envelope_id": envelope_id,
-                    "action": "void",
-                }),
+                hash=sha256_hex(
+                    {
+                        "envelope_id": envelope_id,
+                        "action": "void",
+                    }
+                ),
             )
         )
         db.commit()
-    
+
     if envelope_id in _envelope_store:
         _envelope_store[envelope_id]["status"] = EsignStatus.VOIDED.value
         _envelope_store[envelope_id]["voided_at"] = datetime.utcnow().isoformat() + "Z"
-    
+
     return {"status": "voided", "envelope_id": envelope_id}
 
 
@@ -473,23 +513,25 @@ async def resend_envelope(
 ):
     """
     Resend signing notification to signers.
-    
+
     Can resend to all signers or a specific signer by email.
     """
     authorize(persona, "esign", Action.WRITE)
-    
+
     esign_record = db.get(models.EsignEnvelope, envelope_id)
     if not esign_record and envelope_id not in _envelope_store:
         raise HTTPException(status_code=404, detail="envelope_not_found")
-    
+
     # Check status allows resend
-    current_status = esign_record.status if esign_record else _envelope_store[envelope_id]["status"]
+    current_status = (
+        esign_record.status if esign_record else _envelope_store[envelope_id]["status"]
+    )
     if current_status not in [EsignStatus.SENT.value, EsignStatus.DELIVERED.value]:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot resend envelope with status: {current_status}"
+            detail=f"Cannot resend envelope with status: {current_status}",
         )
-    
+
     # Audit log
     if esign_record:
         db.add(
@@ -503,14 +545,16 @@ async def resend_envelope(
                     "envelope_id": envelope_id,
                     "signer_email": signer_email,
                 },
-                hash=sha256_hex({
-                    "envelope_id": envelope_id,
-                    "action": "resend",
-                }),
+                hash=sha256_hex(
+                    {
+                        "envelope_id": envelope_id,
+                        "action": "resend",
+                    }
+                ),
             )
         )
         db.commit()
-    
+
     return {
         "status": "resent",
         "envelope_id": envelope_id,
@@ -530,18 +574,18 @@ async def list_envelopes(
     List signing envelopes with optional filters.
     """
     authorize(persona, "esign", Action.READ)
-    
+
     query = db.query(models.EsignEnvelope)
-    
+
     if parcel_id:
         query = query.filter(models.EsignEnvelope.parcel_id == parcel_id)
     if project_id:
         query = query.filter(models.EsignEnvelope.project_id == project_id)
     if status:
         query = query.filter(models.EsignEnvelope.status == status)
-    
+
     envelopes = query.order_by(models.EsignEnvelope.created_at.desc()).limit(100).all()
-    
+
     return {
         "items": [
             {
@@ -552,7 +596,9 @@ async def list_envelopes(
                 "status": e.status,
                 "provider": e.provider,
                 "created_at": e.created_at.isoformat() + "Z" if e.created_at else None,
-                "completed_at": e.completed_at.isoformat() + "Z" if e.completed_at else None,
+                "completed_at": (
+                    e.completed_at.isoformat() + "Z" if e.completed_at else None
+                ),
             }
             for e in envelopes
         ],
@@ -569,12 +615,12 @@ async def simulate_signing(
 ):
     """
     DEV ONLY: Simulate a signer completing their signature.
-    
+
     This endpoint is only available in non-production environments.
     """
     if settings.environment == "production":
         raise HTTPException(status_code=403, detail="Not available in production")
-    
+
     # Trigger webhook-like update
     if envelope_id in _envelope_store:
         envelope = _envelope_store[envelope_id]
@@ -582,15 +628,15 @@ async def simulate_signing(
             if signer["email"] == signer_email:
                 signer["status"] = "signed"
                 signer["signed_at"] = datetime.utcnow().isoformat() + "Z"
-        
+
         # Check if all signers have signed
         all_signed = all(s["status"] == "signed" for s in envelope["signers"])
         if all_signed:
             envelope["status"] = EsignStatus.COMPLETED.value
             envelope["completed_at"] = datetime.utcnow().isoformat() + "Z"
-        
+
         envelope["updated_at"] = datetime.utcnow().isoformat() + "Z"
-    
+
     # Also update DB record if exists
     esign_record = db.get(models.EsignEnvelope, envelope_id)
     if esign_record and esign_record.signers_json:
@@ -598,13 +644,17 @@ async def simulate_signing(
             if signer["email"] == signer_email:
                 signer["status"] = "signed"
                 signer["signed_at"] = datetime.utcnow().isoformat() + "Z"
-        
+
         all_signed = all(s.get("status") == "signed" for s in esign_record.signers_json)
         if all_signed:
             esign_record.status = EsignStatus.COMPLETED.value
             esign_record.completed_at = datetime.utcnow()
-        
+
         esign_record.updated_at = datetime.utcnow()
         db.commit()
-    
-    return {"status": "simulated", "envelope_id": envelope_id, "signer_email": signer_email}
+
+    return {
+        "status": "simulated",
+        "envelope_id": envelope_id,
+        "signer_email": signer_email,
+    }

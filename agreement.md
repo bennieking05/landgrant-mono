@@ -4,7 +4,7 @@
 Automatic Zoom
 SOFTWARE DEVELOPMENT AGREEMENT
 This SOFTWARE DEVELOPMENT AGREEMENT (this "Agreement") is entered into as of
-January 5, 2026 (the "Effective Date"), by and between (a) LandRight AI, Inc., a Delaware
+January 5, 2026 (the "Effective Date"), by and between (a) LandGrant AI, Inc., a Delaware
 corporation ("Client"); and (b) NexGen Software Solutions LLC, a Texas limited liability company
 ("Developer"). Client and Developer may be referred to herein individually as a "Party" and
 collectively as the "Parties."

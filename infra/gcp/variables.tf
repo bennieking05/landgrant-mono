@@ -37,7 +37,7 @@ variable "subnet_cidr" {
 variable "db_instance_name" {
   type        = string
   description = "Cloud SQL instance name."
-  default     = "landright-sql"
+  default     = "landgrant-sql"
 }
 
 variable "db_tier" {
@@ -49,13 +49,13 @@ variable "db_tier" {
 variable "database_name" {
   type        = string
   description = "Logical Postgres database name used by the app."
-  default     = "landright"
+  default     = "landgrant"
 }
 
 variable "db_user" {
   type        = string
   description = "Database user for the application."
-  default     = "landright"
+  default     = "landgrant"
 }
 
 # ------------------------------------------------------------------------------

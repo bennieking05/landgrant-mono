@@ -1,1 +1,1 @@
-"""LandRight FastAPI application package."""
+"""LandGrant FastAPI application package."""

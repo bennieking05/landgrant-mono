@@ -2,21 +2,42 @@
 # Terraform Outputs
 # ------------------------------------------------------------------------------
 
+locals {
+  dns_apex_section = var.apex_domain == "" ? "" : <<-EOT
+    
+    3. Apex / Marketing (${var.apex_domain}) — Cloud Run domain mapping for marketing site.
+       Type: A
+       Host: @ (root — in GoDaddy use "@" or leave blank)
+       Value: 216.239.32.21 (Google Cloud Run)
+       Also add: 216.239.34.21, 216.239.36.21, 216.239.38.21
+       TTL: 300
+EOT
+
+  dns_www_section = local.frontend_www_host == "" ? "" : <<-EOT
+    
+    4. WWW (${local.frontend_www_host}) — frontend LB static IP; ${var.redirect_www_to_apex ? "301-redirect to apex (https://${var.apex_domain}) marketing site." : "not configured to redirect."}
+       Type: A
+       Host: www
+       Value: ${google_compute_global_address.frontend_lb.address}
+       TTL: 300
+EOT
+}
+
 # Cloud Run
 output "api_url" {
   value       = google_cloud_run_v2_service.api.uri
-  description = "URL of the LandRight API on Cloud Run"
+  description = "URL of the LandGrant API on Cloud Run"
 }
 
 output "worker_url" {
   value       = google_cloud_run_v2_service.worker.uri
-  description = "URL of the LandRight worker on Cloud Run"
+  description = "URL of the LandGrant worker on Cloud Run"
 }
 
 # Frontend
 output "frontend_url" {
   value       = "https://${var.app_domain}"
-  description = "URL of the frontend static site"
+  description = "Canonical HTTPS URL for the frontend (use this in env vars, OAuth callbacks, and docs)"
 }
 
 output "frontend_bucket" {
@@ -43,7 +64,6 @@ output "api_domain_records" {
 # DNS Instructions
 output "dns_instructions" {
   value = <<-EOT
-    
     ========== DNS CONFIGURATION REQUIRED ==========
     
     Add these records in your domain registrar:
@@ -59,7 +79,7 @@ output "dns_instructions" {
        Host: api
        Value: ghs.googlehosted.com.
        TTL: 300
-    
+    ${local.dns_apex_section}${local.dns_www_section}
     After adding DNS records, wait 5-15 minutes for propagation,
     then run: terraform apply -var-file=environments/dev.tfvars
     
@@ -118,12 +138,12 @@ output "cloudbuild_service_account" {
 output "secrets" {
   value = {
     # Auto-generated (ready to use)
-    db_password     = google_secret_manager_secret.db_password.secret_id
-    jwt_secret      = google_secret_manager_secret.jwt_secret.secret_id
-    encryption_key  = google_secret_manager_secret.encryption_key.secret_id
-    session_secret  = google_secret_manager_secret.session_secret.secret_id
-    app_config      = google_secret_manager_secret.app_config.secret_id
-    
+    db_password    = google_secret_manager_secret.db_password.secret_id
+    jwt_secret     = google_secret_manager_secret.jwt_secret.secret_id
+    encryption_key = google_secret_manager_secret.encryption_key.secret_id
+    session_secret = google_secret_manager_secret.session_secret.secret_id
+    app_config     = google_secret_manager_secret.app_config.secret_id
+
     # Need to be populated with real keys
     gemini_api_key           = google_secret_manager_secret.gemini_api_key.secret_id
     sendgrid_api_key         = google_secret_manager_secret.sendgrid_api_key.secret_id
@@ -137,7 +157,7 @@ output "secrets" {
 }
 
 output "secrets_to_populate" {
-  value = <<-EOT
+  value       = <<-EOT
     After terraform apply, run the following to populate secrets with real API keys:
     
     chmod +x infra/gcp/scripts/populate-secrets.sh
@@ -146,16 +166,16 @@ output "secrets_to_populate" {
     Or manually update individual secrets:
     
     # SendGrid (email)
-    echo -n 'YOUR_SENDGRID_API_KEY' | gcloud secrets versions add landright-sendgrid-api-key --data-file=-
+    echo -n 'YOUR_SENDGRID_API_KEY' | gcloud secrets versions add landgrant-sendgrid-api-key --data-file=-
     
     # Twilio (SMS)
-    echo -n 'YOUR_ACCOUNT_SID' | gcloud secrets versions add landright-twilio-account-sid --data-file=-
-    echo -n 'YOUR_AUTH_TOKEN' | gcloud secrets versions add landright-twilio-auth-token --data-file=-
-    echo -n '+15551234567' | gcloud secrets versions add landright-twilio-from-number --data-file=-
+    echo -n 'YOUR_ACCOUNT_SID' | gcloud secrets versions add landgrant-twilio-account-sid --data-file=-
+    echo -n 'YOUR_AUTH_TOKEN' | gcloud secrets versions add landgrant-twilio-auth-token --data-file=-
+    echo -n '+15551234567' | gcloud secrets versions add landgrant-twilio-from-number --data-file=-
     
     # DocuSign (e-signatures)
-    echo -n 'YOUR_INTEGRATION_KEY' | gcloud secrets versions add landright-docusign-integration-key --data-file=-
-    echo -n 'YOUR_SECRET_KEY' | gcloud secrets versions add landright-docusign-secret-key --data-file=-
+    echo -n 'YOUR_INTEGRATION_KEY' | gcloud secrets versions add landgrant-docusign-integration-key --data-file=-
+    echo -n 'YOUR_SECRET_KEY' | gcloud secrets versions add landgrant-docusign-secret-key --data-file=-
   EOT
   description = "Instructions to populate secrets after deployment"
 }
@@ -168,21 +188,21 @@ output "pubsub_topic" {
 
 # Deployment commands
 output "deployment_commands" {
-  value = <<-EOT
+  value       = <<-EOT
     # Build and push API container (from project root)
-    docker build -t ${var.region}-docker.pkg.dev/${var.project_id}/landright/api:latest -f backend/Dockerfile .
-    docker push ${var.region}-docker.pkg.dev/${var.project_id}/landright/api:latest
+    docker build -t ${var.region}-docker.pkg.dev/${var.project_id}/landgrant/api:latest -f backend/Dockerfile .
+    docker push ${var.region}-docker.pkg.dev/${var.project_id}/landgrant/api:latest
 
     # Build and push Worker container (from project root)
-    docker build -t ${var.region}-docker.pkg.dev/${var.project_id}/landright/worker:latest -f backend/Dockerfile.worker .
-    docker push ${var.region}-docker.pkg.dev/${var.project_id}/landright/worker:latest
+    docker build -t ${var.region}-docker.pkg.dev/${var.project_id}/landgrant/worker:latest -f backend/Dockerfile.worker .
+    docker push ${var.region}-docker.pkg.dev/${var.project_id}/landgrant/worker:latest
 
     # Build and deploy frontend
     cd frontend && VITE_API_BASE=${google_cloud_run_v2_service.api.uri} npm run build
     gsutil -m rsync -r -d ./frontend/dist gs://${google_storage_bucket.frontend.name}
 
     # Update Cloud Run to use new image
-    gcloud run services update landright-api --region ${var.region} --image ${var.region}-docker.pkg.dev/${var.project_id}/landright/api:latest
+    gcloud run services update landgrant-api --region ${var.region} --image ${var.region}-docker.pkg.dev/${var.project_id}/landgrant/api:latest
   EOT
   description = "Commands to deploy application updates"
 }

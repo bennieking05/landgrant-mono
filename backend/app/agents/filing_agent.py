@@ -66,6 +66,7 @@ Return JSON:
 @dataclass
 class DeadlineCheck:
     """Result of checking a deadline."""
+
     deadline_id: str
     title: str
     due_at: datetime
@@ -78,6 +79,7 @@ class DeadlineCheck:
 @dataclass
 class FilingResult:
     """Result of an e-filing attempt."""
+
     document_id: str
     court_id: str
     accepted: bool
@@ -90,54 +92,54 @@ class FilingResult:
 
 class FilingAgent(BaseAgent):
     """Agent for deadline monitoring and e-filing.
-    
+
     Responsibilities:
     - Monitor deadlines across all cases
     - Send reminders at configurable intervals
     - Handle court e-filing
     - Record deeds with county clerks
     - Interpret and respond to filing errors
-    
+
     Escalation triggers:
     - Missed deadlines
     - Filing rejections
     - Court system errors
     """
-    
+
     agent_type = AgentType.FILING
     confidence_threshold = 0.90  # High threshold for legal filings
-    
+
     # Reminder intervals (days before deadline)
     REMINDER_INTERVALS = [7, 3, 1]
-    
+
     def __init__(self, db_session=None, confidence_threshold: float = None):
         """Initialize the filing agent.
-        
+
         Args:
             db_session: Database session
             confidence_threshold: Override default threshold
         """
         super().__init__(confidence_threshold)
         self.db = db_session
-    
+
     async def execute(self, context: AgentContext) -> AgentResult:
         """Execute filing action based on context.
-        
+
         Args:
             context: Agent context with action details
-            
+
         Returns:
             AgentResult with action outcome
         """
         start_time = datetime.utcnow()
-        
+
         try:
             action = context.action or "check_deadlines"
-            
+
             if action == "check_deadlines":
                 results = await self.check_deadlines()
                 return self._build_deadline_result(results, start_time)
-            
+
             elif action == "file_document":
                 if not context.document_id or not context.court_id:
                     return AgentResult.failure_result(
@@ -150,7 +152,7 @@ class FilingAgent(BaseAgent):
                     context.case_number,
                 )
                 return self._build_filing_result(result, start_time)
-            
+
             elif action == "record_deed":
                 if not context.document_id:
                     return AgentResult.failure_result(
@@ -162,42 +164,42 @@ class FilingAgent(BaseAgent):
                     context.payload.get("county_fips") if context.payload else None,
                 )
                 return self._build_filing_result(result, start_time)
-            
+
             else:
                 return AgentResult.failure_result(
                     error=f"Unknown action: {action}",
                     error_code="UNKNOWN_ACTION",
                 )
-            
+
         except Exception as e:
             self.logger.error(f"Filing agent execution failed: {e}", exc_info=True)
             return AgentResult.failure_result(
                 error=str(e),
                 error_code="FILING_ERROR",
             )
-    
+
     async def check_deadlines(self, days_ahead: int = 7) -> list[DeadlineCheck]:
         """Check all upcoming deadlines.
-        
+
         Args:
             days_ahead: How many days ahead to check
-            
+
         Returns:
             List of deadline check results
         """
         results = []
         now = datetime.utcnow()
-        
+
         # Get upcoming deadlines
         deadlines = await self._get_upcoming_deadlines(days_ahead)
-        
+
         for deadline in deadlines:
             due_at = deadline.get("due_at")
             if isinstance(due_at, str):
                 due_at = datetime.fromisoformat(due_at)
-            
+
             days_remaining = (due_at - now).days
-            
+
             # Determine status
             if days_remaining < 0:
                 status = "missed"
@@ -211,7 +213,7 @@ class FilingAgent(BaseAgent):
             else:
                 status = "ok"
                 action = "none"
-            
+
             # Take action
             notification_sent = False
             if action == "escalate":
@@ -219,19 +221,21 @@ class FilingAgent(BaseAgent):
             elif action == "reminder" and days_remaining in self.REMINDER_INTERVALS:
                 await self.send_reminder(deadline.get("id"), days_remaining, [])
                 notification_sent = True
-            
-            results.append(DeadlineCheck(
-                deadline_id=deadline.get("id", ""),
-                title=deadline.get("title", "Unknown"),
-                due_at=due_at,
-                days_remaining=days_remaining,
-                status=status,
-                action_taken=action,
-                notification_sent=notification_sent,
-            ))
-        
+
+            results.append(
+                DeadlineCheck(
+                    deadline_id=deadline.get("id", ""),
+                    title=deadline.get("title", "Unknown"),
+                    due_at=due_at,
+                    days_remaining=days_remaining,
+                    status=status,
+                    action_taken=action,
+                    notification_sent=notification_sent,
+                )
+            )
+
         return results
-    
+
     async def file_document(
         self,
         document_id: str,
@@ -239,20 +243,20 @@ class FilingAgent(BaseAgent):
         case_number: str = None,
     ) -> FilingResult:
         """File a document with the court.
-        
+
         Args:
             document_id: Document to file
             court_id: Target court
             case_number: Existing case number
-            
+
         Returns:
             Filing result
         """
         self.logger.info(f"Filing document {document_id} with court {court_id}")
-        
+
         # Get court adapter
         adapter = self._get_filing_adapter(court_id)
-        
+
         # Get document
         document = await self._get_document(document_id)
         if not document:
@@ -263,7 +267,7 @@ class FilingAgent(BaseAgent):
                 error_code="DOCUMENT_NOT_FOUND",
                 error_message=f"Document {document_id} not found",
             )
-        
+
         # Validate document format
         validation = await self._validate_for_court(document, court_id)
         if not validation.get("valid"):
@@ -274,11 +278,11 @@ class FilingAgent(BaseAgent):
                 error_code="VALIDATION_FAILED",
                 error_message=validation.get("error", "Validation failed"),
             )
-        
+
         # Submit filing
         try:
             result = await adapter.submit(document, case_number)
-            
+
             if result.get("accepted"):
                 await self._record_filing(document_id, result)
                 return FilingResult(
@@ -303,7 +307,7 @@ class FilingAgent(BaseAgent):
                     error_message=result.get("error_message"),
                     interpretation=interpretation,
                 )
-                
+
         except Exception as e:
             self.logger.error(f"Filing failed: {e}")
             return FilingResult(
@@ -313,23 +317,23 @@ class FilingAgent(BaseAgent):
                 error_code="FILING_EXCEPTION",
                 error_message=str(e),
             )
-    
+
     async def record_deed(
         self,
         document_id: str,
         county_fips: str,
     ) -> FilingResult:
         """Record a deed with the county clerk.
-        
+
         Args:
             document_id: Deed document to record
             county_fips: County FIPS code
-            
+
         Returns:
             Recording result
         """
         self.logger.info(f"Recording deed {document_id} in county {county_fips}")
-        
+
         # Get document
         document = await self._get_document(document_id)
         if not document:
@@ -340,7 +344,7 @@ class FilingAgent(BaseAgent):
                 error_code="DOCUMENT_NOT_FOUND",
                 error_message=f"Document {document_id} not found",
             )
-        
+
         # TODO: Integrate with Simplifile or county e-recording
         # For now, return mock success
         return FilingResult(
@@ -350,7 +354,7 @@ class FilingAgent(BaseAgent):
             confirmation_number=f"REC-{uuid4().hex[:8].upper()}",
             filing_date=datetime.utcnow(),
         )
-    
+
     async def send_reminder(
         self,
         deadline_id: str,
@@ -358,15 +362,15 @@ class FilingAgent(BaseAgent):
         recipient_ids: list[str] = None,
     ) -> dict[str, Any]:
         """Send deadline reminder notification.
-        
+
         Queues a Celery task to send multi-channel notifications
         to relevant users about approaching deadlines.
-        
+
         Args:
             deadline_id: Deadline to remind about
             days_remaining: Days until deadline
             recipient_ids: Users to notify (auto-determined if not provided)
-            
+
         Returns:
             Notification result
         """
@@ -374,29 +378,29 @@ class FilingAgent(BaseAgent):
         deadline = await self._get_deadline(deadline_id)
         if not deadline:
             return {"success": False, "error": "Deadline not found"}
-        
+
         # Auto-determine recipients if not provided
         if not recipient_ids:
             recipient_ids = await self._get_deadline_recipients(deadline)
-        
+
         if not recipient_ids:
             self.logger.warning(f"No recipients for deadline {deadline_id}")
             return {"success": False, "error": "No recipients found"}
-        
+
         # Queue notification task
         try:
             from app.tasks.notifications import send_deadline_reminder
-            
+
             send_deadline_reminder.delay(
                 deadline_id=deadline_id,
                 days_remaining=days_remaining,
                 recipient_ids=recipient_ids,
             )
-            
+
             self.logger.info(
                 f"Queued deadline reminder for {deadline_id}: {days_remaining} days, {len(recipient_ids)} recipients"
             )
-            
+
             return {
                 "success": True,
                 "deadline_id": deadline_id,
@@ -404,63 +408,67 @@ class FilingAgent(BaseAgent):
                 "recipients_notified": len(recipient_ids),
                 "channels": ["email", "sms"] if days_remaining <= 1 else ["email"],
             }
-            
+
         except Exception as e:
             self.logger.error(f"Failed to queue reminder: {e}")
             return {"success": False, "error": str(e)}
-    
+
     async def _get_deadline_recipients(self, deadline: dict[str, Any]) -> list[str]:
         """Get recipients for a deadline notification.
-        
+
         Returns counsel and agents assigned to the project/parcel.
-        
+
         Args:
             deadline: Deadline data
-            
+
         Returns:
             List of user IDs
         """
         if not self.db:
             return []
-        
+
         try:
             from app.db.models import User, Persona
             from sqlalchemy import select
-            
+
             # Get counsel users (always notified)
             result = await self.db.execute(
-                select(User).where(User.persona.in_([
-                    Persona.IN_HOUSE_COUNSEL,
-                    Persona.LAND_AGENT,
-                ]))
+                select(User).where(
+                    User.persona.in_(
+                        [
+                            Persona.IN_HOUSE_COUNSEL,
+                            Persona.LAND_AGENT,
+                        ]
+                    )
+                )
             )
             users = result.scalars().all()
             return [u.id for u in users]
-            
+
         except Exception as e:
             self.logger.warning(f"Failed to get deadline recipients: {e}")
             return []
-    
+
     async def escalate_missed_deadline(self, deadline_id: str) -> dict[str, Any]:
         """Create escalation for missed deadline.
-        
+
         Args:
             deadline_id: Missed deadline
-            
+
         Returns:
             Escalation result
         """
         deadline = await self._get_deadline(deadline_id)
         if not deadline:
             return {"success": False, "error": "Deadline not found"}
-        
+
         escalation_id = str(uuid4())
-        
+
         # Create escalation request
         if self.db:
             try:
                 from app.db.models import EscalationRequest, AIDecision
-                
+
                 # Create AI decision record
                 decision_id = str(uuid4())
                 ai_decision = AIDecision(
@@ -477,7 +485,7 @@ class FilingAgent(BaseAgent):
                     hash="",
                 )
                 self.db.add(ai_decision)
-                
+
                 escalation = EscalationRequest(
                     id=escalation_id,
                     ai_decision_id=decision_id,
@@ -488,17 +496,17 @@ class FilingAgent(BaseAgent):
                 )
                 self.db.add(escalation)
                 await self.db.commit()
-                
+
             except Exception as e:
                 self.logger.error(f"Failed to create escalation: {e}")
-        
+
         return {
             "success": True,
             "escalation_id": escalation_id,
             "deadline_id": deadline_id,
             "priority": "critical",
         }
-    
+
     async def interpret_filing_error(
         self,
         error_response: dict[str, Any],
@@ -506,12 +514,12 @@ class FilingAgent(BaseAgent):
         court_name: str,
     ) -> dict[str, Any]:
         """Use AI to interpret a filing error.
-        
+
         Args:
             error_response: Error from e-filing system
             document_type: Type of document
             court_name: Court name
-            
+
         Returns:
             Error interpretation
         """
@@ -521,12 +529,12 @@ class FilingAgent(BaseAgent):
             court_name=court_name,
             filing_date=datetime.utcnow().isoformat(),
         )
-        
+
         response = await self.call_ai(prompt, task_type="filing_error")
-        
+
         if response:
             return response
-        
+
         # Default interpretation if AI unavailable
         return {
             "error_type": "technical",
@@ -534,28 +542,38 @@ class FilingAgent(BaseAgent):
             "corrections_needed": ["Review error and retry"],
             "can_refile": True,
             "urgency": "medium",
-            "suggested_actions": ["Review filing requirements", "Contact court clerk if needed"],
+            "suggested_actions": [
+                "Review filing requirements",
+                "Contact court clerk if needed",
+            ],
         }
-    
-    def _get_filing_adapter(self, court_id: str):
-        """Get the e-filing adapter for a court.
-        
-        Args:
-            court_id: Court identifier
-            
-        Returns:
-            Filing adapter instance
+
+    # Registry mapping court_id prefix → adapter factory.  Real adapters can
+    # be registered at app startup; unknown courts fall back to the mock.
+    _adapter_registry: dict[str, Any] = {}
+
+    @classmethod
+    def register_filing_adapter(cls, court_id_prefix: str, factory: Any) -> None:
+        """Register an adapter factory for a court id prefix.
+
+        ``factory(court_id)`` must return an object exposing an async
+        ``submit(document)`` method and ``check_status(confirmation)``.
         """
-        # TODO: Implement actual adapters for Tyler Odyssey, File & Serve, etc.
-        # For now, return a mock adapter
+
+        cls._adapter_registry[court_id_prefix] = factory
+
+    def _get_filing_adapter(self, court_id: str):
+        for prefix, factory in self._adapter_registry.items():
+            if court_id.startswith(prefix):
+                return factory(court_id)
         return MockFilingAdapter(court_id)
-    
+
     async def _get_upcoming_deadlines(self, days_ahead: int) -> list[dict[str, Any]]:
         """Get deadlines within the specified window.
-        
+
         Args:
             days_ahead: Days to look ahead
-            
+
         Returns:
             List of deadline records
         """
@@ -576,18 +594,18 @@ class FilingAgent(BaseAgent):
                     "project_id": "proj-1",
                 },
             ]
-        
+
         try:
             from app.db.models import Deadline
             from sqlalchemy import select
-            
+
             cutoff = datetime.utcnow() + timedelta(days=days_ahead)
-            
+
             result = await self.db.execute(
                 select(Deadline).where(Deadline.due_at <= cutoff)
             )
             deadlines = result.scalars().all()
-            
+
             return [
                 {
                     "id": d.id,
@@ -598,11 +616,11 @@ class FilingAgent(BaseAgent):
                 }
                 for d in deadlines
             ]
-            
+
         except Exception as e:
             self.logger.error(f"Failed to fetch deadlines: {e}")
             return []
-    
+
     async def _get_deadline(self, deadline_id: str) -> Optional[dict[str, Any]]:
         """Get a specific deadline."""
         if not self.db:
@@ -611,16 +629,16 @@ class FilingAgent(BaseAgent):
                 "title": "Test deadline",
                 "due_at": datetime.utcnow() + timedelta(days=1),
             }
-        
+
         try:
             from app.db.models import Deadline
             from sqlalchemy import select
-            
+
             result = await self.db.execute(
                 select(Deadline).where(Deadline.id == deadline_id)
             )
             deadline = result.scalar_one_or_none()
-            
+
             if deadline:
                 return {
                     "id": deadline.id,
@@ -629,25 +647,25 @@ class FilingAgent(BaseAgent):
                     "project_id": deadline.project_id,
                 }
             return None
-            
+
         except Exception as e:
             self.logger.error(f"Failed to fetch deadline: {e}")
             return None
-    
+
     async def _get_document(self, document_id: str) -> Optional[dict[str, Any]]:
         """Get document by ID."""
         if not self.db:
             return {"id": document_id, "doc_type": "petition"}
-        
+
         try:
             from app.db.models import Document
             from sqlalchemy import select
-            
+
             result = await self.db.execute(
                 select(Document).where(Document.id == document_id)
             )
             doc = result.scalar_one_or_none()
-            
+
             if doc:
                 return {
                     "id": doc.id,
@@ -655,29 +673,96 @@ class FilingAgent(BaseAgent):
                     "storage_path": doc.storage_path,
                 }
             return None
-            
+
         except Exception as e:
             self.logger.error(f"Failed to fetch document: {e}")
             return None
-    
+
     async def _validate_for_court(
         self,
         document: dict[str, Any],
         court_id: str,
     ) -> dict[str, Any]:
-        """Validate document for court requirements."""
-        # TODO: Implement court-specific validation
-        return {"valid": True}
-    
+        """Structural validation before submission.
+
+        We intentionally do *not* second-guess court-specific formatting
+        here (margins, page counts) — that belongs in Document QA.  The job
+        of this check is to ensure the submission is internally consistent:
+        the document has an id, a type, and we know which court it targets.
+        Adapters registered via ``register_filing_adapter`` may override this.
+        """
+
+        issues: list[str] = []
+        if not document.get("id"):
+            issues.append("document.id missing")
+        if not document.get("doc_type"):
+            issues.append("document.doc_type missing")
+        if not court_id:
+            issues.append("court_id missing")
+
+        adapter = self._get_filing_adapter(court_id)
+        extra = getattr(adapter, "validate", None)
+        if callable(extra):
+            try:
+                adapter_issues = extra(document)
+                if adapter_issues:
+                    issues.extend(adapter_issues)
+            except Exception as exc:  # pragma: no cover - defensive
+                issues.append(f"adapter validation error: {exc}")
+
+        return {"valid": not issues, "issues": issues}
+
     async def _record_filing(
         self,
         document_id: str,
         result: dict[str, Any],
     ) -> None:
-        """Record successful filing in database."""
-        # TODO: Implement filing record
-        pass
-    
+        """Persist filing metadata on the Document row.
+
+        We update ``metadata_json`` with a ``filings`` append-only list so
+        multiple submissions (retries, amendments) remain auditable without
+        a new table.  A separate FilingRecord model can be added later.
+        """
+
+        if not self.db:
+            return
+
+        try:
+            from app.db.models import Document
+            from sqlalchemy import select
+
+            query = await self.db.execute(
+                select(Document).where(Document.id == document_id)
+            )
+            doc = query.scalar_one_or_none()
+            if not doc:
+                return
+
+            meta = dict(doc.metadata_json or {})
+            history = list(meta.get("filings") or [])
+            history.append(
+                {
+                    "court_id": result.get("court_id"),
+                    "confirmation_number": result.get("confirmation_number"),
+                    "accepted": bool(result.get("accepted")),
+                    "filed_at": datetime.utcnow().isoformat(),
+                    "error_code": result.get("error_code"),
+                    "error_message": result.get("error_message"),
+                }
+            )
+            meta["filings"] = history
+            doc.metadata_json = meta
+
+            commit = getattr(self.db, "commit", None)
+            if commit is not None:
+                import asyncio
+
+                res = commit()
+                if asyncio.iscoroutine(res):
+                    await res
+        except Exception as exc:  # pragma: no cover - defensive
+            self.logger.warning("record_filing failed: %s", exc)
+
     def _build_deadline_result(
         self,
         checks: list[DeadlineCheck],
@@ -687,15 +772,15 @@ class FilingAgent(BaseAgent):
         missed = sum(1 for c in checks if c.status == "missed")
         critical = sum(1 for c in checks if c.status == "critical")
         warnings = sum(1 for c in checks if c.status == "warning")
-        
+
         flags = []
         if missed > 0:
             flags.append("deadline_missed")
         if critical > 0:
             flags.append("critical_deadline")
-        
+
         execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
-        
+
         return AgentResult(
             success=missed == 0,
             confidence=0.95,
@@ -723,7 +808,7 @@ class FilingAgent(BaseAgent):
             },
             execution_time_ms=int(execution_time),
         )
-    
+
     def _build_filing_result(
         self,
         result: FilingResult,
@@ -731,11 +816,11 @@ class FilingAgent(BaseAgent):
     ) -> AgentResult:
         """Build AgentResult from filing result."""
         execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
-        
+
         flags = []
         if not result.accepted:
             flags.append("filing_rejected")
-        
+
         return AgentResult(
             success=result.accepted,
             confidence=0.95 if result.accepted else 0.7,
@@ -744,7 +829,9 @@ class FilingAgent(BaseAgent):
                 "court_id": result.court_id,
                 "accepted": result.accepted,
                 "confirmation_number": result.confirmation_number,
-                "filing_date": result.filing_date.isoformat() if result.filing_date else None,
+                "filing_date": (
+                    result.filing_date.isoformat() if result.filing_date else None
+                ),
                 "error_code": result.error_code,
                 "error_message": result.error_message,
                 "interpretation": result.interpretation,
@@ -760,10 +847,10 @@ class FilingAgent(BaseAgent):
 
 class MockFilingAdapter:
     """Mock filing adapter for development."""
-    
+
     def __init__(self, court_id: str):
         self.court_id = court_id
-    
+
     async def submit(
         self,
         document: dict[str, Any],

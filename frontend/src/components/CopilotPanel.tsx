@@ -1,17 +1,19 @@
-"use client";
-
 import { useState, useRef, useEffect, useCallback } from "react";
-import { 
-  askCopilot, 
-  copilotSummarizeCase, 
-  copilotDraftResponse, 
+import {
+  askCopilot,
+  copilotSummarizeCase,
+  copilotDraftResponse,
   copilotExplainRequirement,
   listCopilotConversations,
   getCopilotConversation,
+  getApiAuth,
   type CopilotMessage,
-  type CopilotResponse,
-  type ConversationListItem 
+  type ConversationListItem,
 } from "@/lib/api";
+import { CopilotMessageBubble } from "./copilot/CopilotMessageBubble";
+import { CopilotConversationHistory } from "./copilot/CopilotConversationHistory";
+import { DraftResponseModal, ExplainRequirementModal } from "./copilot/CopilotQuickActionModals";
+import { readSSEStream } from "@/lib/sse";
 
 type Props = {
   caseId?: string;
@@ -95,12 +97,17 @@ export function CopilotPanel({
     try {
       abortControllerRef.current = new AbortController();
       
+      const { persona, token } = getApiAuth();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "X-Persona": persona ?? "in_house_counsel",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
       const response = await fetch(`${API_BASE}/copilot/ask`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Persona": "in_house_counsel",
-        },
+        headers,
         body: JSON.stringify({
           question,
           case_id: caseId,
@@ -133,59 +140,50 @@ export function CopilotPanel({
         throw new Error("No response body");
       }
 
-      const decoder = new TextDecoder();
       let fullContent = "";
       let citations: string[] = [];
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      for await (const event of readSSEStream(reader)) {
+        let data: StreamMessage;
+        try {
+          data = JSON.parse(event.data) as StreamMessage;
+        } catch {
+          // Skip non-JSON comments / keepalives.
+          continue;
+        }
 
-        const text = decoder.decode(value);
-        const lines = text.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data: StreamMessage = JSON.parse(line.slice(6));
-
-              switch (data.type) {
-                case "conversation_id":
-                  if (data.conversation_id) {
-                    setConversationId(data.conversation_id);
-                  }
-                  break;
-                case "citations":
-                  if (data.citations) {
-                    citations = data.citations;
-                    setCurrentCitations(data.citations);
-                  }
-                  break;
-                case "chunk":
-                  if (data.content) {
-                    fullContent += data.content;
-                    setStreamingContent(fullContent);
-                  }
-                  break;
-                case "done":
-                  // Add assistant message
-                  const assistantMessage: CopilotMessage = {
-                    role: "assistant",
-                    content: fullContent,
-                    timestamp: new Date().toISOString(),
-                    citations,
-                  };
-                  setMessages((prev) => [...prev, assistantMessage]);
-                  setStreamingContent("");
-                  break;
-                case "error":
-                  setError(data.error || "Unknown error");
-                  break;
-              }
-            } catch {
-              // Ignore parse errors for incomplete chunks
+        switch (data.type) {
+          case "conversation_id":
+            if (data.conversation_id) {
+              setConversationId(data.conversation_id);
             }
+            break;
+          case "citations":
+            if (data.citations) {
+              citations = data.citations;
+              setCurrentCitations(data.citations);
+            }
+            break;
+          case "chunk":
+            if (data.content) {
+              fullContent += data.content;
+              setStreamingContent(fullContent);
+            }
+            break;
+          case "done": {
+            const assistantMessage: CopilotMessage = {
+              role: "assistant",
+              content: fullContent,
+              timestamp: new Date().toISOString(),
+              citations,
+            };
+            setMessages((prev) => [...prev, assistantMessage]);
+            setStreamingContent("");
+            break;
           }
+          case "error":
+            setError(data.error || "Unknown error");
+            break;
         }
       }
     } catch (err) {
@@ -534,68 +532,14 @@ export function CopilotPanel({
         </div>
       )}
 
-      {/* Conversation History Panel */}
       {showHistory && (
-        <div className="absolute inset-0 top-[60px] bg-white z-20 flex flex-col">
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-            <h4 className="font-medium text-slate-900">Recent Conversations</h4>
-            <button
-              onClick={() => setShowHistory(false)}
-              className="text-slate-400 hover:text-slate-600"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            {loadingHistory ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-brand rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 bg-brand rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 bg-brand rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                </div>
-              </div>
-            ) : conversationHistory.length === 0 ? (
-              <div className="text-center py-8 text-slate-500">
-                <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                <p className="text-sm">No previous conversations</p>
-                <p className="text-xs mt-1">Start a new conversation to see it here</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {conversationHistory.map((conv) => (
-                  <button
-                    key={conv.conversation_id}
-                    onClick={() => loadConversation(conv.conversation_id)}
-                    className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-brand hover:bg-brand/5 transition-colors"
-                  >
-                    <p className="text-sm text-slate-900 truncate">{conv.preview || "Empty conversation"}</p>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
-                      <span>{conv.message_count} messages</span>
-                      <span>•</span>
-                      <span>{new Date(conv.last_updated).toLocaleDateString()}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="p-4 border-t border-slate-200">
-            <button
-              onClick={() => {
-                handleClearConversation();
-                setShowHistory(false);
-              }}
-              className="w-full px-4 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark transition-colors"
-            >
-              Start New Conversation
-            </button>
-          </div>
-        </div>
+        <CopilotConversationHistory
+          conversations={conversationHistory}
+          loading={loadingHistory}
+          onSelect={loadConversation}
+          onNewConversation={() => { handleClearConversation(); setShowHistory(false); }}
+          onClose={() => setShowHistory(false)}
+        />
       )}
 
       {/* Messages */}
@@ -667,124 +611,29 @@ export function CopilotPanel({
           </div>
         )}
 
-        {/* Draft Response Modal */}
         {activeQuickAction === "draft" && (
-          <div className="absolute inset-0 bg-black/20 flex items-center justify-center p-4 z-10">
-            <div className="bg-white rounded-lg shadow-xl p-4 w-full max-w-sm">
-              <h4 className="font-semibold text-slate-900 mb-3">Draft Response</h4>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-slate-600 block mb-1">Response Type</label>
-                  <select
-                    value={draftType}
-                    onChange={(e) => setDraftType(e.target.value as DraftResponseType)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
-                  >
-                    <option value="counter_offer">Counter Offer</option>
-                    <option value="acceptance">Acceptance</option>
-                    <option value="rejection">Rejection</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-600 block mb-1">Notes (optional)</label>
-                  <textarea
-                    value={draftNotes}
-                    onChange={(e) => setDraftNotes(e.target.value)}
-                    placeholder="Any specific points to include..."
-                    rows={2}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-brand"
-                  />
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <button
-                    onClick={() => setActiveQuickAction(null)}
-                    className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleDraftResponse}
-                    className="px-3 py-1.5 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark"
-                  >
-                    Generate Draft
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <DraftResponseModal
+            draftType={draftType}
+            draftNotes={draftNotes}
+            onDraftTypeChange={setDraftType}
+            onNotesChange={setDraftNotes}
+            onSubmit={handleDraftResponse}
+            onCancel={() => setActiveQuickAction(null)}
+          />
         )}
 
-        {/* Explain Requirement Modal */}
         {activeQuickAction === "explain" && (
-          <div className="absolute inset-0 bg-black/20 flex items-center justify-center p-4 z-10">
-            <div className="bg-white rounded-lg shadow-xl p-4 w-full max-w-sm">
-              <h4 className="font-semibold text-slate-900 mb-3">Explain Requirement</h4>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-slate-600 block mb-1">Requirement</label>
-                  <textarea
-                    value={explainRequirement}
-                    onChange={(e) => setExplainRequirement(e.target.value)}
-                    placeholder="e.g., 'Good faith negotiation', 'Appraisal requirements', 'Notice periods'..."
-                    rows={3}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-brand"
-                  />
-                </div>
-                <p className="text-xs text-slate-500">
-                  Jurisdiction: <span className="font-medium">{jurisdiction || "Not set"}</span>
-                </p>
-                <div className="flex gap-2 justify-end">
-                  <button
-                    onClick={() => setActiveQuickAction(null)}
-                    className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleExplainRequirement}
-                    disabled={!explainRequirement.trim()}
-                    className="px-3 py-1.5 text-sm bg-brand text-white rounded-lg hover:bg-brand-dark disabled:opacity-50"
-                  >
-                    Explain
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ExplainRequirementModal
+            requirement={explainRequirement}
+            jurisdiction={jurisdiction}
+            onRequirementChange={setExplainRequirement}
+            onSubmit={handleExplainRequirement}
+            onCancel={() => setActiveQuickAction(null)}
+          />
         )}
 
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[85%] rounded-lg px-4 py-2.5 ${
-                msg.role === "user"
-                  ? "bg-brand text-white"
-                  : "bg-slate-100 text-slate-900"
-              }`}
-            >
-              <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-              
-              {/* Citations */}
-              {msg.citations && msg.citations.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-slate-200/50">
-                  <p className="text-xs font-medium text-slate-500 mb-1">Citations:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {msg.citations.map((citation, j) => (
-                      <span
-                        key={j}
-                        className="text-xs px-2 py-0.5 bg-white/50 rounded text-slate-600"
-                      >
-                        {citation}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <CopilotMessageBubble key={i} message={msg} />
         ))}
 
         {/* Streaming content */}

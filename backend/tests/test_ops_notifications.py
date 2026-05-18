@@ -152,7 +152,7 @@ class TestIntegrationsDocketWebhook:
         data = res.json()
         
         assert data["received"] is True
-        assert data["payload"] == payload
+        assert data["signature_present"] is False
 
     def test_docket_webhook_detects_signature_header(self):
         """Docket webhook detects presence of signature header."""

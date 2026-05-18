@@ -4,9 +4,9 @@
 
 # Cloud Run service account - runs the backend API
 resource "google_service_account" "cloudrun" {
-  account_id   = "landright-cloudrun"
-  display_name = "LandRight Cloud Run Service Account"
-  description  = "Service account for LandRight backend API on Cloud Run"
+  account_id   = "landgrant-cloudrun"
+  display_name = "LandGrant Cloud Run Service Account"
+  description  = "Service account for LandGrant backend API on Cloud Run"
   project      = var.project_id
 
   depends_on = [time_sleep.wait_for_apis]
@@ -14,9 +14,9 @@ resource "google_service_account" "cloudrun" {
 
 # Cloud Build service account - builds and deploys containers
 resource "google_service_account" "cloudbuild" {
-  account_id   = "landright-cloudbuild"
-  display_name = "LandRight Cloud Build Service Account"
-  description  = "Service account for building and deploying LandRight"
+  account_id   = "landgrant-cloudbuild"
+  display_name = "LandGrant Cloud Build Service Account"
+  description  = "Service account for building and deploying LandGrant"
   project      = var.project_id
 
   depends_on = [time_sleep.wait_for_apis]

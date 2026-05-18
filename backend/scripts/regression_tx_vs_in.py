@@ -11,7 +11,7 @@ Usage:
 Output:
     artifacts/regression/tx_vs_in_regression_YYYY-MM-DD_HH-mm-ss.csv
 
-Author: LandRight Team
+Author: LandGrant Team
 """
 
 from __future__ import annotations

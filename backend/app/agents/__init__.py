@@ -1,4 +1,4 @@
-"""AI Agent package for LandRight.
+"""AI Agent package for LandGrant.
 
 This package contains specialized agents for automating eminent domain workflows:
 

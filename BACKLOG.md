@@ -1,11 +1,11 @@
-# LandRight MVP Backlog
+# LandGrant MVP Backlog
 
 The project backlog is maintained in `/docs/backlog/`.
 
 ## Quick Links
 
-- **Full Backlog (Markdown)**: [docs/backlog/landright_backlog.md](docs/backlog/landright_backlog.md)
-- **Jira Import CSV**: [docs/backlog/landright_backlog.csv](docs/backlog/landright_backlog.csv)
+- **Full Backlog (Markdown)**: [docs/backlog/landgrant_backlog.md](docs/backlog/landgrant_backlog.md)
+- **Jira Import CSV**: [docs/backlog/landgrant_backlog.csv](docs/backlog/landgrant_backlog.csv)
 - **Coverage Verification**: [docs/backlog/coverage_verification.md](docs/backlog/coverage_verification.md)
 - **Jira Setup Guide**: [docs/jira-setup-guide.md](docs/jira-setup-guide.md)
 

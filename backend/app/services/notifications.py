@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal
+from typing import Optional, Any, Literal
 from uuid import uuid4
 
 import httpx
@@ -22,15 +22,17 @@ class NotificationPreview:
     notification_id: str
     channel: Channel
     to: str
-    subject: str | None
+    subject: Optional[str]
     body: str
     mode: str  # preview | send
     created_at: str
-    communication_id: str | None
-    audit_event_id: str | None
+    communication_id: Optional[str]
+    audit_event_id: Optional[str]
 
 
-def _render_template(template_id: str, variables: dict[str, Any]) -> tuple[str | None, str]:
+def _render_template(
+    template_id: str, variables: dict[str, Any]
+) -> tuple[Optional[str], str]:
     """
     Minimal in-code templates for now.
     Later we can move this to templates/i18n + template library metadata.
@@ -39,14 +41,16 @@ def _render_template(template_id: str, variables: dict[str, Any]) -> tuple[str |
         invite_link = variables.get("invite_link", "")
         project_id = variables.get("project_id", "")
         parcel_id = variables.get("parcel_id", "")
-        subject = "LandRight portal invite"
+        subject = "LandGrant portal invite"
         body = f"You're invited to review your parcel. Project {project_id}, Parcel {parcel_id}. Link: {invite_link}"
         return subject, body
     if template_id == "decision_confirmation":
         selection = variables.get("selection", "")
         parcel_id = variables.get("parcel_id", "")
         subject = "Decision received"
-        body = f"Thanks — we received your decision '{selection}' for parcel {parcel_id}."
+        body = (
+            f"Thanks — we received your decision '{selection}' for parcel {parcel_id}."
+        )
         return subject, body
     # Generic fallback
     return None, str(variables.get("body", ""))
@@ -59,9 +63,11 @@ def _create_audit_event(
     action: str,
     resource: str,
     payload: dict[str, Any],
-    user_id: str | None = None,
+    user_id: Optional[str] = None,
 ) -> models.AuditEvent:
-    event_hash = sha256_hex({"action": action, "resource": resource, "payload": payload})
+    event_hash = sha256_hex(
+        {"action": action, "resource": resource, "payload": payload}
+    )
     event = models.AuditEvent(
         id=str(uuid4()),
         user_id=user_id,
@@ -121,7 +127,7 @@ def preview_or_send(
     variables: dict[str, Any],
     project_id: str,
     parcel_id: str,
-    user_id: str | None = None,
+    user_id: Optional[str] = None,
 ) -> NotificationPreview:
     settings = get_settings()
     subject, body = _render_template(template_id, variables)
@@ -139,7 +145,11 @@ def preview_or_send(
     # Default to preview when secrets are missing.
     if channel == "email" and not settings.sendgrid_api_key:
         can_send = False
-    if channel == "sms" and (not settings.twilio_account_sid or not settings.twilio_auth_token or not settings.twilio_from_number):
+    if channel == "sms" and (
+        not settings.twilio_account_sid
+        or not settings.twilio_auth_token
+        or not settings.twilio_from_number
+    ):
         can_send = False
 
     audit = _create_audit_event(
@@ -148,10 +158,16 @@ def preview_or_send(
         user_id=user_id,
         action="notification.compose",
         resource=template_id,
-        payload={"channel": channel, "to": to, "provider_payload": provider_payload, "project_id": project_id, "parcel_id": parcel_id},
+        payload={
+            "channel": channel,
+            "to": to,
+            "provider_payload": provider_payload,
+            "project_id": project_id,
+            "parcel_id": parcel_id,
+        },
     )
 
-    comm: models.Communication | None = None
+    comm: Optional[models.Communication] = None
 
     if not can_send:
         comm = _create_outbox_communication(
@@ -160,7 +176,11 @@ def preview_or_send(
             parcel_id=parcel_id,
             channel=channel,
             content=body,
-            proof={"preview": True, "template_id": template_id, "payload": provider_payload},
+            proof={
+                "preview": True,
+                "template_id": template_id,
+                "payload": provider_payload,
+            },
         )
         db.commit()
         return NotificationPreview(
@@ -176,14 +196,18 @@ def preview_or_send(
         )
 
     # Provider send path (best-effort; still store comms + proof).
-    proof: dict[str, Any] = {"preview": False, "template_id": template_id, "payload": provider_payload}
+    proof: dict[str, Any] = {
+        "preview": False,
+        "template_id": template_id,
+        "payload": provider_payload,
+    }
     status = "sent"
     try:
         if channel == "email":
             # Minimal SendGrid v3 mail send example; real integration can be expanded later.
             async_payload = {
                 "personalizations": [{"to": [{"email": to}]}],
-                "from": {"email": "no-reply@landright.local"},
+                "from": {"email": "no-reply@landgrant.local"},
                 "subject": subject or "",
                 "content": [{"type": "text/plain", "value": body}],
             }
@@ -232,6 +256,3 @@ def preview_or_send(
         communication_id=comm.id,
         audit_event_id=audit.id,
     )
-
-
-

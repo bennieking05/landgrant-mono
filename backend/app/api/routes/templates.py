@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import Optional
+
 import json
 from pathlib import Path
 from uuid import uuid4
@@ -21,7 +24,7 @@ class TemplateMetadata(BaseModel):
     id: str
     version: str
     locale: str
-    jurisdiction: str | None = None
+    jurisdiction: Optional[str] = None
     variables: dict
     privilege: str
 
@@ -42,14 +45,16 @@ class TemplateRenderRequest(BaseModel):
     variables: dict
     # Optional: persist the rendered document
     persist: bool = False
-    project_id: str | None = None
-    parcel_id: str | None = None
+    project_id: Optional[str] = None
+    parcel_id: Optional[str] = None
 
 
 class TemplateRenderResponse(BaseModel):
     rendered: str
-    document_id: str | None = None
-    deadline_anchors: dict[str, str] | None = None  # Extracted anchor dates for deadline derivation
+    document_id: Optional[str] = None
+    deadline_anchors: Optional[dict[str, str]] = (
+        None  # Extracted anchor dates for deadline derivation
+    )
 
 
 def _extract_deadline_anchors(template_id: str, variables: dict) -> dict[str, str]:
@@ -116,7 +121,7 @@ def render_template(
 
     # Load template metadata
     template_meta: dict = {}
-    jurisdiction: str | None = None
+    jurisdiction: Optional[str] = None
     if meta_file.exists():
         try:
             template_meta = json.loads(meta_file.read_text())
@@ -131,7 +136,7 @@ def render_template(
     # Extract deadline anchors
     deadline_anchors = _extract_deadline_anchors(payload.template_id, payload.variables)
 
-    document_id: str | None = None
+    document_id: Optional[str] = None
 
     # Persist document if requested
     if payload.persist and payload.project_id:
@@ -178,11 +183,13 @@ def render_template(
                     "parcel_id": payload.parcel_id,
                     "deadline_anchors": deadline_anchors,
                 },
-                hash=sha256_hex({
-                    "document_id": document_id,
-                    "template_id": payload.template_id,
-                    "content_hash": content_hash,
-                }),
+                hash=sha256_hex(
+                    {
+                        "document_id": document_id,
+                        "template_id": payload.template_id,
+                        "content_hash": content_hash,
+                    }
+                ),
             )
         )
         db.commit()

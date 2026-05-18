@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState, useCallback } from "react";
 import { apiGet } from "@/lib/api";
 import { LoadingSpinner, ErrorMessage } from "@/components/ui";

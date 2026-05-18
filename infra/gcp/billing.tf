@@ -18,34 +18,34 @@ resource "google_project_service" "required" {
     "compute.googleapis.com",
     "vpcaccess.googleapis.com",
     "servicenetworking.googleapis.com",
-    
+
     # Container & Build
     "run.googleapis.com",
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
     "containerregistry.googleapis.com",
-    
+
     # Database & Cache
     "sqladmin.googleapis.com",
     "redis.googleapis.com",
-    
+
     # AI / ML
     "aiplatform.googleapis.com",
-    
+
     # Security & Secrets
     "secretmanager.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
-    
+
     # Storage
     "storage.googleapis.com",
     "storage-component.googleapis.com",
-    
+
     # Monitoring & Logging
     "monitoring.googleapis.com",
     "logging.googleapis.com",
     "cloudtrace.googleapis.com",
-    
+
     # Pub/Sub (for async workflows)
     "pubsub.googleapis.com",
   ])

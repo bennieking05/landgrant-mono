@@ -11,8 +11,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, Any
 from datetime import datetime
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_persona
+from app.api.deps import get_current_persona, get_db
 from app.db.models import Persona
 from app.security.rbac import authorize, Action
 
@@ -22,6 +23,7 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 # Response models
 class AIEventSummary(BaseModel):
     """Summary of an AI event."""
+
     id: str
     action: str
     model: str
@@ -37,6 +39,7 @@ class AIEventSummary(BaseModel):
 
 class AIEventTrace(BaseModel):
     """Full trace of an AI event."""
+
     event: dict[str, Any]
     inputs: dict[str, Any]
     outputs: dict[str, Any]
@@ -45,6 +48,7 @@ class AIEventTrace(BaseModel):
 
 class CostSummary(BaseModel):
     """Cost summary for AI usage."""
+
     total_cost_usd: str
     total_events: int
     total_input_tokens: int
@@ -55,6 +59,7 @@ class CostSummary(BaseModel):
 
 class ReplayConfig(BaseModel):
     """Configuration to replay an AI event."""
+
     event_id: str
     original_timestamp: str
     model: str
@@ -68,6 +73,7 @@ class ReplayConfig(BaseModel):
 @router.get("/ai-events")
 async def list_ai_events(
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
     project_id: Optional[str] = None,
     parcel_id: Optional[str] = None,
     action: Optional[str] = None,
@@ -75,15 +81,15 @@ async def list_ai_events(
     limit: int = Query(50, le=200),
 ):
     """List AI events with optional filters.
-    
+
     Returns summary information for each event.
     Use GET /audit/ai-events/{id} for full trace.
     """
     authorize(persona, "audit", Action.READ)
-    
+
     from app.services.ai_telemetry import AITelemetryService
-    
-    service = AITelemetryService()
+
+    service = AITelemetryService(db=db)
     events = service.list_events(
         project_id=project_id,
         parcel_id=parcel_id,
@@ -91,7 +97,7 @@ async def list_ai_events(
         since=since,
         limit=limit,
     )
-    
+
     return {
         "count": len(events),
         "events": [
@@ -103,7 +109,9 @@ async def list_ai_events(
                 latency_ms=e.latency_ms,
                 input_tokens=e.input_tokens,
                 output_tokens=e.output_tokens,
-                cost_estimate_usd=str(e.cost_estimate_usd) if e.cost_estimate_usd else None,
+                cost_estimate_usd=(
+                    str(e.cost_estimate_usd) if e.cost_estimate_usd else None
+                ),
                 project_id=e.project_id,
                 parcel_id=e.parcel_id,
                 created_at=e.created_at.isoformat(),
@@ -117,21 +125,22 @@ async def list_ai_events(
 async def get_ai_event_trace(
     event_id: str,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Get full trace for an AI event.
-    
+
     Includes complete inputs, outputs, and hash verification.
     """
     authorize(persona, "audit", Action.READ)
-    
+
     from app.services.ai_telemetry import AITelemetryService
-    
-    service = AITelemetryService()
+
+    service = AITelemetryService(db=db)
     trace = service.get_event_trace(event_id)
-    
+
     if "error" in trace:
         raise HTTPException(status_code=404, detail=trace["error"])
-    
+
     return AIEventTrace(
         event=trace["event"],
         inputs=trace["inputs"],
@@ -144,45 +153,47 @@ async def get_ai_event_trace(
 async def get_replay_config(
     event_id: str,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Get configuration to replay an AI event.
-    
+
     Returns all information needed to reproduce
     the exact same AI call.
     """
     authorize(persona, "audit", Action.READ)
-    
+
     from app.services.ai_telemetry import AITelemetryService
-    
-    service = AITelemetryService()
+
+    service = AITelemetryService(db=db)
     config = service.get_replay_config(event_id)
-    
+
     if "error" in config:
         raise HTTPException(status_code=404, detail=config["error"])
-    
+
     return ReplayConfig(**config)
 
 
 @router.get("/costs")
 async def get_cost_summary(
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
     project_id: Optional[str] = None,
     since: Optional[datetime] = None,
 ):
     """Get cost summary for AI usage.
-    
+
     Shows total costs broken down by model and action type.
     """
     authorize(persona, "audit", Action.READ)
-    
+
     from app.services.ai_telemetry import AITelemetryService
-    
-    service = AITelemetryService()
+
+    service = AITelemetryService(db=db)
     summary = service.get_cost_summary(
         project_id=project_id,
         since=since,
     )
-    
+
     return CostSummary(**summary)
 
 
@@ -191,19 +202,20 @@ async def get_entity_citations(
     entity_type: str,
     entity_id: str,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Get all citations for an entity.
-    
+
     Returns citations with full source information
     for audit verification.
     """
     authorize(persona, "audit", Action.READ)
-    
+
     from app.services.citations import CitationService
-    
-    service = CitationService()
+
+    service = CitationService(db=db)
     citations = service.get_citations_for_entity(entity_type, entity_id)
-    
+
     return {
         "entity_type": entity_type,
         "entity_id": entity_id,
@@ -216,21 +228,27 @@ async def get_entity_citations(
 async def verify_citations(
     ai_output: dict[str, Any],
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Verify citations in an AI output.
-    
+
     Checks that all claims have valid citations
     pointing to verified sources.
     """
     authorize(persona, "audit", Action.READ)
-    
-    from app.services.citations import CitationService, ClaimChecker
-    
-    citation_service = CitationService()
+
+    from app.services.citations import (
+        CitationService,
+        ClaimChecker,
+        enforce_citation_gate,
+    )
+
+    citation_service = CitationService(db=db)
     checker = ClaimChecker(citation_service)
-    
+
     result = checker.check_ai_output(ai_output)
-    
+    gate = enforce_citation_gate(ai_output)
+    result["gate"] = gate.to_dict()
     return result
 
 
@@ -243,48 +261,52 @@ async def create_source(
     url: Optional[str] = None,
     raw_text: Optional[str] = None,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Create a new source for citations.
-    
+
     Sources are the authoritative documents that
     citations reference.
     """
     authorize(persona, "audit", Action.WRITE)
-    
+
     from app.services.citations import CitationService, SourceInput
-    
-    service = CitationService()
-    source = service.create_source(SourceInput(
-        title=title,
-        jurisdiction=jurisdiction,
-        authority_level=authority_level,
-        citation_string=citation_string,
-        url=url,
-        raw_text=raw_text,
-    ))
-    
+
+    service = CitationService(db=db)
+    source = service.create_source(
+        SourceInput(
+            title=title,
+            jurisdiction=jurisdiction,
+            authority_level=authority_level,
+            citation_string=citation_string,
+            url=url,
+            raw_text=raw_text,
+        )
+    )
+
     return source
 
 
 @router.get("/sources")
 async def search_sources(
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
     jurisdiction: Optional[str] = None,
     authority_level: Optional[str] = None,
     query: Optional[str] = None,
 ):
     """Search sources by criteria."""
     authorize(persona, "audit", Action.READ)
-    
+
     from app.services.citations import CitationService
-    
-    service = CitationService()
+
+    service = CitationService(db=db)
     sources = service.search_sources(
         jurisdiction=jurisdiction,
         authority_level=authority_level,
         query=query,
     )
-    
+
     return {
         "count": len(sources),
         "sources": sources,
@@ -296,17 +318,18 @@ async def verify_source(
     source_id: str,
     notes: Optional[str] = None,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Mark a source as verified.
-    
+
     Verified sources are trusted for citation validation.
     """
     authorize(persona, "audit", Action.APPROVE)
-    
+
     from app.services.citations import CitationService
-    
-    service = CitationService()
-    
+
+    service = CitationService(db=db)
+
     try:
         source = service.verify_source(
             source_id=source_id,
@@ -316,3 +339,30 @@ async def verify_source(
         return source
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/chain/verify")
+async def verify_audit_chain(
+    firm_id: Optional[str] = None,
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
+    """Walk the audit log and verify the hash chain.
+
+    ``firm_id`` is optional for ADMIN personas so the platform team can spot
+    cross-tenant tampering; other callers are implicitly scoped by the
+    session-level filter.
+    """
+
+    authorize(persona, "audit", Action.READ)
+
+    from app.services.audit_chain import verify_chain
+
+    result = verify_chain(db, firm_id=firm_id)
+    return {
+        "firm_id": result.firm_id,
+        "verified": result.verified,
+        "rows_checked": result.rows_checked,
+        "first_bad_event": result.first_bad_event,
+        "reason": result.reason,
+    }

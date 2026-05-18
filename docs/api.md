@@ -1,6 +1,6 @@
 # API Surface
 
-Full endpoint reference for the LandRight backend API. OpenAPI schema is auto-generated at `/docs`.
+Full endpoint reference for the LandGrant backend API. OpenAPI schema is auto-generated at `/docs`.
 
 ## Authentication
 

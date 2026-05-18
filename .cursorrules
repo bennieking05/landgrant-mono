@@ -1,7 +1,7 @@
-# LandRight Cursor Rules
+# LandGrant Cursor Rules
 
 ## Project Overview
-LandRight is an attorney-in-the-loop eminent domain platform with a Python/FastAPI backend and React/Vite frontend.
+LandGrant is an attorney-in-the-loop eminent domain platform with a Python/FastAPI backend and React/Vite frontend.
 
 ## Repository Structure
 ```
@@ -24,7 +24,7 @@ artifacts/      # Test outputs, reports, generated files (gitignored)
 - **No new test frameworks**: Do not introduce unittest, nose, or other frameworks
 
 ### Frontend (TypeScript/React)
-- **E2E Framework**: Playwright (per test-strategy.md)
+- **E2E Framework**: Playwright (per docs/testing-strategy.md)
 - **Test location**: `frontend/tests/`
 - **Unit tests**: Vitest if needed (aligned with Vite toolchain)
 

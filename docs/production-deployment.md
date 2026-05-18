@@ -1,8 +1,8 @@
-# LandRight Production Deployment Guide
+# LandGrant Production Deployment Guide
 
 ## Overview
 
-This document provides comprehensive instructions for deploying LandRight to a production environment.
+This document provides comprehensive instructions for deploying LandGrant to a production environment.
 
 ## Prerequisites
 
@@ -29,24 +29,24 @@ This document provides comprehensive instructions for deploying LandRight to a p
 ```bash
 # Core Settings
 ENVIRONMENT=production
-APP_NAME=landright-api
+APP_NAME=landgrant-api
 
 # Database (Cloud SQL)
-DATABASE_URL=postgresql+psycopg://USER:PASSWORD@/landright?host=/cloudsql/PROJECT:REGION:INSTANCE
+DATABASE_URL=postgresql+psycopg://USER:PASSWORD@/landgrant?host=/cloudsql/PROJECT:REGION:INSTANCE
 
 # Redis (Memorystore)
 REDIS_URL=redis://10.x.x.x:6379/0
 
 # Security
 JWT_SECRET=<generate-256-bit-secret>
-JWT_AUDIENCE=landright
-JWT_ISSUER=https://api.landright.com
+JWT_AUDIENCE=landgrant
+JWT_ISSUER=https://api.landgrant.com
 SESSION_SECRET=<generate-256-bit-secret>
 ENCRYPTION_KEY=<generate-32-char-key>
 
 # GCP
 GCP_PROJECT=your-project-id
-EVIDENCE_BUCKET=landright-evidence-prod
+EVIDENCE_BUCKET=landgrant-evidence-prod
 
 # Email (SendGrid)
 SENDGRID_API_KEY=SG.xxxxx
@@ -75,7 +75,7 @@ ENABLE_OTLP=true
 ### Frontend Environment Variables
 
 ```bash
-VITE_API_BASE_URL=https://api.landright.com
+VITE_API_BASE_URL=https://api.landgrant.com
 VITE_MAPBOX_TOKEN=pk.xxxxx
 ```
 
@@ -85,7 +85,7 @@ VITE_MAPBOX_TOKEN=pk.xxxxx
 
 ```bash
 # Create Cloud SQL instance
-gcloud sql instances create landright-prod \
+gcloud sql instances create landgrant-prod \
   --database-version=POSTGRES_14 \
   --tier=db-custom-2-8192 \
   --region=us-central1 \
@@ -93,11 +93,11 @@ gcloud sql instances create landright-prod \
   --storage-type=SSD
 
 # Create database
-gcloud sql databases create landright --instance=landright-prod
+gcloud sql databases create landgrant --instance=landgrant-prod
 
 # Create user
-gcloud sql users create landright \
-  --instance=landright-prod \
+gcloud sql users create landgrant \
+  --instance=landgrant-prod \
   --password=<secure-password>
 
 # Run migrations
@@ -108,7 +108,7 @@ alembic upgrade head
 
 ```bash
 # Create Memorystore instance
-gcloud redis instances create landright-cache \
+gcloud redis instances create landgrant-cache \
   --size=1 \
   --region=us-central1 \
   --redis-version=redis_6_x
@@ -118,16 +118,16 @@ gcloud redis instances create landright-cache \
 
 ```bash
 # Build container
-gcloud builds submit --tag gcr.io/$PROJECT_ID/landright-api
+gcloud builds submit --tag gcr.io/$PROJECT_ID/landgrant-api
 
 # Deploy to Cloud Run
-gcloud run deploy landright-api \
-  --image gcr.io/$PROJECT_ID/landright-api \
+gcloud run deploy landgrant-api \
+  --image gcr.io/$PROJECT_ID/landgrant-api \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
   --set-env-vars "$(cat .env.production | xargs)" \
-  --add-cloudsql-instances $PROJECT_ID:us-central1:landright-prod \
+  --add-cloudsql-instances $PROJECT_ID:us-central1:landgrant-prod \
   --min-instances 2 \
   --max-instances 10 \
   --memory 4Gi \
@@ -142,8 +142,8 @@ cd frontend
 npm run build
 
 # Deploy to Cloud Run or Firebase Hosting
-gcloud run deploy landright-frontend \
-  --image gcr.io/$PROJECT_ID/landright-frontend \
+gcloud run deploy landgrant-frontend \
+  --image gcr.io/$PROJECT_ID/landgrant-frontend \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated
@@ -172,11 +172,11 @@ gcloud run deploy landright-frontend \
 
 ```bash
 # Create uptime checks
-gcloud monitoring uptime-check-configs create landright-api-health \
-  --display-name="LandRight API Health" \
+gcloud monitoring uptime-check-configs create landgrant-api-health \
+  --display-name="LandGrant API Health" \
   --http-check-path="/health/live" \
   --monitored-resource-type="uptime_url" \
-  --hostname="api.landright.com"
+  --hostname="api.landgrant.com"
 ```
 
 ### Alerting Policies
@@ -195,7 +195,7 @@ gcloud monitoring uptime-check-configs create landright-api-health \
 - Cross-region backup replication
 
 ```bash
-gcloud sql instances patch landright-prod \
+gcloud sql instances patch landgrant-prod \
   --backup-start-time=02:00 \
   --enable-point-in-time-recovery
 ```
@@ -220,18 +220,18 @@ Before production launch, run load tests:
 ```bash
 cd backend
 locust -f scripts/perf_test.py --headless -u 100 -r 20 --run-time 5m \
-  --host https://api.landright.com
+  --host https://api.landgrant.com
 ```
 
 ## Rollback Procedure
 
 ```bash
 # List revisions
-gcloud run revisions list --service landright-api
+gcloud run revisions list --service landgrant-api
 
 # Rollback to previous revision
-gcloud run services update-traffic landright-api \
-  --to-revisions=landright-api-00001-xxx=100
+gcloud run services update-traffic landgrant-api \
+  --to-revisions=landgrant-api-00001-xxx=100
 ```
 
 ## Health Checks

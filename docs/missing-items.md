@@ -1,4 +1,4 @@
-# LandRight MVP - Missing Items & Gap Analysis
+# LandGrant MVP - Missing Items & Gap Analysis
 
 > Generated: January 2, 2026  
 > Audit Scope: All backend endpoints and frontend pages
@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-The LandRight MVP has **33 backend endpoints** across 18 route files and **4 frontend pages** with 11 components. Currently, **12 endpoints** are wired to frontend components, while **21 endpoints** are functional but lack UI integration.
+The LandGrant MVP has **33 backend endpoints** across 18 route files and **4 frontend pages** with 11 components. Currently, **12 endpoints** are wired to frontend components, while **21 endpoints** are functional but lack UI integration.
 
 ---
 

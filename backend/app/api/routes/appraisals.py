@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Optional
 
 from datetime import datetime
 from uuid import uuid4
@@ -24,7 +25,11 @@ def get_appraisal(
     db: Session = Depends(get_db),
 ):
     authorize(persona, "appraisal", Action.READ)
-    appraisal = db.query(models.Appraisal).filter(models.Appraisal.parcel_id == parcel_id).first()
+    appraisal = (
+        db.query(models.Appraisal)
+        .filter(models.Appraisal.parcel_id == parcel_id)
+        .first()
+    )
     if not appraisal:
         return {"parcel_id": parcel_id, "appraisal": None}
     return {
@@ -34,7 +39,11 @@ def get_appraisal(
             "value": float(appraisal.value) if appraisal.value is not None else None,
             "summary": appraisal.summary,
             "comps": appraisal.comps,
-            "completed_at": appraisal.completed_at.isoformat() + "Z" if appraisal.completed_at else None,
+            "completed_at": (
+                appraisal.completed_at.isoformat() + "Z"
+                if appraisal.completed_at
+                else None
+            ),
             "attachment_id": appraisal.attachment_id,
         },
     }
@@ -42,10 +51,10 @@ def get_appraisal(
 
 class UpsertAppraisal(BaseModel):
     parcel_id: str
-    value: float | None = None
-    summary: str | None = None
+    value: Optional[float] = None
+    summary: Optional[str] = None
     comps: list[dict] = []
-    attachment_id: str | None = None
+    attachment_id: Optional[str] = None
 
 
 @router.post("")
@@ -56,7 +65,11 @@ def upsert_appraisal(
     user=Depends(get_current_user),
 ):
     authorize(persona, "appraisal", Action.WRITE)
-    appraisal = db.query(models.Appraisal).filter(models.Appraisal.parcel_id == payload.parcel_id).first()
+    appraisal = (
+        db.query(models.Appraisal)
+        .filter(models.Appraisal.parcel_id == payload.parcel_id)
+        .first()
+    )
     if not appraisal:
         appraisal = models.Appraisal(id=str(uuid4()), parcel_id=payload.parcel_id)
         db.add(appraisal)
@@ -78,11 +91,12 @@ def upsert_appraisal(
         )
     )
     db.commit()
-    
+
     # Trigger workflow event if appraisal is complete with value
     if payload.value is not None:
         try:
             from app.tasks.workflow import process_workflow_event
+
             process_workflow_event.delay(
                 "appraisal_complete",
                 payload.parcel_id,
@@ -90,8 +104,5 @@ def upsert_appraisal(
             )
         except Exception:
             pass  # Don't fail the request if workflow event fails
-    
+
     return {"appraisal_id": appraisal.id}
-
-
-

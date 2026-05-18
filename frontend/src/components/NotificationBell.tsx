@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useRef, useEffect } from "react";
 import { useWebSocket, type Notification, type NotificationSeverity } from "@/hooks/useWebSocket";
 
@@ -44,7 +42,7 @@ export function NotificationBell({ userId = "anonymous", onNotificationClick }: 
   // Simple toast (in production, use a toast library)
   const showToast = (notification: Notification) => {
     // This could be enhanced with a proper toast system
-    console.log("Toast notification:", notification.title);
+    if (import.meta.env.DEV) console.debug("Toast notification:", notification.title);
   };
 
   const getSeverityColor = (severity: NotificationSeverity) => {

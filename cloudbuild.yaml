@@ -8,9 +8,9 @@
 substitutions:
   _REGION: us-central1
   _PROJECT_ID: clearpath-490715
-  _API_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landright/api
-  _WORKER_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landright/worker
-  _MARKETING_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landright/marketing
+  _API_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landgrant/api
+  _WORKER_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landgrant/worker
+  _MARKETING_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landgrant/marketing
   _FRONTEND_BUCKET: clearpath-490715-frontend
 
 steps:
@@ -44,7 +44,7 @@ steps:
       - 'run'
       - 'services'
       - 'update'
-      - 'landright-api'
+      - 'landgrant-api'
       - '--region=${_REGION}'
       - '--image=${_API_IMAGE}:$COMMIT_SHA'
     waitFor: ['push-api']
@@ -79,7 +79,7 @@ steps:
       - 'run'
       - 'services'
       - 'update'
-      - 'landright-worker'
+      - 'landgrant-worker'
       - '--region=${_REGION}'
       - '--image=${_WORKER_IMAGE}:$COMMIT_SHA'
     waitFor: ['push-worker']
@@ -114,7 +114,7 @@ steps:
       - 'run'
       - 'services'
       - 'update'
-      - 'landright-marketing'
+      - 'landgrant-marketing'
       - '--region=${_REGION}'
       - '--image=${_MARKETING_IMAGE}:$COMMIT_SHA'
     waitFor: ['push-marketing']
@@ -134,7 +134,7 @@ steps:
     entrypoint: 'npm'
     args: ['run', 'build']
     env:
-      - 'VITE_API_BASE=https://landright-api-${_PROJECT_ID}.${_REGION}.run.app'
+      - 'VITE_API_BASE=https://landgrant-api-${_PROJECT_ID}.${_REGION}.run.app'
     waitFor: ['install-frontend']
 
   - id: 'deploy-frontend'

@@ -2,7 +2,7 @@
 
 **Milestone 1 Deliverable**
 
-This guide covers setting up the LandRight development environment from scratch.
+This guide covers setting up the LandGrant development environment from scratch.
 
 ---
 
@@ -22,7 +22,7 @@ This guide covers setting up the LandRight development environment from scratch.
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/landright/land-right.git
+git clone https://github.com/landgrant/land-right.git
 cd land-right
 
 # 2. Start infrastructure (PostgreSQL + Redis)
@@ -104,7 +104,7 @@ docker compose logs -f cache
 **Service Ports:**
 | Service | Container Port | Host Port | Connection String |
 |---------|---------------|-----------|-------------------|
-| PostgreSQL | 5432 | 55432 | `postgresql://landright:landright@localhost:55432/landright` |
+| PostgreSQL | 5432 | 55432 | `postgresql://landgrant:landgrant@localhost:55432/landgrant` |
 | Redis | 6379 | 56379 | `redis://localhost:56379/0` |
 
 ### 2. Backend Setup
@@ -130,11 +130,11 @@ cp .env.example .env
 
 ```bash
 # Application
-APP_NAME=landright-api
+APP_NAME=landgrant-api
 ENVIRONMENT=dev
 
 # Database
-DATABASE_URL=postgresql+psycopg://landright:landright@localhost:55432/landright
+DATABASE_URL=postgresql+psycopg://landgrant:landgrant@localhost:55432/landgrant
 
 # Redis
 REDIS_URL=redis://localhost:56379/0
@@ -309,7 +309,7 @@ docker compose ps db
 docker compose logs db
 
 # Connect directly to database
-psql postgresql://landright:landright@localhost:55432/landright
+psql postgresql://landgrant:landgrant@localhost:55432/landgrant
 
 # Reset database (destructive!)
 docker compose down -v

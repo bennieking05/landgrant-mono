@@ -1,4 +1,4 @@
-# LandRight API Reference
+# LandGrant API Reference
 
 ## Authentication
 
@@ -13,7 +13,7 @@ All API requests require an `X-Persona` header indicating the user's role:
 ## Base URL
 
 - Development: `http://localhost:8050`
-- Production: `https://api.landright.com`
+- Production: `https://api.landgrant.com`
 
 ---
 
@@ -207,7 +207,7 @@ POST /esign/initiate
     {"email": "owner@example.com", "name": "John Owner", "role": "signer"}
   ],
   "subject": "Document Ready for Signature",
-  "return_url": "https://portal.landright.com/signed"
+  "return_url": "https://portal.landgrant.com/signed"
 }
 ```
 

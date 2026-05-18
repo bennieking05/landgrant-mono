@@ -1,18 +1,38 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { useAppContext } from "@/context";
-import { ParcelMap } from "@/components/ParcelMap";
+
+const ParcelMap = lazy(() => import("@/components/ParcelMap").then(m => ({ default: m.ParcelMap })));
 import { CommsLog } from "@/components/CommsLog";
 import { PacketChecklist } from "@/components/PacketChecklist";
 import { RuleResults } from "@/components/RuleResults";
 import { ParcelList } from "@/components/ParcelList";
 import { TitlePanel } from "@/components/TitlePanel";
 import { AppraisalPanel } from "@/components/AppraisalPanel";
+import { ROEPanel } from "@/components/ROEPanel";
+import { NegotiationPanel } from "@/components/NegotiationPanel";
+import { TaskManager } from "@/components/TaskManager";
 import { CopilotPanel } from "@/components/CopilotPanel";
+
+type WorkbenchTab = "parcels" | "pipeline" | "tasks";
 
 export function WorkbenchPage() {
   const { projectId, parcelId, setParcelId } = useAppContext();
   const effectiveParcelId = parcelId ?? "PARCEL-001";
   const [showCopilot, setShowCopilot] = useState(false);
+  const [tab, setTab] = useState<WorkbenchTab>("parcels");
+
+  const tabBtn = (id: WorkbenchTab, label: string) => (
+    <button
+      type="button"
+      key={id}
+      onClick={() => setTab(id)}
+      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+        tab === id ? "bg-brand text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+      }`}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="flex h-full">
@@ -41,28 +61,54 @@ export function WorkbenchPage() {
           </button>
         </div>
 
-        {/* Map and Parcel List side by side */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <ParcelMap 
-            selectedParcelId={effectiveParcelId}
-            onParcelClick={setParcelId}
-            showFilters={true}
-          />
-          <ParcelList projectId={projectId} onSelectParcel={setParcelId} />
+        <div
+          className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1"
+          role="tablist"
+          aria-label="Workbench sections"
+        >
+          {tabBtn("parcels", "Parcels & packet")}
+          {tabBtn("pipeline", "Title · Appraisal · ROE · Offers")}
+          {tabBtn("tasks", "Tasks")}
         </div>
 
-        {/* Original workbench components */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <CommsLog parcelId={effectiveParcelId} />
-          <PacketChecklist parcelId={effectiveParcelId} />
-          <RuleResults parcelId={effectiveParcelId} />
-        </div>
+        {tab === "parcels" && (
+          <>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Suspense
+                fallback={
+                  <div className="flex h-96 items-center justify-center rounded-xl bg-slate-100">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                  </div>
+                }
+              >
+                <ParcelMap
+                  selectedParcelId={effectiveParcelId}
+                  onParcelClick={setParcelId}
+                  showFilters={true}
+                />
+              </Suspense>
+              <ParcelList projectId={projectId} onSelectParcel={setParcelId} />
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <CommsLog parcelId={effectiveParcelId} />
+              <PacketChecklist parcelId={effectiveParcelId} />
+              <RuleResults parcelId={effectiveParcelId} />
+            </div>
+          </>
+        )}
 
-        {/* Title and Appraisal panels */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <TitlePanel parcelId={effectiveParcelId} />
-          <AppraisalPanel parcelId={effectiveParcelId} />
-        </div>
+        {tab === "pipeline" && (
+          <>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <TitlePanel parcelId={effectiveParcelId} />
+              <AppraisalPanel parcelId={effectiveParcelId} />
+              <ROEPanel parcelId={effectiveParcelId} projectId={projectId} />
+            </div>
+            <NegotiationPanel parcelId={effectiveParcelId} projectId={projectId} />
+          </>
+        )}
+
+        {tab === "tasks" && <TaskManager projectId={projectId} parcelId={effectiveParcelId} />}
       </section>
 
       {/* Copilot Panel */}

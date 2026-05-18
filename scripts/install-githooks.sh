@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# LandRight Git Hooks Installer
+# LandGrant Git Hooks Installer
 # Sets up pre-push hook for quality gate enforcement
 #
 # Usage: ./scripts/install-githooks.sh
@@ -12,7 +12,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 HOOKS_DIR="$REPO_ROOT/.githooks"
 
 echo "============================================"
-echo "  Installing LandRight Git Hooks"
+echo "  Installing LandGrant Git Hooks"
 echo "============================================"
 echo ""
 

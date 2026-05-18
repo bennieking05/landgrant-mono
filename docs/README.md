@@ -1,4 +1,4 @@
-# LandRight Documentation
+# LandGrant Documentation
 
 > Attorney-in-the-loop eminent domain platform
 
@@ -12,6 +12,8 @@
 | [Dev Environment Setup](./dev-environment-setup.md) | Local development setup guide |
 | [API Reference](./api-reference.md) | Detailed API endpoint documentation |
 | [Production Deployment](./production-deployment.md) | Deployment guide for GCP |
+| [Application functionality map](./application-functionality-map.md) | Personas, UI routes, backend API domains |
+| [Manual regression script](./manual-regression-script.md) | Pre-release API + UI regression checklist |
 
 ---
 
@@ -74,7 +76,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [test-strategy.md](./test-strategy.md) | Testing approach |
+| [testing-strategy.md](./testing-strategy.md) | Testing approach (canonical; replaces legacy `test-strategy.md`) |
 | [qa-checklist.md](./qa-checklist.md) | QA checklist |
 | [local-testing.md](./local-testing.md) | Local testing guide |
 
@@ -155,7 +157,7 @@
 | Frontend | 3050 | http://localhost:3050 |
 | Backend API | 8050 | http://localhost:8050 |
 | API Docs | 8050 | http://localhost:8050/docs |
-| PostgreSQL | 55432 | `postgresql://landright:landright@localhost:55432/landright` |
+| PostgreSQL | 55432 | `postgresql://landgrant:landgrant@localhost:55432/landgrant` |
 | Redis | 56379 | `redis://localhost:56379/0` |
 
 ### Key Commands

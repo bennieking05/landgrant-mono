@@ -1,6 +1,6 @@
-# LandRight End-to-End Workflow Documentation
+# LandGrant End-to-End Workflow Documentation
 
-> **Purpose**: This document maps the complete application workflow for the LandRight eminent domain platform, enabling new engineers, product leaders, and auditors to understand the system quickly.
+> **Purpose**: This document maps the complete application workflow for the LandGrant eminent domain platform, enabling new engineers, product leaders, and auditors to understand the system quickly.
 >
 > **Last Updated**: 2026-01-29
 
@@ -34,7 +34,7 @@
 
 ### 1.1 System Purpose
 
-LandRight is an **attorney-in-the-loop eminent domain platform** that streamlines the property acquisition process for condemning authorities (utilities, government agencies, pipeline companies). The system provides:
+LandGrant is an **attorney-in-the-loop eminent domain platform** that streamlines the property acquisition process for condemning authorities (utilities, government agencies, pipeline companies). The system provides:
 
 - **Compliance Engine** for jurisdiction-specific statutory compliance with AI-augmented validation
 - **Multi-persona workflows** separating concerns between agents, counsel, and landowners
@@ -80,7 +80,7 @@ Phase 4: Landowner Response
 
 ### 1.4 AI Agent Architecture
 
-LandRight employs a multi-agent architecture with centralized orchestration and human oversight:
+LandGrant employs a multi-agent architecture with centralized orchestration and human oversight:
 
 ```mermaid
 flowchart TB
@@ -172,7 +172,7 @@ Parcels move through defined stages with orchestrated transitions:
 
 ```mermaid
 C4Context
-    title System Context Diagram - LandRight Platform v2.0
+    title System Context Diagram - LandGrant Platform v2.0
 
     Person(landowner, "Landowner", "Property owner reviewing offers and making decisions")
     Person(agent, "Land Agent", "Field representative managing parcels")
@@ -180,7 +180,7 @@ C4Context
     Person(outside, "Outside Counsel", "External litigation attorney")
     Person(ops, "Operations", "System monitoring and route planning")
 
-    System(landright, "LandRight Platform", "AI-enhanced attorney-in-the-loop eminent domain acquisition system")
+    System(landgrant, "LandGrant Platform", "AI-enhanced attorney-in-the-loop eminent domain acquisition system")
 
     System_Ext(sendgrid, "SendGrid", "Email delivery service")
     System_Ext(twilio, "Twilio", "SMS notification service")
@@ -196,25 +196,25 @@ C4Context
     System_Ext(clerk, "County Clerk", "Records deeds and filings")
     System_Ext(appraiser, "Appraisers", "Property valuations")
 
-    Rel(landowner, landright, "Reviews offers, uploads docs, submits decisions")
-    Rel(agent, landright, "Creates cases, manages parcels, sends invites")
-    Rel(counsel, landright, "Approves templates, reviews AI decisions, manages escalations")
-    Rel(outside, landright, "Initiates litigation, updates case status")
-    Rel(ops, landright, "Plans routes, sends notifications")
+    Rel(landowner, landgrant, "Reviews offers, uploads docs, submits decisions")
+    Rel(agent, landgrant, "Creates cases, manages parcels, sends invites")
+    Rel(counsel, landgrant, "Approves templates, reviews AI decisions, manages escalations")
+    Rel(outside, landgrant, "Initiates litigation, updates case status")
+    Rel(ops, landgrant, "Plans routes, sends notifications")
 
-    Rel(landright, sendgrid, "Multi-channel alerts", "HTTPS/API")
-    Rel(landright, twilio, "SMS notifications", "HTTPS/API")
-    Rel(landright, docusign, "E-signatures", "HTTPS/API")
-    Rel(landright, vertexai, "Agent AI analysis", "gRPC")
-    Rel(landright, gcs, "Stores documents", "HTTPS/API")
-    Rel(landright, attom, "Property data", "HTTPS/API")
-    Rel(landright, avm, "Valuation estimates", "HTTPS/API")
-    Rel(landright, documentai, "OCR processing", "gRPC")
-    Rel(landright, efiling, "Court filings", "HTTPS/API")
+    Rel(landgrant, sendgrid, "Multi-channel alerts", "HTTPS/API")
+    Rel(landgrant, twilio, "SMS notifications", "HTTPS/API")
+    Rel(landgrant, docusign, "E-signatures", "HTTPS/API")
+    Rel(landgrant, vertexai, "Agent AI analysis", "gRPC")
+    Rel(landgrant, gcs, "Stores documents", "HTTPS/API")
+    Rel(landgrant, attom, "Property data", "HTTPS/API")
+    Rel(landgrant, avm, "Valuation estimates", "HTTPS/API")
+    Rel(landgrant, documentai, "OCR processing", "gRPC")
+    Rel(landgrant, efiling, "Court filings", "HTTPS/API")
 
-    Rel(landright, court, "Files complaints, receives judgments")
-    Rel(landright, clerk, "Records instruments")
-    Rel(landright, appraiser, "Receives appraisal reports")
+    Rel(landgrant, court, "Files complaints, receives judgments")
+    Rel(landgrant, clerk, "Records instruments")
+    Rel(landgrant, appraiser, "Receives appraisal reports")
 ```
 
 ### 2.2 External Actors
@@ -255,7 +255,7 @@ C4Context
 
 ```mermaid
 C4Container
-    title Container Diagram - LandRight Platform v2.0
+    title Container Diagram - LandGrant Platform v2.0
 
     Person(user, "User", "Any persona accessing the system")
 
@@ -273,7 +273,7 @@ C4Container
     }
 
     Container_Boundary(data_boundary, "Data Layer") {
-        ContainerDb(postgres, "PostgreSQL", "PostgreSQL 15", "Primary data store (22 models)")
+        ContainerDb(postgres, "PostgreSQL", "PostgreSQL 16", "Primary data store (22 models)")
         ContainerDb(redis, "Redis", "Redis 7", "Cache, Celery broker, external data cache")
         ContainerDb(gcs, "Cloud Storage", "GCS", "Document/evidence storage")
     }
@@ -370,10 +370,10 @@ C4Container
 
 | Store | Technology | Purpose | Location |
 |-------|------------|---------|----------|
-| PostgreSQL | PostgreSQL 15 | Primary relational data | Cloud SQL / localhost:55432 |
+| PostgreSQL | PostgreSQL 16 | Primary relational data | Cloud SQL / localhost:55432 |
 | Redis | Redis 7 | Cache + Celery broker + external data cache | Memorystore / localhost:56379 |
 | GCS | Google Cloud Storage | Document storage | GCS bucket (planned) |
-| Local FS | Filesystem | Development file storage | `/tmp/landright/` |
+| Local FS | Filesystem | Development file storage | `/tmp/landgrant/` |
 
 ### 3.3 Technology Stack
 
@@ -1201,7 +1201,7 @@ flowchart LR
 | `POST /agents/escalations/{id}/resolve` | `backend/app/api/routes/agents.py` | `resolve_escalation()` | Resolve escalation |
 | `POST /agents/escalations/{id}/assign` | `backend/app/api/routes/agents.py` | `assign_escalation()` | Assign to reviewer |
 | `GET /communications` | `backend/app/api/routes/communications.py` | `list_communications()` | List communications |
-| `GET /rules/results` | `backend/app/api/routes/rules.py` | `list_rule_results()` | List rule results |
+| `GET /rules/results` | `backend/app/api/routes/rules_ops.py` | `list_rule_results()` | List rule results |
 | `GET /budgets/summary` | `backend/app/api/routes/budgets.py` | `get_budget_summary()` | Get budget summary |
 | `GET /binder/status` | `backend/app/api/routes/binder.py` | `get_binder_status()` | Get binder status |
 | `GET /appraisals` | `backend/app/api/routes/appraisals.py` | `get_appraisal()` | Get appraisal |
@@ -1388,7 +1388,7 @@ curl -X POST -H "X-Persona: in_house_counsel" -H "Content-Type: application/json
 
 ### B.1 Legacy System Purpose (v1.0)
 
-The original LandRight platform provided:
+The original LandGrant platform provided:
 
 - **Deterministic rules engine** for jurisdiction-specific statutory compliance
 - **Multi-persona workflows** separating concerns between agents, counsel, and landowners
@@ -1444,5 +1444,5 @@ Phase 4: Landowner Response
 
 ---
 
-*Document generated for LandRight Platform v2.0.0*
+*Document generated for LandGrant Platform v2.0.0*
 *Legacy v1.0 workflow archived for reference*

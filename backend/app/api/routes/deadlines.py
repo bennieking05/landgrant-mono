@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Optional
 
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -12,7 +13,10 @@ from app.db import models
 from app.db.models import Persona
 from app.security.rbac import Action, authorize
 from app.services.hashing import sha256_hex
-from app.services.deadline_rules import derive_deadlines, derive_deadlines_from_template_render
+from app.services.deadline_rules import (
+    derive_deadlines,
+    derive_deadlines_from_template_render,
+)
 
 
 router = APIRouter(prefix="/deadlines", tags=["deadlines"])
@@ -48,7 +52,7 @@ def list_deadlines(
 
 class DeadlineCreate(BaseModel):
     project_id: str
-    parcel_id: str | None = None
+    parcel_id: Optional[str] = None
     title: str
     due_at: str  # ISO
     timezone: str = "UTC"
@@ -83,8 +87,22 @@ def create_deadline(
             actor_persona=persona,
             action="deadline.create",
             resource="deadline",
-            payload={"deadline_id": d.id, "project_id": d.project_id, "parcel_id": d.parcel_id, "title": d.title, "due_at": payload.due_at},
-            hash=sha256_hex({"deadline_id": d.id, "project_id": d.project_id, "parcel_id": d.parcel_id, "title": d.title, "due_at": payload.due_at}),
+            payload={
+                "deadline_id": d.id,
+                "project_id": d.project_id,
+                "parcel_id": d.parcel_id,
+                "title": d.title,
+                "due_at": payload.due_at,
+            },
+            hash=sha256_hex(
+                {
+                    "deadline_id": d.id,
+                    "project_id": d.project_id,
+                    "parcel_id": d.parcel_id,
+                    "title": d.title,
+                    "due_at": payload.due_at,
+                }
+            ),
         )
     )
     db.commit()
@@ -99,7 +117,10 @@ def deadlines_ical(
 ):
     authorize(persona, "deadline", Action.READ)
     deadlines = (
-        db.query(models.Deadline).filter(models.Deadline.project_id == project_id).order_by(models.Deadline.due_at.asc()).all()
+        db.query(models.Deadline)
+        .filter(models.Deadline.project_id == project_id)
+        .order_by(models.Deadline.due_at.asc())
+        .all()
     )
 
     def fmt(dt: datetime) -> str:
@@ -112,7 +133,7 @@ def deadlines_ical(
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//LandRight//Deadlines//EN",
+        "PRODID:-//LandGrant//Deadlines//EN",
     ]
     for d in deadlines:
         lines.extend(
@@ -134,11 +155,11 @@ class DeadlineDeriveRequest(BaseModel):
     """Request to derive statutory deadlines from anchor events."""
 
     project_id: str
-    parcel_id: str | None = None
+    parcel_id: Optional[str] = None
     jurisdiction: str  # Two-letter state code (e.g., 'IN', 'TX')
     anchor_events: dict[str, str]  # Event name -> ISO date string
-    template_id: str | None = None  # Optional: derive from template render
-    template_variables: dict | None = None  # Variables used in template render
+    template_id: Optional[str] = None  # Optional: derive from template render
+    template_variables: Optional[dict] = None  # Variables used in template render
     persist: bool = True  # Whether to save derived deadlines to DB
     timezone: str = "America/Indiana/Indianapolis"
 
@@ -157,7 +178,7 @@ class DerivedDeadlineItem(BaseModel):
     deadline_type: str
     extendable: bool
     max_extension_days: int
-    notes: str | None
+    notes: Optional[str]
 
 
 class DeadlineDeriveResponse(BaseModel):
@@ -165,7 +186,7 @@ class DeadlineDeriveResponse(BaseModel):
 
     jurisdiction: str
     project_id: str
-    parcel_id: str | None
+    parcel_id: Optional[str]
     derived_count: int
     persisted_count: int
     deadlines: list[DerivedDeadlineItem]
@@ -237,7 +258,9 @@ def derive_statutory_deadlines(
                 continue
 
             # Create deadline with citation in title
-            title_with_citation = f"{item.title} ({item.citation})" if item.citation else item.title
+            title_with_citation = (
+                f"{item.title} ({item.citation})" if item.citation else item.title
+            )
 
             d = models.Deadline(
                 id=str(uuid4()),
@@ -267,11 +290,13 @@ def derive_statutory_deadlines(
                         "citation": item.citation,
                         "jurisdiction": payload.jurisdiction,
                     },
-                    hash=sha256_hex({
-                        "deadline_id": d.id,
-                        "anchor_event": item.anchor_event,
-                        "citation": item.citation,
-                    }),
+                    hash=sha256_hex(
+                        {
+                            "deadline_id": d.id,
+                            "anchor_event": item.anchor_event,
+                            "citation": item.citation,
+                        }
+                    ),
                 )
             )
             persisted_count += 1
@@ -287,6 +312,3 @@ def derive_statutory_deadlines(
         deadlines=deadline_items,
         errors=result.errors,
     )
-
-
-

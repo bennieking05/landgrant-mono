@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends
@@ -20,7 +20,7 @@ _parcels_fallback: dict[str, dict] = {}
 class PartyPayload(BaseModel):
     name: str
     role: str
-    email: str | None = None
+    email: Optional[str] = None
 
 
 class ParcelPayload(BaseModel):
@@ -40,11 +40,15 @@ class CaseCreate(BaseModel):
 class CaseResponse(BaseModel):
     project_id: str
     parcel_ids: List[str]
-    next_deadline_at: str | None = None
+    next_deadline_at: Optional[str] = None
 
 
 @router.post("", response_model=CaseResponse)
-def create_case(payload: CaseCreate, persona: Persona = Depends(get_current_persona), db: Session = Depends(get_db)):
+def create_case(
+    payload: CaseCreate,
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
     authorize(persona, "parcel", Action.WRITE)
 
     parcel_ids: list[str] = []
@@ -79,7 +83,11 @@ def create_case(payload: CaseCreate, persona: Persona = Depends(get_current_pers
 
 
 @router.get("/{parcel_id}")
-def get_case(parcel_id: str, persona: Persona = Depends(get_current_persona), db: Session = Depends(get_db)):
+def get_case(
+    parcel_id: str,
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
     authorize(persona, "parcel", Action.READ)
     try:
         parcel = db.get(models.Parcel, parcel_id)

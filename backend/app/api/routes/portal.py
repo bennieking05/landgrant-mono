@@ -6,11 +6,22 @@ from typing import Any, Optional
 from uuid import uuid4
 import secrets
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Response, Cookie, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    Response,
+    Cookie,
+    Request,
+)
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_persona, get_current_user, get_db
+from app.core.config import get_settings
 from app.db import models
 from app.db.models import Persona
 from app.security.rbac import Action, authorize
@@ -18,6 +29,19 @@ from app.services.hashing import sha256_hex
 from app.services.notifications import preview_or_send
 
 router = APIRouter(prefix="/portal", tags=["portal"])
+_settings = get_settings()
+
+
+def _portal_session_cookie_kwargs(max_age: int) -> dict[str, Any]:
+    """HttpOnly always; Secure + SameSite=strict outside local dev/test."""
+    relaxed = _settings.environment in ("dev", "test")
+    return {
+        "httponly": True,
+        "secure": not relaxed,
+        "samesite": "lax" if relaxed else "strict",
+        "max_age": max_age,
+    }
+
 
 # Simple in-memory stores for dev stubs. These are reset on process restart.
 _uploads_by_parcel: dict[str, list[dict[str, Any]]] = {}
@@ -36,8 +60,8 @@ _LOCAL_STORAGE_ROOT = Path(__file__).resolve().parents[3] / "local_storage"
 
 class InviteRequest(BaseModel):
     email: str
-    parcel_id: str | None = None
-    project_id: str | None = None
+    parcel_id: Optional[str] = None
+    project_id: Optional[str] = None
 
 
 @router.post("/invites")
@@ -70,8 +94,20 @@ def send_invite(
                 actor_persona=persona,
                 action="portal.invite.create",
                 resource="portal_invite",
-                payload={"invite_id": invite_id, "email": payload.email, "project_id": payload.project_id, "parcel_id": payload.parcel_id},
-                hash=sha256_hex({"invite_id": invite_id, "email": payload.email, "project_id": payload.project_id, "parcel_id": payload.parcel_id}),
+                payload={
+                    "invite_id": invite_id,
+                    "email": payload.email,
+                    "project_id": payload.project_id,
+                    "parcel_id": payload.parcel_id,
+                },
+                hash=sha256_hex(
+                    {
+                        "invite_id": invite_id,
+                        "email": payload.email,
+                        "project_id": payload.project_id,
+                        "parcel_id": payload.parcel_id,
+                    }
+                ),
             )
         )
 
@@ -83,7 +119,11 @@ def send_invite(
                 template_id="portal_invite",
                 channel="email",
                 to=payload.email,
-                variables={"invite_link": invite_link, "project_id": payload.project_id, "parcel_id": payload.parcel_id},
+                variables={
+                    "invite_link": invite_link,
+                    "project_id": payload.project_id,
+                    "parcel_id": payload.parcel_id,
+                },
                 project_id=payload.project_id,
                 parcel_id=payload.parcel_id,
                 user_id=getattr(user, "id", None),
@@ -112,18 +152,20 @@ def _check_rate_limit(invite: models.PortalInvite) -> None:
     """Check if the invite is rate-limited due to failed attempts."""
     if not invite.failed_attempts or invite.failed_attempts < _INVITE_MAX_FAILED:
         return
-    
+
     if not invite.last_failed_at:
         return
-    
+
     time_since_last_fail = datetime.utcnow() - invite.last_failed_at
-    
+
     # If still within lockout window after max failures, reject
     if time_since_last_fail < _INVITE_LOCKOUT_DURATION:
-        remaining_seconds = int((_INVITE_LOCKOUT_DURATION - time_since_last_fail).total_seconds())
+        remaining_seconds = int(
+            (_INVITE_LOCKOUT_DURATION - time_since_last_fail).total_seconds()
+        )
         raise HTTPException(
             status_code=429,
-            detail=f"too_many_attempts",
+            detail="too_many_attempts",
             headers={"Retry-After": str(remaining_seconds)},
         )
 
@@ -153,53 +195,56 @@ def verify_invite(
 ):
     """
     Verify a magic link token and create a session.
-    
+
     This endpoint is publicly accessible (no auth required) since it IS the auth mechanism.
     Rate limiting is applied per-invite to prevent brute force attacks.
     """
     token_hash = sha256_hex(payload.token)
-    
+
     # Find invite by token hash
-    invite = db.query(models.PortalInvite).filter(
-        models.PortalInvite.token_sha256 == token_hash
-    ).first()
-    
+    invite = (
+        db.query(models.PortalInvite)
+        .filter(models.PortalInvite.token_sha256 == token_hash)
+        .first()
+    )
+
     if not invite:
         # Don't reveal whether token exists - use generic error
         raise HTTPException(status_code=401, detail="invalid_or_expired_token")
-    
+
     # Check rate limiting before any other validation
     _check_rate_limit(invite)
-    
+
     # Check expiration
     if invite.expires_at < datetime.utcnow():
         raise HTTPException(status_code=410, detail="invite_expired")
-    
+
     # If already verified, check if session is still valid
     if invite.verified_at:
         # Check if there's an active session
-        active_session = db.query(models.PortalSession).filter(
-            models.PortalSession.invite_id == invite.id,
-            models.PortalSession.expires_at > datetime.utcnow(),
-            models.PortalSession.revoked_at.is_(None),
-        ).first()
-        
+        active_session = (
+            db.query(models.PortalSession)
+            .filter(
+                models.PortalSession.invite_id == invite.id,
+                models.PortalSession.expires_at > datetime.utcnow(),
+                models.PortalSession.revoked_at.is_(None),
+            )
+            .first()
+        )
+
         if active_session:
             # Refresh session expiry
             active_session.expires_at = datetime.utcnow() + _SESSION_DURATION
             active_session.last_activity_at = datetime.utcnow()
             db.commit()
-            
+
             # Set session cookie
             response.set_cookie(
                 key="portal_session",
                 value=active_session.session_token,
-                httponly=True,
-                secure=True,
-                samesite="lax",
-                max_age=int(_SESSION_DURATION.total_seconds()),
+                **_portal_session_cookie_kwargs(int(_SESSION_DURATION.total_seconds())),
             )
-            
+
             return {
                 "status": "already_verified",
                 "invite_id": invite.id,
@@ -208,18 +253,18 @@ def verify_invite(
                 "parcel_id": invite.parcel_id,
                 "project_id": invite.project_id,
             }
-    
+
     # Mark invite as verified
     invite.verified_at = datetime.utcnow()
-    
+
     # Create a new session
     session_token = secrets.token_urlsafe(32)
     session_id = str(uuid4())
     session_expires = datetime.utcnow() + _SESSION_DURATION
-    
+
     # Get client info for session tracking
     client_info = _get_client_info(request)
-    
+
     portal_session = models.PortalSession(
         id=session_id,
         invite_id=invite.id,
@@ -231,7 +276,7 @@ def verify_invite(
         user_agent=client_info.get("user_agent"),
     )
     db.add(portal_session)
-    
+
     # Audit log with comprehensive details
     db.add(
         models.AuditEvent(
@@ -248,22 +293,21 @@ def verify_invite(
                 "email": invite.email,
                 "client_info": client_info,
             },
-            hash=sha256_hex({"invite_id": invite.id, "action": "verify", "session_id": session_id}),
+            hash=sha256_hex(
+                {"invite_id": invite.id, "action": "verify", "session_id": session_id}
+            ),
         )
     )
-    
+
     db.commit()
-    
+
     # Set session cookie
     response.set_cookie(
         key="portal_session",
         value=session_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=int(_SESSION_DURATION.total_seconds()),
+        **_portal_session_cookie_kwargs(int(_SESSION_DURATION.total_seconds())),
     )
-    
+
     return {
         "status": "verified",
         "invite_id": invite.id,
@@ -282,41 +326,42 @@ def refresh_session(
 ):
     """
     Refresh an existing portal session.
-    
+
     Extends the session expiry if the session is still valid.
     """
     if not portal_session:
         raise HTTPException(status_code=401, detail="no_session")
-    
-    session = db.query(models.PortalSession).filter(
-        models.PortalSession.session_token == portal_session,
-        models.PortalSession.revoked_at.is_(None),
-    ).first()
-    
+
+    session = (
+        db.query(models.PortalSession)
+        .filter(
+            models.PortalSession.session_token == portal_session,
+            models.PortalSession.revoked_at.is_(None),
+        )
+        .first()
+    )
+
     if not session:
         raise HTTPException(status_code=401, detail="invalid_session")
-    
+
     if session.expires_at < datetime.utcnow():
         raise HTTPException(status_code=401, detail="session_expired")
-    
+
     # Refresh expiry
     session.expires_at = datetime.utcnow() + _SESSION_DURATION
     session.last_activity_at = datetime.utcnow()
     db.commit()
-    
+
     # Refresh cookie
     response.set_cookie(
         key="portal_session",
         value=session.session_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=int(_SESSION_DURATION.total_seconds()),
+        **_portal_session_cookie_kwargs(int(_SESSION_DURATION.total_seconds())),
     )
-    
+
     # Get invite info
     invite = db.get(models.PortalInvite, session.invite_id)
-    
+
     return {
         "status": "refreshed",
         "session_expires_at": session.expires_at.isoformat() + "Z",
@@ -335,10 +380,14 @@ def logout_session(
     Logout and revoke the current portal session.
     """
     if portal_session:
-        session = db.query(models.PortalSession).filter(
-            models.PortalSession.session_token == portal_session,
-        ).first()
-        
+        session = (
+            db.query(models.PortalSession)
+            .filter(
+                models.PortalSession.session_token == portal_session,
+            )
+            .first()
+        )
+
         if session:
             session.revoked_at = datetime.utcnow()
             db.add(
@@ -353,10 +402,10 @@ def logout_session(
                 )
             )
             db.commit()
-    
+
     # Clear cookie
     response.delete_cookie(key="portal_session")
-    
+
     return {"status": "logged_out"}
 
 
@@ -367,23 +416,27 @@ def get_session_info(
 ):
     """
     Get current session information.
-    
+
     Returns session details if authenticated, 401 otherwise.
     """
     if not portal_session:
         raise HTTPException(status_code=401, detail="no_session")
-    
-    session = db.query(models.PortalSession).filter(
-        models.PortalSession.session_token == portal_session,
-        models.PortalSession.expires_at > datetime.utcnow(),
-        models.PortalSession.revoked_at.is_(None),
-    ).first()
-    
+
+    session = (
+        db.query(models.PortalSession)
+        .filter(
+            models.PortalSession.session_token == portal_session,
+            models.PortalSession.expires_at > datetime.utcnow(),
+            models.PortalSession.revoked_at.is_(None),
+        )
+        .first()
+    )
+
     if not session:
         raise HTTPException(status_code=401, detail="invalid_or_expired_session")
-    
+
     invite = db.get(models.PortalInvite, session.invite_id)
-    
+
     return {
         "status": "authenticated",
         "session_id": session.id,
@@ -405,28 +458,28 @@ def resend_invite(
 ):
     """
     Resend an invite with a new token.
-    
+
     The old token is invalidated and a new one is generated.
     """
     authorize(persona, "portal", Action.WRITE)
-    
+
     invite = db.get(models.PortalInvite, invite_id)
     if not invite:
         raise HTTPException(status_code=404, detail="invite_not_found")
-    
+
     # Generate new token
     new_token = str(uuid4())
     invite.token_sha256 = sha256_hex(new_token)
     invite.expires_at = datetime.utcnow() + timedelta(hours=24)
     invite.failed_attempts = 0  # Reset rate limiting
     invite.last_failed_at = None
-    
+
     # Revoke any existing sessions
     db.query(models.PortalSession).filter(
         models.PortalSession.invite_id == invite_id,
         models.PortalSession.revoked_at.is_(None),
     ).update({"revoked_at": datetime.utcnow()})
-    
+
     # Audit log
     db.add(
         models.AuditEvent(
@@ -439,9 +492,9 @@ def resend_invite(
             hash=sha256_hex({"invite_id": invite_id, "action": "resend"}),
         )
     )
-    
+
     invite_link = f"http://localhost:3050/intake?token={new_token}"
-    
+
     # Send notification if we have project/parcel context
     if invite.project_id and invite.parcel_id:
         try:
@@ -462,9 +515,9 @@ def resend_invite(
             )
         except Exception:
             pass  # Best effort
-    
+
     db.commit()
-    
+
     return {
         "invite_id": invite_id,
         "email": invite.email,
@@ -483,7 +536,7 @@ def decision_options(persona: Persona = Depends(get_current_persona)):
 class DecisionRequest(BaseModel):
     parcel_id: str
     selection: str
-    note: str | None = None
+    note: Optional[str] = None
 
 
 @router.post("/decision")
@@ -500,7 +553,9 @@ def submit_decision(
         "parcel_id": payload.parcel_id,
         "selection": payload.selection,
         "note": payload.note,
-        "routed_to": "agent_queue" if payload.selection == "Counter" else "case_workflow",
+        "routed_to": (
+            "agent_queue" if payload.selection == "Counter" else "case_workflow"
+        ),
         "created_at": datetime.utcnow().isoformat() + "Z",
     }
     _decision_by_parcel[payload.parcel_id] = record
@@ -508,7 +563,11 @@ def submit_decision(
     try:
         parcel = db.get(models.Parcel, payload.parcel_id)
         project_id = parcel.project_id if parcel else "PRJ-001"
-        assignee_persona = Persona.LAND_AGENT if payload.selection == "Counter" else Persona.IN_HOUSE_COUNSEL
+        assignee_persona = (
+            Persona.LAND_AGENT
+            if payload.selection == "Counter"
+            else Persona.IN_HOUSE_COUNSEL
+        )
         db.add(
             models.Task(
                 id=str(uuid4()),
@@ -587,7 +646,11 @@ async def upload_file(
             version="1.0.0",
             sha256=sha,
             storage_path=str(out_path),
-            metadata_json={"filename": file.filename, "content_type": file.content_type, "virus_scan": "skipped_local"},
+            metadata_json={
+                "filename": file.filename,
+                "content_type": file.content_type,
+                "virus_scan": "skipped_local",
+            },
             created_by=getattr(user, "id", None),
         )
         db.add(doc)
@@ -601,7 +664,9 @@ async def upload_file(
                 content=f"Upload received: {file.filename}",
                 delivery_status="stored",
                 delivery_proof={"document_id": upload_id, "sha256": sha},
-                hash=sha256_hex({"event": "upload", "document_id": upload_id, "sha256": sha}),
+                hash=sha256_hex(
+                    {"event": "upload", "document_id": upload_id, "sha256": sha}
+                ),
             )
         )
         db.add(
@@ -635,44 +700,52 @@ def list_portal_sessions(
 ):
     """
     List portal sessions with optional filters.
-    
+
     Used to monitor session activity and detect suspicious access patterns.
     """
     authorize(persona, "portal", Action.READ)
-    
+
     query = db.query(models.PortalSession)
-    
+
     if invite_id:
         query = query.filter(models.PortalSession.invite_id == invite_id)
-    
+
     if active_only:
         query = query.filter(
             models.PortalSession.expires_at > datetime.utcnow(),
             models.PortalSession.revoked_at.is_(None),
         )
-    
+
     sessions = query.order_by(models.PortalSession.created_at.desc()).limit(100).all()
-    
+
     items = []
     for s in sessions:
         invite = db.get(models.PortalInvite, s.invite_id)
         is_active = s.expires_at > datetime.utcnow() and s.revoked_at is None
-        
-        items.append({
-            "session_id": s.id,
-            "invite_id": s.invite_id,
-            "email": invite.email if invite else None,
-            "parcel_id": invite.parcel_id if invite else None,
-            "project_id": invite.project_id if invite else None,
-            "status": "active" if is_active else ("revoked" if s.revoked_at else "expired"),
-            "created_at": s.created_at.isoformat() + "Z" if s.created_at else None,
-            "expires_at": s.expires_at.isoformat() + "Z" if s.expires_at else None,
-            "last_activity_at": s.last_activity_at.isoformat() + "Z" if s.last_activity_at else None,
-            "revoked_at": s.revoked_at.isoformat() + "Z" if s.revoked_at else None,
-            "ip_address": s.ip_address,
-            "user_agent": s.user_agent,
-        })
-    
+
+        items.append(
+            {
+                "session_id": s.id,
+                "invite_id": s.invite_id,
+                "email": invite.email if invite else None,
+                "parcel_id": invite.parcel_id if invite else None,
+                "project_id": invite.project_id if invite else None,
+                "status": (
+                    "active"
+                    if is_active
+                    else ("revoked" if s.revoked_at else "expired")
+                ),
+                "created_at": s.created_at.isoformat() + "Z" if s.created_at else None,
+                "expires_at": s.expires_at.isoformat() + "Z" if s.expires_at else None,
+                "last_activity_at": (
+                    s.last_activity_at.isoformat() + "Z" if s.last_activity_at else None
+                ),
+                "revoked_at": s.revoked_at.isoformat() + "Z" if s.revoked_at else None,
+                "ip_address": s.ip_address,
+                "user_agent": s.user_agent,
+            }
+        )
+
     return {
         "sessions": items,
         "count": len(items),
@@ -689,57 +762,87 @@ def get_parcel_activity(
 ):
     """
     Get all portal activity for a specific parcel.
-    
+
     Returns audit events, sessions, uploads, and decisions.
     """
     authorize(persona, "portal", Action.READ)
-    
+
     # Get audit events for this parcel
-    audit_events = db.query(models.AuditEvent).filter(
-        models.AuditEvent.action.like("portal.%"),
-        models.AuditEvent.payload.contains({"parcel_id": parcel_id})
-    ).order_by(models.AuditEvent.occurred_at.desc()).limit(limit).all()
-    
+    audit_events = (
+        db.query(models.AuditEvent)
+        .filter(
+            models.AuditEvent.action.like("portal.%"),
+            models.AuditEvent.payload.contains({"parcel_id": parcel_id}),
+        )
+        .order_by(models.AuditEvent.occurred_at.desc())
+        .limit(limit)
+        .all()
+    )
+
     events = []
     for e in audit_events:
-        events.append({
-            "event_id": e.id,
-            "action": e.action,
-            "actor_persona": e.actor_persona.value if e.actor_persona else None,
-            "occurred_at": e.occurred_at.isoformat() + "Z" if e.occurred_at else None,
-            "payload": e.payload,
-        })
-    
+        events.append(
+            {
+                "event_id": e.id,
+                "action": e.action,
+                "actor_persona": e.actor_persona.value if e.actor_persona else None,
+                "occurred_at": (
+                    e.occurred_at.isoformat() + "Z" if e.occurred_at else None
+                ),
+                "payload": e.payload,
+            }
+        )
+
     # Get related sessions
-    invite = db.query(models.PortalInvite).filter(
-        models.PortalInvite.parcel_id == parcel_id
-    ).first()
-    
+    invite = (
+        db.query(models.PortalInvite)
+        .filter(models.PortalInvite.parcel_id == parcel_id)
+        .first()
+    )
+
     sessions = []
     if invite:
-        for s in db.query(models.PortalSession).filter(
-            models.PortalSession.invite_id == invite.id
-        ).all():
-            sessions.append({
-                "session_id": s.id,
-                "created_at": s.created_at.isoformat() + "Z" if s.created_at else None,
-                "last_activity_at": s.last_activity_at.isoformat() + "Z" if s.last_activity_at else None,
-                "ip_address": s.ip_address,
-            })
-    
+        for s in (
+            db.query(models.PortalSession)
+            .filter(models.PortalSession.invite_id == invite.id)
+            .all()
+        ):
+            sessions.append(
+                {
+                    "session_id": s.id,
+                    "created_at": (
+                        s.created_at.isoformat() + "Z" if s.created_at else None
+                    ),
+                    "last_activity_at": (
+                        s.last_activity_at.isoformat() + "Z"
+                        if s.last_activity_at
+                        else None
+                    ),
+                    "ip_address": s.ip_address,
+                }
+            )
+
     # Get uploads
     uploads = _uploads_by_parcel.get(parcel_id, [])
-    
+
     # Get decision
     decision = _decision_by_parcel.get(parcel_id)
-    
+
     return {
         "parcel_id": parcel_id,
-        "invite": {
-            "id": invite.id,
-            "email": invite.email,
-            "verified_at": invite.verified_at.isoformat() + "Z" if invite and invite.verified_at else None,
-        } if invite else None,
+        "invite": (
+            {
+                "id": invite.id,
+                "email": invite.email,
+                "verified_at": (
+                    invite.verified_at.isoformat() + "Z"
+                    if invite and invite.verified_at
+                    else None
+                ),
+            }
+            if invite
+            else None
+        ),
         "sessions": sessions,
         "audit_events": events,
         "uploads": uploads,
@@ -759,47 +862,54 @@ def list_portal_audit_events(
 ):
     """
     List portal-related audit events with filters.
-    
+
     Provides comprehensive audit trail for compliance and investigation.
     """
     authorize(persona, "portal", Action.READ)
-    
+
     query = db.query(models.AuditEvent).filter(
         models.AuditEvent.action.like("portal.%")
     )
-    
+
     if action:
         query = query.filter(models.AuditEvent.action == action)
-    
+
     # Note: JSON filtering in SQLAlchemy varies by database
     # This is a simplified version
     if project_id:
         query = query.filter(
             models.AuditEvent.payload.contains({"project_id": project_id})
         )
-    
+
     if parcel_id:
         query = query.filter(
             models.AuditEvent.payload.contains({"parcel_id": parcel_id})
         )
-    
+
     total = query.count()
-    events = query.order_by(
-        models.AuditEvent.occurred_at.desc()
-    ).offset(offset).limit(limit).all()
-    
+    events = (
+        query.order_by(models.AuditEvent.occurred_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
     items = []
     for e in events:
-        items.append({
-            "id": e.id,
-            "action": e.action,
-            "resource": e.resource,
-            "actor_persona": e.actor_persona.value if e.actor_persona else None,
-            "user_id": e.user_id,
-            "occurred_at": e.occurred_at.isoformat() + "Z" if e.occurred_at else None,
-            "payload": e.payload,
-        })
-    
+        items.append(
+            {
+                "id": e.id,
+                "action": e.action,
+                "resource": e.resource,
+                "actor_persona": e.actor_persona.value if e.actor_persona else None,
+                "user_id": e.user_id,
+                "occurred_at": (
+                    e.occurred_at.isoformat() + "Z" if e.occurred_at else None
+                ),
+                "payload": e.payload,
+            }
+        )
+
     return {
         "items": items,
         "total": total,
@@ -818,20 +928,20 @@ def revoke_session(
 ):
     """
     Administratively revoke a portal session.
-    
+
     Used to terminate access for suspicious or unauthorized sessions.
     """
     authorize(persona, "portal", Action.WRITE)
-    
+
     session = db.get(models.PortalSession, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="session_not_found")
-    
+
     if session.revoked_at:
         return {"status": "already_revoked", "session_id": session_id}
-    
+
     session.revoked_at = datetime.utcnow()
-    
+
     # Audit log
     db.add(
         models.AuditEvent(
@@ -849,9 +959,9 @@ def revoke_session(
             hash=sha256_hex({"session_id": session_id, "action": "admin_revoke"}),
         )
     )
-    
+
     db.commit()
-    
+
     return {
         "status": "revoked",
         "session_id": session_id,
@@ -868,45 +978,44 @@ def get_audit_summary(
 ):
     """
     Get summary statistics for portal audit activity.
-    
+
     Provides overview of portal usage and potential security concerns.
     """
     authorize(persona, "portal", Action.READ)
-    
+
     cutoff = datetime.utcnow() - timedelta(days=days)
-    
+
     query = db.query(models.AuditEvent).filter(
         models.AuditEvent.action.like("portal.%"),
         models.AuditEvent.occurred_at >= cutoff,
     )
-    
+
     if project_id:
         query = query.filter(
             models.AuditEvent.payload.contains({"project_id": project_id})
         )
-    
+
     events = query.all()
-    
+
     # Count by action type
     by_action: dict[str, int] = {}
     for e in events:
         by_action[e.action] = by_action.get(e.action, 0) + 1
-    
+
     # Session statistics
     session_query = db.query(models.PortalSession).filter(
         models.PortalSession.created_at >= cutoff,
     )
     sessions = session_query.all()
-    
+
     active_sessions = sum(
-        1 for s in sessions 
-        if s.expires_at > datetime.utcnow() and s.revoked_at is None
+        1 for s in sessions if s.expires_at > datetime.utcnow() and s.revoked_at is None
     )
     revoked_sessions = sum(1 for s in sessions if s.revoked_at is not None)
-    
+
     # Unique IPs
     unique_ips = len(set(s.ip_address for s in sessions if s.ip_address))
-    
+
     return {
         "period_days": days,
         "project_id": project_id,
@@ -926,4 +1035,3 @@ def get_audit_summary(
         "uploads": by_action.get("portal.upload", 0),
         "decisions": by_action.get("portal.decision.submit", 0),
     }
-

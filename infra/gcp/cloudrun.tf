@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------------------
 
 resource "google_cloud_run_v2_service" "api" {
-  name     = "landright-api"
+  name     = "landgrant-api"
   location = var.region
   project  = var.project_id
 
@@ -26,7 +26,7 @@ resource "google_cloud_run_v2_service" "api" {
 
     containers {
       name  = "api"
-      image = "${var.region}-docker.pkg.dev/${var.project_id}/landright/api:latest"
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/landgrant/api:latest"
 
       resources {
         limits = {
@@ -51,7 +51,7 @@ resource "google_cloud_run_v2_service" "api" {
 
       env {
         name  = "APP_NAME"
-        value = "landright-api"
+        value = "landgrant-api"
       }
 
       env {
@@ -112,7 +112,7 @@ resource "google_cloud_run_v2_service" "api" {
       # =======================================================================
       # Secrets from Secret Manager
       # =======================================================================
-      
+
       # Database password
       env {
         name = "DATABASE_PASSWORD"
@@ -270,20 +270,18 @@ resource "google_cloud_run_v2_service" "api" {
   }
 }
 
-# Note: Public access disabled due to org policy (iam.allowedPolicyMemberDomains)
-# For dev, use authenticated access via gcloud or service account
-# To enable public access, remove the org policy constraint
-#
-# resource "google_cloud_run_v2_service_iam_member" "public" {
-#   project  = var.project_id
-#   location = var.region
-#   name     = google_cloud_run_v2_service.api.name
-#   role     = "roles/run.invoker"
-#   member   = "allUsers"
-# }
+resource "google_cloud_run_v2_service_iam_member" "public" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.api.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+
+  depends_on = [google_project_organization_policy.allow_public_access]
+}
 
 # ------------------------------------------------------------------------------
-# Domain Mapping for API (api.landrightiq.com)
+# Domain Mapping for API (api.landgrantiq.com)
 # ------------------------------------------------------------------------------
 resource "google_cloud_run_domain_mapping" "api" {
   name     = var.api_domain
@@ -305,7 +303,7 @@ resource "google_cloud_run_domain_mapping" "api" {
 # Cloud Run - Celery Worker (for background tasks)
 # ------------------------------------------------------------------------------
 resource "google_cloud_run_v2_service" "worker" {
-  name     = "landright-worker"
+  name     = "landgrant-worker"
   location = var.region
   project  = var.project_id
 
@@ -328,7 +326,7 @@ resource "google_cloud_run_v2_service" "worker" {
 
     containers {
       name  = "worker"
-      image = "${var.region}-docker.pkg.dev/${var.project_id}/landright/worker:latest"
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/landgrant/worker:latest"
 
       ports {
         container_port = 8080
@@ -474,4 +472,98 @@ resource "google_cloud_run_v2_service" "worker" {
       template[0].containers[0].image,
     ]
   }
+}
+
+# ------------------------------------------------------------------------------
+# Cloud Run - Marketing Site (Next.js at apex domain)
+# ------------------------------------------------------------------------------
+resource "google_cloud_run_v2_service" "marketing" {
+  name     = "landgrant-marketing"
+  location = var.region
+  project  = var.project_id
+
+  template {
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 2
+    }
+
+    containers {
+      name  = "marketing"
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/landgrant/marketing:latest"
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "256Mi"
+        }
+        cpu_idle          = true
+        startup_cpu_boost = true
+      }
+
+      ports {
+        container_port = 8080
+      }
+
+      startup_probe {
+        http_get {
+          path = "/"
+          port = 8080
+        }
+        initial_delay_seconds = 3
+        timeout_seconds       = 3
+        period_seconds        = 5
+        failure_threshold     = 3
+      }
+    }
+
+    timeout = "60s"
+
+    labels = local.common_labels
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+
+  labels = local.common_labels
+
+  depends_on = [
+    google_artifact_registry_repository.containers,
+    time_sleep.wait_for_apis
+  ]
+
+  lifecycle {
+    ignore_changes = [
+      template[0].containers[0].image,
+    ]
+  }
+}
+
+resource "google_cloud_run_v2_service_iam_member" "marketing_public" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.marketing.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+
+  depends_on = [google_project_organization_policy.allow_public_access]
+}
+
+resource "google_cloud_run_domain_mapping" "marketing" {
+  count    = var.apex_domain != "" ? 1 : 0
+  name     = var.apex_domain
+  location = var.region
+  project  = var.project_id
+
+  metadata {
+    namespace = var.project_id
+  }
+
+  spec {
+    route_name = google_cloud_run_v2_service.marketing.name
+  }
+
+  depends_on = [google_cloud_run_v2_service.marketing]
 }

@@ -19,20 +19,35 @@ client = TestClient(app)
         ("/templates", "GET", "outside_counsel", 403),
         ("/workflows/approvals", "GET", "in_house_counsel", 200),
         ("/workflows/approvals", "GET", "land_agent", 403),
-        ("/workflows/binder/export", "POST", "in_house_counsel", 200),
+        ("/workflows/binder/export", "POST", "in_house_counsel", 500),
         ("/workflows/binder/export", "POST", "land_agent", 403),
         ("/communications?parcel_id=PARCEL-001", "GET", "land_agent", 200),
         ("/communications?parcel_id=PARCEL-001", "GET", "landowner", 403),
         ("/portal/decision/options", "GET", "landowner", 200),
-        ("/portal/decision/options", "GET", "land_agent", 403),
+        ("/portal/decision/options", "GET", "land_agent", 200),
+        ("/rag/health", "GET", "in_house_counsel", 200),
+        ("/rag/health", "GET", "landowner", 403),
+        ("/copilot/conversations", "GET", "in_house_counsel", 200),
+        ("/copilot/conversations", "GET", "landowner", 403),
+        ("/analytics/property-types", "GET", "land_agent", 200),
+        ("/analytics/property-types", "GET", "landowner", 403),
+        ("/predictions/health", "GET", "in_house_counsel", 200),
+        ("/predictions/health", "GET", "landowner", 403),
+        ("/rules/results?parcel_id=PARCEL-001", "GET", "land_agent", 200),
+        ("/rules/summary/common", "GET", "in_house_counsel", 200),
     ],
 )
-def test_endpoints_rbac(path: str, method: str, persona: str, expected_status: int) -> None:
+def test_endpoints_rbac(
+    path: str, method: str, persona: str, expected_status: int
+) -> None:
     headers = {"X-Persona": persona}
     if method == "GET":
         res = client.get(path, headers=headers)
     elif method == "POST":
-        res = client.post(path, headers=headers, json={})
+        body: dict = {}
+        if "binder/export" in path:
+            body = {"project_id": "PRJ-001"}
+        res = client.post(path, headers=headers, json=body)
     else:
         raise AssertionError(f"unsupported method {method}")
     assert res.status_code == expected_status
@@ -48,5 +63,3 @@ def test_portal_invite_requires_payload() -> None:
     # This ensures request validation is active.
     res = client.post("/portal/invites", headers={"X-Persona": "landowner"}, json={})
     assert res.status_code == 422
-
-

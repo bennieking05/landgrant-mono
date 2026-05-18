@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { getRoutePlan, type RoutePlanResponse } from "@/lib/api";
 

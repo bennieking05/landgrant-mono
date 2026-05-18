@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------
-# LandRight Worker - Celery Background Tasks Container
+# LandGrant Worker - Celery Background Tasks Container
 # For async document processing, notifications, etc.
 # Build context: project root (not backend/)
 # ------------------------------------------------------------------------------
@@ -36,6 +36,10 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code (from project root context)
 COPY backend/app/ ./app/
 COPY backend/scripts/worker_entrypoint.py ./worker_entrypoint.py
+
+# Copy Alembic config in case the worker needs to resolve schema metadata
+COPY backend/alembic.ini ./alembic.ini
+COPY backend/migrations/ ./migrations/
 
 # Copy rules and templates from project root
 COPY rules/ ./rules/

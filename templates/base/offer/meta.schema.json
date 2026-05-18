@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://landright.io/schemas/offer_template.schema.json",
+  "$id": "https://landgrant.io/schemas/offer_template.schema.json",
   "title": "Offer Letter Template Variables",
   "description": "Schema for all possible variables in offer letter templates across jurisdictions",
   "type": "object",

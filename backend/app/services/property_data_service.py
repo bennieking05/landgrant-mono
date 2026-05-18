@@ -28,6 +28,7 @@ settings = get_settings()
 @dataclass
 class PropertyData:
     """Property information from external sources."""
+
     apn: str
     county_fips: str
     address: Optional[str] = None
@@ -48,12 +49,12 @@ class PropertyData:
     source: str = "unknown"
     confidence: float = 0.0
     fetched_at: datetime = None
-    
+
     def __post_init__(self):
         self.owner_names = self.owner_names or []
         self.liens = self.liens or []
         self.fetched_at = self.fetched_at or datetime.utcnow()
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "apn": self.apn,
@@ -81,89 +82,89 @@ class PropertyData:
 
 class PropertyDataService:
     """Service for fetching property data from external APIs.
-    
+
     Implements a tiered approach:
     1. Check local cache first
     2. Try primary API (CoreLogic/ATTOM)
     3. Fall back to secondary sources
     4. Cache results for future use
     """
-    
+
     # Cache TTL in hours
     CACHE_TTL_HOURS = 168  # 7 days
-    
+
     def __init__(self, db_session=None):
         """Initialize service.
-        
+
         Args:
             db_session: Database session for caching
         """
         self.db = db_session
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        
+
         # API configuration (from environment)
-        self.attom_api_key = getattr(settings, 'attom_api_key', None)
-        self.corelogic_api_key = getattr(settings, 'corelogic_api_key', None)
-    
+        self.attom_api_key = getattr(settings, "attom_api_key", None)
+        self.corelogic_api_key = getattr(settings, "corelogic_api_key", None)
+
     async def fetch_property_data(
-        self, 
-        apn: str, 
+        self,
+        apn: str,
         county_fips: str,
         use_cache: bool = True,
     ) -> PropertyData:
         """Fetch property data from available sources.
-        
+
         Args:
             apn: Assessor's Parcel Number
             county_fips: County FIPS code
             use_cache: Whether to check cache first
-            
+
         Returns:
             PropertyData with available information
         """
         cache_key = f"{county_fips}:{apn}"
-        
+
         # 1. Check cache first
         if use_cache:
             cached = await self._get_cached_data(cache_key, "property")
             if cached:
                 self.logger.info(f"Cache hit for property {cache_key}")
                 return PropertyData(**cached)
-        
+
         # 2. Try primary API
         property_data = await self._fetch_from_attom(apn, county_fips)
-        
+
         # 3. Fall back to mock data in development
         if not property_data:
             property_data = await self._fetch_mock_data(apn, county_fips)
-        
+
         # 4. Cache the result
         if property_data and self.db:
             await self._cache_data(cache_key, "property", property_data.to_dict())
-        
+
         return property_data
-    
+
     async def fetch_tax_records(
         self,
         apn: str,
         county_fips: str,
     ) -> dict[str, Any]:
         """Fetch tax records for a property.
-        
+
         Args:
             apn: Assessor's Parcel Number
             county_fips: County FIPS code
-            
+
         Returns:
             Tax record data
         """
         cache_key = f"{county_fips}:{apn}"
-        
+
         # Check cache
         cached = await self._get_cached_data(cache_key, "tax")
         if cached:
             return cached
-        
+
         # Fetch from API (mock for now)
         tax_data = {
             "apn": apn,
@@ -177,29 +178,29 @@ class PropertyDataService:
             "exemptions": [],
             "source": "mock",
         }
-        
+
         # Cache result
         if self.db:
             await self._cache_data(cache_key, "tax", tax_data)
-        
+
         return tax_data
-    
+
     async def fetch_owner_info(
         self,
         apn: str,
         county_fips: str,
     ) -> dict[str, Any]:
         """Fetch current owner information.
-        
+
         Args:
             apn: Assessor's Parcel Number
             county_fips: County FIPS code
-            
+
         Returns:
             Owner information
         """
         property_data = await self.fetch_property_data(apn, county_fips)
-        
+
         return {
             "apn": apn,
             "owner_names": property_data.owner_names,
@@ -207,25 +208,25 @@ class PropertyDataService:
             "owner_type": "individual",  # individual, trust, corporate, government
             "ownership_since": None,  # Would come from title data
         }
-    
+
     async def _fetch_from_attom(
         self,
         apn: str,
         county_fips: str,
     ) -> Optional[PropertyData]:
         """Fetch from ATTOM Data API.
-        
+
         Args:
             apn: Assessor's Parcel Number
             county_fips: County FIPS code
-            
+
         Returns:
             PropertyData or None if unavailable
         """
         if not self.attom_api_key:
             self.logger.debug("ATTOM API key not configured")
             return None
-        
+
         try:
             async with httpx.AsyncClient() as client:
                 # ATTOM property endpoint
@@ -235,18 +236,18 @@ class PropertyDataService:
                     headers={"apikey": self.attom_api_key},
                     timeout=30.0,
                 )
-                
+
                 if response.status_code == 200:
                     data = response.json()
                     return self._parse_attom_response(data, apn, county_fips)
                 else:
                     self.logger.warning(f"ATTOM API returned {response.status_code}")
                     return None
-                    
+
         except Exception as e:
             self.logger.error(f"ATTOM API call failed: {e}")
             return None
-    
+
     def _parse_attom_response(
         self,
         data: dict[str, Any],
@@ -254,17 +255,17 @@ class PropertyDataService:
         county_fips: str,
     ) -> PropertyData:
         """Parse ATTOM API response into PropertyData.
-        
+
         Args:
             data: API response
             apn: APN for reference
             county_fips: County FIPS for reference
-            
+
         Returns:
             Parsed PropertyData
         """
         property_info = data.get("property", [{}])[0] if data.get("property") else {}
-        
+
         return PropertyData(
             apn=apn,
             county_fips=county_fips,
@@ -273,29 +274,33 @@ class PropertyDataService:
             legal_description=property_info.get("lot", {}).get("legalDescription"),
             property_type=property_info.get("summary", {}).get("propertyType"),
             lot_size_sqft=property_info.get("lot", {}).get("lotSize"),
-            building_sqft=property_info.get("building", {}).get("size", {}).get("grossSize"),
+            building_sqft=property_info.get("building", {})
+            .get("size", {})
+            .get("grossSize"),
             year_built=property_info.get("building", {}).get("yearBuilt"),
-            assessed_value=property_info.get("assessment", {}).get("assessed", {}).get("total"),
+            assessed_value=property_info.get("assessment", {})
+            .get("assessed", {})
+            .get("total"),
             source="attom",
             confidence=0.9,
         )
-    
+
     async def _fetch_mock_data(
         self,
         apn: str,
         county_fips: str,
     ) -> PropertyData:
         """Generate mock property data for development.
-        
+
         Args:
             apn: APN
             county_fips: County FIPS
-            
+
         Returns:
             Mock PropertyData
         """
         self.logger.info(f"Using mock data for {county_fips}:{apn}")
-        
+
         return PropertyData(
             apn=apn,
             county_fips=county_fips,
@@ -322,28 +327,28 @@ class PropertyDataService:
             source="mock",
             confidence=0.5,  # Lower confidence for mock data
         )
-    
+
     async def _get_cached_data(
         self,
         cache_key: str,
         cache_type: str,
     ) -> Optional[dict[str, Any]]:
         """Get cached data if available and not expired.
-        
+
         Args:
             cache_key: Cache key
             cache_type: Type of cached data
-            
+
         Returns:
             Cached data or None
         """
         if not self.db:
             return None
-        
+
         try:
             from app.db.models import ExternalDataCache
             from sqlalchemy import select, and_
-            
+
             result = await self.db.execute(
                 select(ExternalDataCache).where(
                     and_(
@@ -354,16 +359,16 @@ class PropertyDataService:
                 )
             )
             cache_entry = result.scalar_one_or_none()
-            
+
             if cache_entry:
                 return cache_entry.data
-            
+
             return None
-            
+
         except Exception as e:
             self.logger.warning(f"Cache lookup failed: {e}")
             return None
-    
+
     async def _cache_data(
         self,
         cache_key: str,
@@ -371,7 +376,7 @@ class PropertyDataService:
         data: dict[str, Any],
     ) -> None:
         """Cache data for future use.
-        
+
         Args:
             cache_key: Cache key
             cache_type: Type of data
@@ -379,10 +384,10 @@ class PropertyDataService:
         """
         if not self.db:
             return
-        
+
         try:
             from app.db.models import ExternalDataCache
-            
+
             cache_entry = ExternalDataCache(
                 id=str(uuid4()),
                 cache_type=cache_type,
@@ -394,9 +399,9 @@ class PropertyDataService:
                 expires_at=datetime.utcnow() + timedelta(hours=self.CACHE_TTL_HOURS),
                 hash=sha256_hex(str(data)),
             )
-            
+
             self.db.add(cache_entry)
             await self.db.commit()
-            
+
         except Exception as e:
             self.logger.warning(f"Cache write failed: {e}")

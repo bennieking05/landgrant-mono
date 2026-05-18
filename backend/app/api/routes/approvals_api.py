@@ -9,10 +9,10 @@ Provides endpoints for:
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, Any
-from datetime import datetime
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_persona
+from app.api.deps import get_current_persona, get_db
 from app.db.models import Persona
 from app.security.rbac import authorize, Action
 
@@ -22,6 +22,7 @@ router = APIRouter(prefix="/approvals", tags=["approvals"])
 # Request/Response models
 class ApprovalRequestInput(BaseModel):
     """Request for a new approval."""
+
     entity_type: str  # document, offer, filing, settlement
     entity_id: str
     action: str  # send, file, record, execute
@@ -33,6 +34,7 @@ class ApprovalRequestInput(BaseModel):
 
 class ApprovalResponse(BaseModel):
     """Approval record response."""
+
     id: str
     entity_type: str
     entity_id: str
@@ -49,6 +51,7 @@ class ApprovalResponse(BaseModel):
 
 class ResolveRequest(BaseModel):
     """Request to resolve an approval."""
+
     outcome: str  # approve, reject
     notes: Optional[str] = None
     reason: Optional[str] = None  # Required for rejection
@@ -56,6 +59,7 @@ class ResolveRequest(BaseModel):
 
 class StatusCheckResponse(BaseModel):
     """Response from approval status check."""
+
     approved: bool
     reason: Optional[str] = None
     approval_id: Optional[str] = None
@@ -66,16 +70,17 @@ class StatusCheckResponse(BaseModel):
 async def request_approval(
     request: ApprovalRequestInput,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Request approval for a critical action.
-    
+
     Creates an approval record in pending_review status.
     """
     authorize(persona, "approvals", Action.WRITE)
-    
+
     from app.services.approvals import ApprovalService, ApprovalRequest
-    
-    service = ApprovalService()
+
+    service = ApprovalService(db=db)
     approval = service.request_approval(
         request=ApprovalRequest(
             entity_type=request.entity_type,
@@ -88,7 +93,7 @@ async def request_approval(
         ),
         user_id=str(persona),
     )
-    
+
     return ApprovalResponse(
         id=approval.id,
         entity_type=approval.entity_type,
@@ -97,7 +102,9 @@ async def request_approval(
         status=approval.status,
         content_hash=approval.content_hash,
         requested_by=approval.requested_by,
-        requested_at=approval.requested_at.isoformat() if approval.requested_at else None,
+        requested_at=(
+            approval.requested_at.isoformat() if approval.requested_at else None
+        ),
         approved_by=approval.approved_by,
         approved_at=approval.approved_at.isoformat() if approval.approved_at else None,
         rejected_by=approval.rejected_by,
@@ -108,6 +115,7 @@ async def request_approval(
 @router.get("", response_model=list[ApprovalResponse])
 async def list_approvals(
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
     status: Optional[str] = None,
     entity_type: Optional[str] = None,
     project_id: Optional[str] = None,
@@ -115,17 +123,17 @@ async def list_approvals(
 ):
     """List approvals with optional filters."""
     authorize(persona, "approvals", Action.READ)
-    
+
     from app.services.approvals import ApprovalService
-    
-    service = ApprovalService()
+
+    service = ApprovalService(db=db)
     approvals = service.list_approvals(
         status=status,
         entity_type=entity_type,
         project_id=project_id,
         limit=limit,
     )
-    
+
     return [
         ApprovalResponse(
             id=a.id,
@@ -149,18 +157,19 @@ async def list_approvals(
 async def get_approval(
     approval_id: str,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Get details of a specific approval."""
     authorize(persona, "approvals", Action.READ)
-    
+
     from app.services.approvals import ApprovalService
-    
-    service = ApprovalService()
+
+    service = ApprovalService(db=db)
     approval = service.get_approval(approval_id)
-    
+
     if not approval:
         raise HTTPException(status_code=404, detail="Approval not found")
-    
+
     return approval.to_dict()
 
 
@@ -169,17 +178,18 @@ async def approve(
     approval_id: str,
     notes: Optional[str] = None,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Approve an action.
-    
+
     Only counsel can approve actions.
     """
     authorize(persona, "approvals", Action.APPROVE)
-    
+
     from app.services.approvals import ApprovalService
-    
-    service = ApprovalService()
-    
+
+    service = ApprovalService(db=db)
+
     try:
         approval = service.approve(
             approval_id=approval_id,
@@ -196,17 +206,18 @@ async def reject(
     approval_id: str,
     reason: str,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Reject an action.
-    
+
     Requires a reason for the rejection.
     """
     authorize(persona, "approvals", Action.APPROVE)
-    
+
     from app.services.approvals import ApprovalService
-    
-    service = ApprovalService()
-    
+
+    service = ApprovalService(db=db)
+
     try:
         approval = service.reject(
             approval_id=approval_id,
@@ -223,14 +234,15 @@ async def assign_reviewer(
     approval_id: str,
     reviewer_id: str,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Assign a reviewer to an approval."""
     authorize(persona, "approvals", Action.WRITE)
-    
+
     from app.services.approvals import ApprovalService
-    
-    service = ApprovalService()
-    
+
+    service = ApprovalService(db=db)
+
     try:
         approval = service.assign_reviewer(
             approval_id=approval_id,
@@ -249,17 +261,21 @@ async def check_approval_status(
     action: str,
     content_hash: str,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Check if an action is approved.
-    
+
     Use before executing any critical action to verify
     approval exists and content hasn't changed.
     """
     authorize(persona, "approvals", Action.READ)
-    
-    from app.services.approvals import ApprovalService, check_approval_status as check_status
-    
-    service = ApprovalService()
+
+    from app.services.approvals import (
+        ApprovalService,
+        check_approval_status as check_status,
+    )
+
+    service = ApprovalService(db=db)
     result = check_status(
         approval_service=service,
         entity_type=entity_type,
@@ -267,7 +283,7 @@ async def check_approval_status(
         action=action,
         current_content_hash=content_hash,
     )
-    
+
     return StatusCheckResponse(
         approved=result["approved"],
         reason=result.get("reason"),
@@ -282,18 +298,19 @@ async def mark_executed(
     final_content_hash: str,
     result: Optional[dict[str, Any]] = None,
     persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
 ):
     """Mark an approved action as executed.
-    
+
     Called after the action (send/file) is completed.
     Records the final content hash for audit.
     """
     authorize(persona, "approvals", Action.EXECUTE)
-    
+
     from app.services.approvals import ApprovalService
-    
-    service = ApprovalService()
-    
+
+    service = ApprovalService(db=db)
+
     try:
         approval = service.mark_executed(
             approval_id=approval_id,

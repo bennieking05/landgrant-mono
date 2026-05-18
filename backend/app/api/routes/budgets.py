@@ -12,7 +12,11 @@ router = APIRouter(prefix="/budgets", tags=["budgets"])
 
 
 @router.get("/summary")
-def budget_summary(project_id: str, persona: Persona = Depends(get_current_persona), db: Session = Depends(get_db)):
+def budget_summary(
+    project_id: str,
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
     authorize(persona, "budget", Action.READ)
     try:
         budget = (
@@ -38,7 +42,9 @@ def budget_summary(project_id: str, persona: Persona = Depends(get_current_perso
             "actual_amount": actual,
             "utilization_pct": utilization,
             "alerts": alerts,
-            "updated_at": budget.updated_at.isoformat() + "Z" if budget.updated_at else None,
+            "updated_at": (
+                budget.updated_at.isoformat() + "Z" if budget.updated_at else None
+            ),
         }
     except Exception:
         return {
@@ -49,5 +55,3 @@ def budget_summary(project_id: str, persona: Persona = Depends(get_current_perso
             "alerts": [],
             "updated_at": None,
         }
-
-

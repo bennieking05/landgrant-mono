@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------
-# LandRight API - Cloud Run Container
+# LandGrant API - Cloud Run Container
 # Multi-stage build for smaller image size
 # Build context: project root (not backend/)
 # ------------------------------------------------------------------------------
@@ -37,11 +37,17 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code (from project root context)
 COPY backend/app/ ./app/
 
+# Copy Alembic configuration and migrations so container can run schema upgrades
+COPY backend/alembic.ini ./alembic.ini
+COPY backend/migrations/ ./migrations/
+
 # Copy rules and templates from project root
 COPY rules/ ./rules/
 COPY templates/ ./templates/
 
 # Environment variables
+# PORT defaults to 8080 (Cloud Run convention). Override to 8050 for local
+# docker-compose to match the documented dev port.
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PORT=8080

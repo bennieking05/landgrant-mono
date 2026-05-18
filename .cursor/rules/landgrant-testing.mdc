@@ -1,0 +1,58 @@
+---
+description: Testing enforcement rules for the LandGrant platform
+globs: ["**/tests/**", "**/*.test.*", "**/*.spec.*"]
+alwaysApply: false
+---
+
+# LandGrant Testing Rules
+
+## Required Tests
+
+### For Every New API Route
+- Add RBAC test in `tests/test_endpoints_rbac.py` for at least one allowed and one denied persona
+- If the route is security-sensitive, add a test in `tests/test_security_hardening.py`
+
+### For RBAC Changes
+- Test that new resources exist in the permission matrix for all intended personas
+- Test that unauthorized personas are rejected (403)
+- Test that the Action enum includes any new action types used
+
+### For Portal Token Flows
+- Test token creation, validation, and expiration
+- Test rate limiting on verification endpoint
+- Test session cookie flags (httponly, secure, samesite)
+
+### For Async Workflows
+- Test Celery task dispatch (verify `.delay()` is called)
+- Test workflow event processing with mock data
+- Test escalation creation when confidence is below threshold
+
+## Test Infrastructure
+
+- **Backend**: pytest with `backend/.venv/bin/python -m pytest`
+- **Frontend**: `npx tsc --noEmit` for type checking
+- **E2E**: Playwright in `frontend/tests/`
+- **Test artifacts**: Store in `/artifacts/` (gitignored)
+
+## Test Patterns
+
+- Use `TestClient(app)` from FastAPI for backend integration tests
+- Use `@pytest.mark.parametrize` for RBAC matrix testing
+- Do NOT mock the auth middleware -- test the full pipeline
+- Health endpoints must always be tested without auth headers
+
+## Validation Before Completion
+
+Before marking any task done:
+1. Run `cd backend && .venv/bin/python -m pytest --tb=short -q` -- all tests pass
+2. Run `cd frontend && npx tsc --noEmit` -- zero type errors
+3. If you modified RBAC: run `tests/test_endpoints_rbac.py` and `tests/test_security_hardening.py`
+4. If you modified UI: verify the page renders for the relevant personas
+5. Document what was tested in the PR/commit description
+
+## Evidence Requirements
+
+- Do NOT mark work done without evidence of validation
+- For security fixes: show test output proving the fix works
+- For UI changes: verify with the running app or Playwright screenshots
+- For RBAC changes: show passing parametrized tests

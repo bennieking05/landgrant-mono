@@ -16,7 +16,7 @@ It integrates with:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
 
@@ -107,6 +107,7 @@ Return JSON:
 @dataclass
 class TitleDocument:
     """Analyzed title document."""
+
     document_id: str
     document_type: str
     parties: dict[str, list[str]]
@@ -122,6 +123,7 @@ class TitleDocument:
 @dataclass
 class ChainOfTitle:
     """Chain of title analysis result."""
+
     instruments: list[TitleDocument]
     chain_complete: bool
     years_covered: int
@@ -134,27 +136,27 @@ class ChainOfTitle:
 
 class TitleAgent(BaseAgent):
     """Agent for title search and analysis.
-    
+
     Responsibilities:
     - Process title documents with OCR
     - Extract parties, legal descriptions, liens
     - Build and analyze chain of title
     - Fetch supplementary public data
     - Identify title issues
-    
+
     Escalation triggers:
     - Title defects detected
     - Chain of title gaps
     - Unresolved liens
     - Ownership disputes
     """
-    
+
     agent_type = AgentType.TITLE
     confidence_threshold = 0.85
-    
+
     def __init__(self, db_session=None, confidence_threshold: float = None):
         """Initialize the title agent.
-        
+
         Args:
             db_session: Database session
             confidence_threshold: Override default threshold
@@ -162,21 +164,21 @@ class TitleAgent(BaseAgent):
         super().__init__(confidence_threshold)
         self.db = db_session
         self.ocr_service = OCRService()
-    
+
     async def execute(self, context: AgentContext) -> AgentResult:
         """Execute title analysis based on context.
-        
+
         Args:
             context: Agent context with action details
-            
+
         Returns:
             AgentResult with analysis
         """
         start_time = datetime.utcnow()
-        
+
         try:
             action = context.action or "analyze_document"
-            
+
             if action == "analyze_document":
                 if not context.document_id:
                     return AgentResult.failure_result(
@@ -185,7 +187,7 @@ class TitleAgent(BaseAgent):
                     )
                 result = await self.analyze_title_document(context.document_id)
                 return self._build_document_result(result, start_time)
-            
+
             elif action == "build_chain":
                 if not context.parcel_id:
                     return AgentResult.failure_result(
@@ -194,26 +196,26 @@ class TitleAgent(BaseAgent):
                     )
                 result = await self.build_chain_of_title(context.parcel_id)
                 return self._build_chain_result(result, start_time)
-            
+
             else:
                 return AgentResult.failure_result(
                     error=f"Unknown action: {action}",
                     error_code="UNKNOWN_ACTION",
                 )
-            
+
         except Exception as e:
             self.logger.error(f"Title agent failed: {e}", exc_info=True)
             return AgentResult.failure_result(
                 error=str(e),
                 error_code="TITLE_ERROR",
             )
-    
+
     async def ocr_document(self, document_id: str) -> OCRResult:
         """Process a document with OCR.
-        
+
         Args:
             document_id: Document to process
-            
+
         Returns:
             OCR result
         """
@@ -221,18 +223,18 @@ class TitleAgent(BaseAgent):
         document = await self._get_document(document_id)
         if not document:
             raise ValueError(f"Document {document_id} not found")
-        
+
         storage_path = document.get("storage_path")
-        
+
         # Process with OCR
         return await self.ocr_service.process(storage_path)
-    
+
     async def analyze_title_document(self, document_id: str) -> TitleDocument:
         """Analyze a title document for entities and issues.
-        
+
         Args:
             document_id: Document to analyze
-            
+
         Returns:
             Analyzed title document
         """
@@ -240,23 +242,23 @@ class TitleAgent(BaseAgent):
         document = await self._get_document(document_id)
         if not document:
             raise ValueError(f"Document {document_id} not found")
-        
+
         # Get OCR result (may already be cached)
         ocr_result = await self.ocr_document(document_id)
-        
+
         # Extract entities
-        entities = await self.ocr_service.extract_entities(
+        _entities = await self.ocr_service.extract_entities(
             ocr_result.text,
             document.get("doc_type", "deed"),
         )
-        
+
         # Use AI for deeper analysis
         analysis = await self._analyze_with_ai(
             ocr_result.text,
             document.get("doc_type", "deed"),
             document.get("apn", ""),
         )
-        
+
         # Build result
         title_doc = TitleDocument(
             document_id=document_id,
@@ -270,24 +272,24 @@ class TitleAgent(BaseAgent):
             ocr_confidence=ocr_result.confidence,
             analysis_confidence=analysis.get("confidence", 0.7),
         )
-        
+
         # Update title instrument record
         await self._update_title_instrument(document_id, title_doc)
-        
+
         return title_doc
-    
+
     async def build_chain_of_title(self, parcel_id: str) -> ChainOfTitle:
         """Build and analyze chain of title for a parcel.
-        
+
         Args:
             parcel_id: Parcel to analyze
-            
+
         Returns:
             Chain of title analysis
         """
         # Get all title instruments for parcel
         instruments = await self._get_title_instruments(parcel_id)
-        
+
         # Analyze each instrument
         analyzed_instruments = []
         for instrument in instruments:
@@ -295,30 +297,30 @@ class TitleAgent(BaseAgent):
             if doc_id:
                 analyzed = await self.analyze_title_document(doc_id)
                 analyzed_instruments.append(analyzed)
-        
+
         # Sort by recording date
         analyzed_instruments.sort(
             key=lambda x: x.recording_info.get("recording_date", ""),
             reverse=True,
         )
-        
+
         # Determine current owner
         current_owner = ""
         if analyzed_instruments:
             latest = analyzed_instruments[0]
             grantees = latest.parties.get("grantees", [])
             current_owner = ", ".join(grantees) if grantees else ""
-        
+
         # Analyze chain with AI
         chain_analysis = await self._analyze_chain_with_ai(
             analyzed_instruments,
             current_owner,
             parcel_id,
         )
-        
+
         # Fetch supplementary public data
-        public_data = await self.fetch_all_public_data(parcel_id, "")
-        
+        _public_data = await self.fetch_all_public_data(parcel_id, "")
+
         return ChainOfTitle(
             instruments=analyzed_instruments,
             chain_complete=chain_analysis.get("chain_complete", False),
@@ -329,49 +331,51 @@ class TitleAgent(BaseAgent):
             curative_actions=chain_analysis.get("curative_actions", []),
             current_owner=current_owner,
         )
-    
+
     async def fetch_all_public_data(
         self,
         parcel_id: str,
         county_fips: str,
     ) -> dict[str, Any]:
         """Fetch all public records for a parcel.
-        
+
         Args:
             parcel_id: Parcel ID
             county_fips: County FIPS code
-            
+
         Returns:
             Combined public data
         """
         from app.services.property_data_service import PropertyDataService
-        
-        property_service = PropertyDataService(self.db)
-        
+
+        _property_service = PropertyDataService(self.db)
+
         # Fetch in parallel (would use actual APIs)
         tax_records = await self._fetch_tax_records(parcel_id, county_fips)
         gis_data = await self._fetch_gis_data(parcel_id, county_fips)
         zoning_info = await self._fetch_zoning_info(parcel_id, county_fips)
-        environmental_data = await self._fetch_environmental_data(parcel_id, county_fips)
-        
+        environmental_data = await self._fetch_environmental_data(
+            parcel_id, county_fips
+        )
+
         return {
             "tax_records": tax_records,
             "gis_data": gis_data,
             "zoning": zoning_info,
             "environmental": environmental_data,
         }
-    
+
     async def identify_issues_with_ai(
         self,
         parcel_id: str,
         chain_data: dict[str, Any],
     ) -> dict[str, Any]:
         """Use AI to identify potential title issues.
-        
+
         Args:
             parcel_id: Parcel ID
             chain_data: Chain of title data
-            
+
         Returns:
             Identified issues
         """
@@ -396,10 +400,14 @@ Return JSON:
     "curative_actions": ["action1", "action2"]
 }}
 """
-        
+
         response = await self.call_ai(prompt, task_type="title_issues")
-        return response or {"issues": [], "overall_risk": "unknown", "clear_to_proceed": False}
-    
+        return response or {
+            "issues": [],
+            "overall_risk": "unknown",
+            "clear_to_proceed": False,
+        }
+
     async def _analyze_with_ai(
         self,
         ocr_text: str,
@@ -407,12 +415,12 @@ Return JSON:
         apn: str,
     ) -> dict[str, Any]:
         """Analyze document with AI.
-        
+
         Args:
             ocr_text: OCR extracted text
             doc_type: Document type
             apn: Parcel APN
-            
+
         Returns:
             Analysis result
         """
@@ -421,12 +429,12 @@ Return JSON:
             doc_type=doc_type,
             apn=apn,
         )
-        
+
         response = await self.call_ai(prompt, task_type="title_analysis")
-        
+
         if response:
             return response
-        
+
         # Default response if AI unavailable
         return {
             "document_type": doc_type,
@@ -438,7 +446,7 @@ Return JSON:
             "issues": [],
             "confidence": 0.5,
         }
-    
+
     async def _analyze_chain_with_ai(
         self,
         instruments: list[TitleDocument],
@@ -446,36 +454,38 @@ Return JSON:
         parcel_id: str,
     ) -> dict[str, Any]:
         """Analyze chain of title with AI.
-        
+
         Args:
             instruments: Analyzed instruments
             current_owner: Current owner name
             parcel_id: Parcel ID
-            
+
         Returns:
             Chain analysis
         """
         # Build chain JSON
         chain_json = []
         for inst in instruments:
-            chain_json.append({
-                "document_type": inst.document_type,
-                "parties": inst.parties,
-                "recording_date": inst.recording_info.get("recording_date"),
-                "liens": len(inst.liens),
-            })
-        
+            chain_json.append(
+                {
+                    "document_type": inst.document_type,
+                    "parties": inst.parties,
+                    "recording_date": inst.recording_info.get("recording_date"),
+                    "liens": len(inst.liens),
+                }
+            )
+
         prompt = CHAIN_OF_TITLE_PROMPT.format(
             chain_json=str(chain_json),
             current_owner=current_owner,
             parcel_info=parcel_id,
         )
-        
+
         response = await self.call_ai(prompt, task_type="chain_analysis")
-        
+
         if response:
             return response
-        
+
         # Default response
         return {
             "chain_complete": len(instruments) > 0,
@@ -486,7 +496,7 @@ Return JSON:
             "curative_actions": [],
             "confidence": 0.5,
         }
-    
+
     async def _get_document(self, document_id: str) -> Optional[dict[str, Any]]:
         """Get document by ID."""
         if not self.db:
@@ -495,16 +505,16 @@ Return JSON:
                 "doc_type": "deed",
                 "storage_path": f"documents/{document_id}.pdf",
             }
-        
+
         try:
             from app.db.models import Document
             from sqlalchemy import select
-            
+
             result = await self.db.execute(
                 select(Document).where(Document.id == document_id)
             )
             doc = result.scalar_one_or_none()
-            
+
             if doc:
                 return {
                     "id": doc.id,
@@ -512,27 +522,27 @@ Return JSON:
                     "storage_path": doc.storage_path,
                 }
             return None
-            
+
         except Exception as e:
             self.logger.error(f"Failed to fetch document: {e}")
             return None
-    
+
     async def _get_title_instruments(self, parcel_id: str) -> list[dict[str, Any]]:
         """Get all title instruments for a parcel."""
         if not self.db:
             return [
                 {"id": "ti-1", "document_id": "doc-1", "parcel_id": parcel_id},
             ]
-        
+
         try:
             from app.db.models import TitleInstrument
             from sqlalchemy import select
-            
+
             result = await self.db.execute(
                 select(TitleInstrument).where(TitleInstrument.parcel_id == parcel_id)
             )
             instruments = result.scalars().all()
-            
+
             return [
                 {
                     "id": ti.id,
@@ -542,11 +552,11 @@ Return JSON:
                 }
                 for ti in instruments
             ]
-            
+
         except Exception as e:
             self.logger.error(f"Failed to fetch title instruments: {e}")
             return []
-    
+
     async def _update_title_instrument(
         self,
         document_id: str,
@@ -555,11 +565,11 @@ Return JSON:
         """Update title instrument with analysis results."""
         if not self.db:
             return
-        
+
         try:
             from app.db.models import TitleInstrument
-            from sqlalchemy import select, update
-            
+            from sqlalchemy import update
+
             await self.db.execute(
                 update(TitleInstrument)
                 .where(TitleInstrument.document_id == document_id)
@@ -580,10 +590,10 @@ Return JSON:
                 )
             )
             await self.db.commit()
-            
+
         except Exception as e:
             self.logger.warning(f"Failed to update title instrument: {e}")
-    
+
     async def _fetch_tax_records(
         self,
         parcel_id: str,
@@ -597,7 +607,7 @@ Return JSON:
             "assessed_value": 350000,
             "tax_status": "current",
         }
-    
+
     async def _fetch_gis_data(
         self,
         parcel_id: str,
@@ -610,7 +620,7 @@ Return JSON:
             "acreage": 0.25,
             "coordinates": {"lat": 32.7767, "lng": -96.7970},
         }
-    
+
     async def _fetch_zoning_info(
         self,
         parcel_id: str,
@@ -624,7 +634,7 @@ Return JSON:
             "description": "Single Family Residential",
             "restrictions": [],
         }
-    
+
     async def _fetch_environmental_data(
         self,
         parcel_id: str,
@@ -638,7 +648,7 @@ Return JSON:
             "wetlands": False,
             "contamination_sites_nearby": 0,
         }
-    
+
     def _build_document_result(
         self,
         doc: TitleDocument,
@@ -646,19 +656,21 @@ Return JSON:
     ) -> AgentResult:
         """Build AgentResult from document analysis."""
         execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
-        
+
         flags = []
         if doc.issues:
             for issue in doc.issues:
                 if issue.get("severity") == "high":
                     flags.append("title_defect")
                     break
-        
+
         if doc.liens:
-            active_liens = [l for l in doc.liens if l.get("status") == "active"]
+            active_liens = [
+                lien for lien in doc.liens if lien.get("status") == "active"
+            ]
             if active_liens:
                 flags.append("active_liens")
-        
+
         return AgentResult(
             success=True,
             confidence=min(doc.ocr_confidence, doc.analysis_confidence),
@@ -679,7 +691,7 @@ Return JSON:
             },
             execution_time_ms=int(execution_time),
         )
-    
+
     def _build_chain_result(
         self,
         chain: ChainOfTitle,
@@ -687,7 +699,7 @@ Return JSON:
     ) -> AgentResult:
         """Build AgentResult from chain analysis."""
         execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
-        
+
         flags = []
         if not chain.chain_complete:
             flags.append("chain_incomplete")
@@ -695,7 +707,7 @@ Return JSON:
             flags.append("chain_gaps")
         if chain.title_quality == "defective":
             flags.append("title_defect")
-        
+
         return AgentResult(
             success=chain.chain_complete,
             confidence=0.9 if chain.chain_complete else 0.6,

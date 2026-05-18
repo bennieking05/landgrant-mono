@@ -1,12 +1,40 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8050";
 
-async function apiFetch(path: string, init: RequestInit, persona: string) {
+// ---------------------------------------------------------------------------
+// Shared auth state (Phase 4.1).  We used to hard-code ``X-Persona`` at every
+// call site; now the AppContext seeds this with the current session so every
+// request carries the right persona + Bearer token.
+// ---------------------------------------------------------------------------
+type ApiAuth = {
+  persona?: string;
+  token?: string;
+};
+
+let _auth: ApiAuth = {
+  persona: "admin",
+  token: (import.meta.env.VITE_AUTH_TOKEN as string | undefined) ?? undefined,
+};
+
+export function setApiAuth(next: ApiAuth) {
+  _auth = { ..._auth, ...next };
+}
+
+export function getApiAuth(): ApiAuth {
+  return { ..._auth };
+}
+
+async function apiFetch(path: string, init: RequestInit, persona?: string) {
+  const effectivePersona = persona ?? _auth.persona ?? "admin";
+  const headers: Record<string, string> = {
+    ...((init.headers as Record<string, string>) ?? {}),
+    "X-Persona": effectivePersona,
+  };
+  if (_auth.token) {
+    headers["Authorization"] = `Bearer ${_auth.token}`;
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: {
-      ...(init.headers ?? {}),
-      "X-Persona": persona,
-    },
+    headers,
   });
   if (!res.ok) {
     // Try to parse JSON error response for better error messages
@@ -34,12 +62,12 @@ async function apiFetch(path: string, init: RequestInit, persona: string) {
   return res;
 }
 
-export async function apiGet<T>(path: string, persona: string): Promise<T> {
+export async function apiGet<T>(path: string, persona?: string): Promise<T> {
   const res = await apiFetch(path, { method: "GET" }, persona);
   return res.json() as Promise<T>;
 }
 
-export async function apiPostJson<T>(path: string, body: unknown, persona: string): Promise<T> {
+export async function apiPostJson<T>(path: string, body: unknown, persona?: string): Promise<T> {
   const res = await apiFetch(
     path,
     {
@@ -52,7 +80,7 @@ export async function apiPostJson<T>(path: string, body: unknown, persona: strin
   return res.json() as Promise<T>;
 }
 
-export async function apiPostForm<T>(path: string, form: FormData, persona: string): Promise<T> {
+export async function apiPostForm<T>(path: string, form: FormData, persona?: string): Promise<T> {
   const res = await apiFetch(
     path,
     {
@@ -356,6 +384,7 @@ export type AIDecisionDetail = {
   confidence: number;
   flags: string[];
   explanation?: string;
+  reviewed?: boolean;
   reviewed_by?: string;
   reviewed_at?: string;
   review_outcome?: string;
@@ -525,6 +554,9 @@ export type OfferItem = {
   response_date?: string;
   response_notes?: string;
   previous_offer_id?: string;
+  created_at?: string;
+  counter_amount?: number;
+  counter_date?: string;
 };
 export type OffersResponse = { parcel_id: string; count: number; items: OfferItem[] };
 export type OfferCreatePayload = {
@@ -545,6 +577,8 @@ export type CounterOfferPayload = {
   source?: string;
   response_due_date?: string;
   landowner_party_id?: string;
+  counter_amount?: number;
+  counter_terms?: Record<string, unknown>;
 };
 export type CounterOfferResponse = { counter_id: string; original_offer_id: string; offer_number: number };
 export type PaymentLedgerResponse = {
@@ -561,6 +595,9 @@ export type PaymentLedgerResponse = {
   payment_cleared_date?: string;
   payment_reference?: string;
   status_history?: Array<Record<string, unknown>>;
+  payment_status?: string;
+  amount_paid?: number;
+  payment_date?: string;
 };
 
 export const listOffers = (parcelId: string) => apiGet<OffersResponse>(`/offers?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent");
@@ -588,6 +625,8 @@ export type LitigationCaseItem = {
   commissioners_hearing_date?: string;
   trial_date?: string;
   created_at?: string;
+  filing_date?: string;
+  service_date?: string;
 };
 export type LitigationCasesResponse = { count: number; items: LitigationCaseItem[] };
 export type LitigationCaseDetail = LitigationCaseItem & {
@@ -627,6 +666,9 @@ export type LitigationCaseUpdatePayload = {
   trial_date?: string;
   settlement_amount?: number;
   closed_date?: string;
+  status_notes?: string;
+  filing_date?: string;
+  service_date?: string;
 };
 export type LitigationCaseUpdateResponse = { case_id: string; updated: boolean; changes: Record<string, unknown> };
 export type LitigationHistoryResponse = {
@@ -672,6 +714,7 @@ export type CurativeItem = {
   resolved_date?: string;
   title_instrument_id?: string;
   resolution_notes?: string;
+  created_at?: string;
 };
 export type CurativeItemsResponse = { parcel_id: string; count: number; items: CurativeItem[] };
 export type CurativeItemCreatePayload = {
@@ -703,6 +746,8 @@ export type CurativeAnalyticsResponse = {
   type_breakdown: Record<string, number>;
   severity_breakdown: Record<string, number>;
   overdue_count: number;
+  overdue?: number;
+  by_status?: Record<string, number>;
 };
 
 export const listCurativeItems = (parcelId: string, status?: string) => {
@@ -1021,3 +1066,106 @@ export const getCopilotStreamUrl = () => {
   const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8050";
   return `${API_BASE}/copilot/ask`;
 };
+
+// ============================================================================
+// Task Management
+// ============================================================================
+
+export type TaskItem = {
+  id: string;
+  project_id: string;
+  parcel_id?: string;
+  title: string;
+  description?: string;
+  category: string;
+  priority: string;
+  status: string;
+  persona: string;
+  assigned_to?: string;
+  assigned_to_name?: string;
+  due_at?: string;
+  created_at: string;
+  is_overdue: boolean;
+  metadata: Record<string, unknown>;
+};
+
+export type TaskListResponse = { tasks: TaskItem[] };
+
+export type TaskStatsResponse = {
+  total: number;
+  open: number;
+  in_progress: number;
+  completed: number;
+  overdue: number;
+  by_priority: Record<string, number>;
+  by_category: Record<string, number>;
+  by_assignee: Array<{ user_id: string; user_name: string; count: number }>;
+};
+
+export type TaskCreatePayloadV2 = {
+  project_id: string;
+  parcel_id?: string;
+  title: string;
+  description?: string;
+  category?: string;
+  priority?: string;
+  due_at?: string | null;
+  auto_assign?: boolean;
+};
+
+export type AssignmentSuggestion = {
+  user_id: string;
+  user_name: string;
+  persona: string;
+  current_workload: number;
+  reason: string;
+  score: number;
+};
+
+export const listTasks = (params?: {
+  project_id?: string;
+  parcel_id?: string;
+  status?: string;
+  priority?: string;
+  category?: string;
+  overdue_only?: boolean;
+}, persona = "land_agent") => {
+  const query = new URLSearchParams();
+  if (params?.project_id) query.set("project_id", params.project_id);
+  if (params?.parcel_id) query.set("parcel_id", params.parcel_id);
+  if (params?.status) query.set("status", params.status);
+  if (params?.priority) query.set("priority", params.priority);
+  if (params?.category) query.set("category", params.category);
+  if (params?.overdue_only) query.set("overdue_only", "true");
+  const qs = query.toString();
+  return apiGet<TaskListResponse>(`/tasks${qs ? `?${qs}` : ""}`, persona);
+};
+
+export const getTaskStats = (projectId?: string, persona = "land_agent") => {
+  const query = new URLSearchParams();
+  if (projectId) query.set("project_id", projectId);
+  const qs = query.toString();
+  return apiGet<TaskStatsResponse>(`/tasks/stats/summary${qs ? `?${qs}` : ""}`, persona);
+};
+
+export const createTaskV2 = (payload: TaskCreatePayloadV2, persona = "land_agent") =>
+  apiPostJson<TaskItem>("/tasks", payload, persona);
+
+export const updateTask = (taskId: string, payload: Record<string, unknown>, persona = "land_agent") =>
+  apiFetch(`/tasks/${encodeURIComponent(taskId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }, persona).then(res => res.json());
+
+export const completeTask = (taskId: string, persona = "land_agent") =>
+  apiPostJson(`/tasks/${encodeURIComponent(taskId)}/complete`, {}, persona);
+
+export const suggestTaskAssignee = (taskId: string, persona = "land_agent") =>
+  apiGet<AssignmentSuggestion[]>(`/tasks/${encodeURIComponent(taskId)}/suggest-assignee`, persona);
+
+export const assignTask = (taskId: string, userId: string, persona = "land_agent") =>
+  apiPostJson(`/tasks/${encodeURIComponent(taskId)}/assign?user_id=${encodeURIComponent(userId)}`, {}, persona);
+
+export const autoAssignTask = (taskId: string, persona = "land_agent") =>
+  apiPostJson(`/tasks/${encodeURIComponent(taskId)}/auto-assign`, {}, persona);

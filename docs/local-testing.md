@@ -17,7 +17,7 @@
    ```bash
    source .venv/bin/activate
    cd backend
-   DATABASE_URL=postgresql+psycopg://landright:landright@localhost:55432/landright python -m scripts.seed_data
+   DATABASE_URL=postgresql+psycopg://landgrant:landgrant@localhost:55432/landgrant python -m scripts.seed_data
    ```
 5. Hit health endpoints:
    ```bash

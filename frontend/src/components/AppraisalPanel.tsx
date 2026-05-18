@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { getAppraisal, upsertAppraisal, type AppraisalData } from "@/lib/api";
 

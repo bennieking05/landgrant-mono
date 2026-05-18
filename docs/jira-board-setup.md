@@ -20,7 +20,7 @@ The statuses exist but need to be added to the board via the Jira UI.
 ### Steps to Add New Columns
 
 1. **Open Board Settings**
-   - Go to: https://landrightiq.atlassian.net/jira/software/projects/KAN/boards/1
+   - Go to: https://landgrantiq.atlassian.net/jira/software/projects/KAN/boards/1
    - Click the **three dots (...)** menu in the top right
    - Select **Board settings**
 

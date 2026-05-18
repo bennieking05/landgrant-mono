@@ -6,9 +6,9 @@
 
 set -e
 
-PROJECT_ID="landright-483916"
+PROJECT_ID="clearpath-490715"
 
-echo "=== LandRight Secret Manager Setup ==="
+echo "=== LandGrant Secret Manager Setup ==="
 echo "Project: ${PROJECT_ID}"
 echo ""
 echo "This script will help you populate secrets in Secret Manager."
@@ -52,27 +52,27 @@ gcloud config set project ${PROJECT_ID}
 
 echo ""
 echo "=== SendGrid (Email) ==="
-update_secret "landright-sendgrid-api-key" "Enter SendGrid API Key (or press Enter to skip)"
+update_secret "landgrant-sendgrid-api-key" "Enter SendGrid API Key (or press Enter to skip)"
 
 echo ""
 echo "=== Twilio (SMS) ==="
-update_secret "landright-twilio-account-sid" "Enter Twilio Account SID (or press Enter to skip)"
-update_secret "landright-twilio-auth-token" "Enter Twilio Auth Token (or press Enter to skip)"
-update_secret "landright-twilio-from-number" "Enter Twilio From Number e.g. +15551234567 (or press Enter to skip)"
+update_secret "landgrant-twilio-account-sid" "Enter Twilio Account SID (or press Enter to skip)"
+update_secret "landgrant-twilio-auth-token" "Enter Twilio Auth Token (or press Enter to skip)"
+update_secret "landgrant-twilio-from-number" "Enter Twilio From Number e.g. +15551234567 (or press Enter to skip)"
 
 echo ""
 echo "=== DocuSign (E-Signatures) ==="
-update_secret "landright-docusign-integration-key" "Enter DocuSign Integration Key (or press Enter to skip)"
-update_secret "landright-docusign-secret-key" "Enter DocuSign Secret Key (or press Enter to skip)"
+update_secret "landgrant-docusign-integration-key" "Enter DocuSign Integration Key (or press Enter to skip)"
+update_secret "landgrant-docusign-secret-key" "Enter DocuSign Secret Key (or press Enter to skip)"
 
 echo ""
 echo "=== Summary ==="
 echo ""
 echo "Auto-generated secrets (no action needed):"
-echo "  - landright-db-password"
-echo "  - landright-jwt-secret"
-echo "  - landright-encryption-key"
-echo "  - landright-session-secret"
+echo "  - landgrant-db-password"
+echo "  - landgrant-jwt-secret"
+echo "  - landgrant-encryption-key"
+echo "  - landgrant-session-secret"
 echo ""
 echo "Vertex AI / Gemini:"
 echo "  - Uses service account IAM (no API key needed for GCP-hosted services)"

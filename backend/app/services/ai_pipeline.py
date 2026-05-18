@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from app.core.config import get_settings
@@ -15,13 +15,16 @@ settings = get_settings()
 # Import RAG service (lazy to avoid circular imports)
 _rag_service = None
 
+
 def get_rag_service():
     """Lazy import RAG service."""
     global _rag_service
     if _rag_service is None:
         from app.services import rag_service
+
         _rag_service = rag_service
     return _rag_service
+
 
 # Lazy load Vertex AI to avoid import errors when not in GCP
 _gemini_model = None
@@ -34,13 +37,13 @@ def get_gemini_model():
         try:
             import vertexai
             from vertexai.generative_models import GenerativeModel, GenerationConfig
-            
+
             # Initialize Vertex AI
             vertexai.init(
                 project=settings.gcp_project or None,
                 location=settings.gemini_location,
             )
-            
+
             # Create model with safety settings for legal content
             _gemini_model = GenerativeModel(
                 settings.gemini_model,
@@ -71,10 +74,13 @@ class DraftResponse:
 @dataclass
 class GeminiRequest:
     """Structured request for Gemini AI analysis."""
+
     jurisdiction: str
     payload: dict[str, Any]
     rule_results: list[dict[str, Any]]
-    task_type: str = "draft_analysis"  # draft_analysis, risk_assessment, document_review
+    task_type: str = (
+        "draft_analysis"  # draft_analysis, risk_assessment, document_review
+    )
     rag_context: Optional[str] = None  # Pre-retrieved RAG context
     skip_rag: bool = False  # Skip RAG retrieval (if context already provided)
 
@@ -164,17 +170,17 @@ async def retrieve_rag_context(
     jurisdiction: str = None,
 ) -> str:
     """Retrieve relevant legal context from the RAG knowledge base.
-    
+
     Args:
         query: Search query (case summary or question)
         jurisdiction: Optional jurisdiction filter
-        
+
     Returns:
         Formatted context string for inclusion in prompts
     """
     if not settings.rag_enabled:
         return "No legal context available (RAG disabled)."
-    
+
     try:
         rag = get_rag_service()
         results = await rag.search_for_context(query, jurisdiction)
@@ -184,16 +190,33 @@ async def retrieve_rag_context(
         return "No legal context available (retrieval failed)."
 
 
-async def call_gemini(request: GeminiRequest) -> Optional[dict[str, Any]]:
+async def call_gemini(
+    request: GeminiRequest,
+    telemetry_ctx: Optional[Any] = None,
+    db: Optional[Any] = None,
+) -> Optional[dict[str, Any]]:
     """Call Gemini API with structured prompt based on task type.
-    
-    Now includes RAG-retrieved legal context for grounded analysis.
+
+    When ``db`` is provided we resolve the active prompt version from the
+    ``prompt_templates`` table via :mod:`app.services.prompt_registry`; this
+    enables reproducible replays (the resolved ``prompt_template_id`` /
+    ``prompt_version`` are attached to ``telemetry_ctx``).  Without a DB
+    session we fall back to the code constants below.
     """
     model = get_gemini_model()
     if model is None:
         logger.info("Gemini model not available, skipping AI analysis")
         return None
-    
+
+    registry_prompt = None
+    if db is not None:
+        try:
+            from app.services.prompt_registry import resolve_for_task
+
+            registry_prompt = resolve_for_task(db, request.task_type)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("prompt_registry lookup failed: %s", exc)
+
     # Retrieve RAG context if not provided and not skipped
     legal_context = request.rag_context
     if legal_context is None and not request.skip_rag:
@@ -209,62 +232,100 @@ async def call_gemini(request: GeminiRequest) -> Optional[dict[str, Any]]:
                 query_parts.append("statutory deadlines")
             if "offer" in str(request.payload).lower():
                 query_parts.append("offer requirements")
-        
-        search_query = " ".join(query_parts) if query_parts else f"{request.jurisdiction} eminent domain procedures"
+
+        search_query = (
+            " ".join(query_parts)
+            if query_parts
+            else f"{request.jurisdiction} eminent domain procedures"
+        )
         legal_context = await retrieve_rag_context(search_query, request.jurisdiction)
-    
+
     if legal_context is None:
         legal_context = "No legal context available."
-    
-    # Select prompt based on task type
-    if request.task_type == "document_review":
-        prompt = DOCUMENT_REVIEW_PROMPT.format(
-            legal_context=legal_context,
-            payload=str(request.payload),
-        )
+
+    template_str: str
+    if registry_prompt is not None:
+        template_str = registry_prompt.user_prompt_template
+    elif request.task_type == "document_review":
+        template_str = DOCUMENT_REVIEW_PROMPT
     elif request.task_type == "risk_assessment":
-        prompt = RISK_ASSESSMENT_PROMPT.format(
-            jurisdiction=request.jurisdiction,
-            legal_context=legal_context,
-            payload=str(request.payload),
-            rule_results=str(request.rule_results),
-        )
-    else:  # draft_analysis
-        prompt = LEGAL_ANALYSIS_PROMPT.format(
-            jurisdiction=request.jurisdiction,
-            legal_context=legal_context,
-            payload=str(request.payload),
-            rule_results=str(request.rule_results),
-        )
-    
+        template_str = RISK_ASSESSMENT_PROMPT
+    else:
+        template_str = LEGAL_ANALYSIS_PROMPT
+
+    format_kwargs: dict[str, Any] = {
+        "legal_context": legal_context,
+        "payload": str(request.payload),
+        "jurisdiction": request.jurisdiction,
+        "rule_results": str(request.rule_results),
+    }
+    try:
+        prompt = template_str.format(**format_kwargs)
+    except KeyError:
+        prompt = template_str
+
+    if telemetry_ctx is not None and registry_prompt is not None:
+        telemetry_ctx.metadata["prompt_template_id"] = registry_prompt.id
+        telemetry_ctx.metadata["prompt_version"] = registry_prompt.version
+
     try:
         response = await model.generate_content_async(prompt)
-        
-        # Extract text from response
+
+        if telemetry_ctx is not None:
+            try:
+                from app.services.ai_telemetry import extract_usage_from_vertex
+
+                usage = extract_usage_from_vertex(response)
+                telemetry_ctx.set_usage(
+                    usage.get("input_tokens"), usage.get("output_tokens")
+                )
+                telemetry_ctx.set_inputs(
+                    {
+                        "prompt": prompt,
+                        "task_type": request.task_type,
+                        "jurisdiction": request.jurisdiction,
+                        "payload": request.payload,
+                        "rule_results": request.rule_results,
+                        "rag_context_used": legal_context
+                        != "No legal context available.",
+                    }
+                )
+            except Exception as telemetry_exc:  # pragma: no cover - defensive
+                logger.debug("call_gemini: telemetry capture skipped: %s", telemetry_exc)
+
         if response.candidates and len(response.candidates) > 0:
             text = response.candidates[0].content.parts[0].text
-            
-            # Try to parse as JSON
+
             import json
+
             try:
-                # Handle markdown code blocks
                 if "```json" in text:
                     text = text.split("```json")[1].split("```")[0].strip()
                 elif "```" in text:
                     text = text.split("```")[1].split("```")[0].strip()
-                
+
                 result = json.loads(text)
-                # Add RAG context indicator
-                result["_rag_context_used"] = legal_context != "No legal context available."
+                result["_rag_context_used"] = (
+                    legal_context != "No legal context available."
+                )
+                if telemetry_ctx is not None:
+                    telemetry_ctx.set_outputs(result)
                 return result
             except json.JSONDecodeError:
-                # Return as raw text if not valid JSON
-                return {"raw_response": text, "_rag_context_used": legal_context != "No legal context available."}
-        
+                result = {
+                    "raw_response": text,
+                    "_rag_context_used": legal_context != "No legal context available.",
+                }
+                if telemetry_ctx is not None:
+                    telemetry_ctx.set_outputs(result)
+                return result
+
         return None
-        
+
     except Exception as e:
         logger.error(f"Gemini API call failed: {e}")
+        if telemetry_ctx is not None:
+            telemetry_ctx.set_outputs({"error": str(e)})
         return None
 
 
@@ -275,29 +336,31 @@ def run_ai_pipeline(jurisdiction: str, payload: dict[str, Any]) -> DraftResponse
     """
     # Step 1: Run deterministic rules engine (always runs)
     rule_results = [result.__dict__ for result in evaluate_rules(jurisdiction, payload)]
-    
+
     # Determine rationale from rules
     fired_rules = [r for r in rule_results if r.get("fired")]
-    rationale = "Rules satisfied" if fired_rules else "Insufficient data for rule evaluation"
-    
+    rationale = (
+        "Rules satisfied" if fired_rules else "Insufficient data for rule evaluation"
+    )
+
     # Step 2: Generate suggestions based on rule results
     suggestions = generate_suggestions(rule_results, payload)
-    
+
     # Step 3: Attempt Gemini analysis (optional, graceful degradation)
     ai_summary = None
     ai_analysis = None
-    
+
     if settings.gemini_enabled and settings.gcp_project:
         try:
             import asyncio
-            
+
             request = GeminiRequest(
                 jurisdiction=jurisdiction,
                 payload=payload,
                 rule_results=rule_results,
                 task_type="draft_analysis",
             )
-            
+
             # Run async in sync context
             loop = asyncio.new_event_loop()
             try:
@@ -306,10 +369,10 @@ def run_ai_pipeline(jurisdiction: str, payload: dict[str, Any]) -> DraftResponse
                     ai_summary = ai_analysis["summary"]
             finally:
                 loop.close()
-                
+
         except Exception as e:
             logger.warning(f"AI analysis failed, continuing without it: {e}")
-    
+
     return DraftResponse(
         template_id="fol",
         rationale=rationale,
@@ -321,26 +384,26 @@ def run_ai_pipeline(jurisdiction: str, payload: dict[str, Any]) -> DraftResponse
 
 
 async def run_ai_pipeline_async(
-    jurisdiction: str, 
-    payload: dict[str, Any],
-    task_type: str = "draft_analysis"
+    jurisdiction: str, payload: dict[str, Any], task_type: str = "draft_analysis"
 ) -> DraftResponse:
     """
     Async entry point for AI pipeline - preferred for web handlers.
     """
     # Step 1: Run deterministic rules engine
     rule_results = [result.__dict__ for result in evaluate_rules(jurisdiction, payload)]
-    
+
     fired_rules = [r for r in rule_results if r.get("fired")]
-    rationale = "Rules satisfied" if fired_rules else "Insufficient data for rule evaluation"
-    
+    rationale = (
+        "Rules satisfied" if fired_rules else "Insufficient data for rule evaluation"
+    )
+
     # Step 2: Generate suggestions
     suggestions = generate_suggestions(rule_results, payload)
-    
+
     # Step 3: Gemini analysis
     ai_summary = None
     ai_analysis = None
-    
+
     if settings.gemini_enabled and settings.gcp_project:
         request = GeminiRequest(
             jurisdiction=jurisdiction,
@@ -351,7 +414,7 @@ async def run_ai_pipeline_async(
         ai_analysis = await call_gemini(request)
         if ai_analysis and "summary" in ai_analysis:
             ai_summary = ai_analysis["summary"]
-    
+
     return DraftResponse(
         template_id="fol",
         rationale=rationale,
@@ -365,13 +428,13 @@ async def run_ai_pipeline_async(
 def generate_suggestions(rule_results: list[dict], payload: dict) -> list[str]:
     """Generate actionable suggestions based on rule results and case data."""
     suggestions = []
-    
+
     fired_rules = [r for r in rule_results if r.get("fired")]
-    
+
     if fired_rules:
         suggestions.append("Attach good-faith binder snapshot")
         suggestions.append("Schedule counsel review of rule compliance")
-        
+
         # Check for specific rule triggers
         for rule in fired_rules:
             rule_id = rule.get("rule_id", "")
@@ -384,12 +447,12 @@ def generate_suggestions(rule_results: list[dict], payload: dict) -> list[str]:
     else:
         suggestions.append("Collect additional case data for rule evaluation")
         suggestions.append("Review jurisdiction requirements")
-    
+
     # Add suggestions based on payload content
     if payload.get("parcel"):
         if not payload.get("parcel", {}).get("appraisal"):
             suggestions.append("Order property appraisal")
         if not payload.get("parcel", {}).get("title_search"):
             suggestions.append("Complete title search")
-    
+
     return suggestions[:5]  # Limit to 5 most relevant suggestions

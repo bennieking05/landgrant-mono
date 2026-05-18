@@ -4,7 +4,7 @@ This document maps the complete eminent domain acquisition process from project 
 
 ## Parties Involved
 
-| Party | Role | LandRight Persona |
+| Party | Role | LandGrant Persona |
 |-------|------|-------------------|
 | **Client** | Condemning authority (utility, government agency, pipeline company) | - |
 | **In-House Counsel** | Client's internal legal team managing acquisitions | `in_house_counsel` |
@@ -24,7 +24,7 @@ This document maps the complete eminent domain acquisition process from project 
 flowchart LR
     subgraph init [Project Setup]
         Client[Client] -->|Defines route/parcels| Agent[Land Agent]
-        Agent -->|Creates project| LR[LandRight System]
+        Agent -->|Creates project| LR[LandGrant System]
         LR -->|Loads jurisdiction rules| Rules[Rules Engine]
         Counsel[In-House Counsel] -->|Reviews scope| LR
     end
@@ -32,7 +32,7 @@ flowchart LR
 
 ### Activities
 
-| Step | Responsible Party | LandRight Action | Output |
+| Step | Responsible Party | LandGrant Action | Output |
 |------|-------------------|------------------|--------|
 | 1.1 | Client | Define project scope, route, timeline | Project brief |
 | 1.2 | Land Agent | Identify affected parcels via GIS | `POST /cases` creates parcels |
@@ -55,7 +55,7 @@ flowchart TD
         Agent[Land Agent] -->|Orders appraisal| Appraiser[Independent Appraiser]
         Appraiser -->|Conducts inspection| Parcel[Property]
         Appraiser -->|Delivers report| Agent
-        Agent -->|Uploads report| LR[LandRight]
+        Agent -->|Uploads report| LR[LandGrant]
         LR -->|Stores with hash| DB[(Document Store)]
         Counsel[In-House Counsel] -->|Reviews valuation| LR
     end
@@ -63,7 +63,7 @@ flowchart TD
 
 ### Activities
 
-| Step | Responsible Party | LandRight Action | Statutory Basis |
+| Step | Responsible Party | LandGrant Action | Statutory Basis |
 |------|-------------------|------------------|-----------------|
 | 2.1 | Land Agent | Commission MAI-certified appraiser | - |
 | 2.2 | Appraiser | Inspect property, research comps | - |
@@ -83,7 +83,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph offer [Offer Phase]
-        Counsel[In-House Counsel] -->|Approves offer amount| LR[LandRight]
+        Counsel[In-House Counsel] -->|Approves offer amount| LR[LandGrant]
         LR -->|Generates FOL/Offer letter| Template[Template Engine]
         Template -->|Renders with variables| Doc[Offer Document]
         Agent[Land Agent] -->|Serves offer| Owner[Landowner]
@@ -98,7 +98,7 @@ flowchart TD
 
 ### Activities
 
-| Step | Responsible Party | LandRight Action | Statutory Basis |
+| Step | Responsible Party | LandGrant Action | Statutory Basis |
 |------|-------------------|------------------|-----------------|
 | 3.1 | In-House Counsel | Approve offer amount (≥100% appraisal) | TX §21.0113 / IN IC 32-24-1-3 |
 | 3.2 | In-House Counsel | Render offer letter template | `POST /templates/render` |
@@ -147,7 +147,7 @@ flowchart TD
 
 ### Activities
 
-| Step | Responsible Party | LandRight Action | Output |
+| Step | Responsible Party | LandGrant Action | Output |
 |------|-------------------|------------------|--------|
 | 4.1 | Landowner | Access portal via invite link | `POST /portal/verify` |
 | 4.2 | Landowner | Review offer, appraisal, maps | `GET /portal/uploads` |
@@ -174,7 +174,7 @@ flowchart TD
         Agent[Land Agent] -->|Schedules meeting| Owner[Landowner]
         Owner -.->|May retain| OpCounsel[Opposing Counsel]
         Agent -->|Conducts good faith meeting| Meeting[Negotiation Meeting]
-        Meeting -->|Documents discussion| LR[LandRight]
+        Meeting -->|Documents discussion| LR[LandGrant]
         
         Outcome{Outcome}
         Meeting --> Outcome
@@ -188,7 +188,7 @@ flowchart TD
 
 ### Activities
 
-| Step | Responsible Party | LandRight Action | Statutory Basis |
+| Step | Responsible Party | LandGrant Action | Statutory Basis |
 |------|-------------------|------------------|-----------------|
 | 5.1 | Land Agent | Schedule good faith meeting | Calendar integration |
 | 5.2 | Land Agent | Conduct face-to-face negotiation | TX §21.0114 requires |
@@ -220,14 +220,14 @@ flowchart TD
         
         Check -->|Delivered| Owner
         
-        Counsel -->|Updates system| LR[LandRight]
+        Counsel -->|Updates system| LR[LandGrant]
         LR -->|Marks parcel closed| Status[Stage: Closed]
     end
 ```
 
 ### Activities
 
-| Step | Responsible Party | LandRight Action | Output |
+| Step | Responsible Party | LandGrant Action | Output |
 |------|-------------------|------------------|--------|
 | 6.1 | In-House Counsel | Prepare easement/deed | Template render |
 | 6.2 | In-House Counsel | Prepare closing statement | Payment calculation |
@@ -275,7 +275,7 @@ flowchart TD
 
 ### Pre-Filing Activities
 
-| Step | Responsible Party | LandRight Action | Statutory Basis |
+| Step | Responsible Party | LandGrant Action | Statutory Basis |
 |------|-------------------|------------------|-----------------|
 | 7.1 | In-House Counsel | Verify repository completeness | `GET /outside/repository/completeness` |
 | 7.2 | In-House Counsel | Export litigation binder | `POST /workflows/binder/export` |
@@ -284,7 +284,7 @@ flowchart TD
 
 ### Filing & Service (Indiana IC 32-24-1-5 to 1-7)
 
-| Step | Responsible Party | LandRight Action | Deadline |
+| Step | Responsible Party | LandGrant Action | Deadline |
 |------|-------------------|------------------|----------|
 | 7.5 | Outside Counsel | File condemnation complaint | `POST /outside/case/initiate` | ≥30 days after offer |
 | 7.6 | County Clerk | Issue summons | - | - |
@@ -293,7 +293,7 @@ flowchart TD
 
 ### Appraisal & Exceptions (Indiana IC 32-24-1-9 to 1-11)
 
-| Step | Responsible Party | LandRight Action | Deadline |
+| Step | Responsible Party | LandGrant Action | Deadline |
 |------|-------------------|------------------|----------|
 | 7.9 | Court | Appoint 3 disinterested appraisers | - | - |
 | 7.10 | Court Appraisers | Inspect and value property | - | - |
@@ -303,7 +303,7 @@ flowchart TD
 
 ### Trial & Judgment (Indiana IC 32-24-1-12 to 1-14)
 
-| Step | Responsible Party | LandRight Action | Deadline |
+| Step | Responsible Party | LandGrant Action | Deadline |
 |------|-------------------|------------------|----------|
 | 7.14 | Court | Set trial date | Calendar sync | - |
 | 7.15 | Outside Counsel | Serve settlement offer | `POST /outside/status` | 45 days before trial |
@@ -314,7 +314,7 @@ flowchart TD
 
 ### Post-Judgment
 
-| Step | Responsible Party | LandRight Action | Output |
+| Step | Responsible Party | LandGrant Action | Output |
 |------|-------------------|------------------|--------|
 | 7.20 | County Clerk | Record judgment | Recording number |
 | 7.21 | Court | Release funds to landowner | - |
@@ -334,13 +334,13 @@ flowchart TD
         Counsel -->|Budget reconciliation| Budget[Budget Summary]
         Budget -->|Variance analysis| Report[Project Report]
         
-        System[LandRight] -->|Retention policy| Retention[7-Year Hold]
+        System[LandGrant] -->|Retention policy| Retention[7-Year Hold]
     end
 ```
 
 ### Activities
 
-| Step | Responsible Party | LandRight Action | Retention |
+| Step | Responsible Party | LandGrant Action | Retention |
 |------|-------------------|------------------|-----------|
 | 8.1 | In-House Counsel | Generate final binder | `POST /workflows/binder/export` |
 | 8.2 | In-House Counsel | Reconcile project budget | `GET /budgets/summary` |

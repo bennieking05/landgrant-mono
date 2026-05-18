@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # create-jira-epics.sh
-# Creates LandRight MVP milestone epics in Jira using jira-cli
+# Creates LandGrant MVP milestone epics in Jira using jira-cli
 #
 # Usage: ./scripts/create-jira-epics.sh
 #
@@ -40,7 +40,7 @@ if ! jira me &> /dev/null; then
     exit 1
 fi
 
-echo -e "${GREEN}Creating LandRight MVP Epics in project ${PROJECT}...${NC}"
+echo -e "${GREEN}Creating LandGrant MVP Epics in project ${PROJECT}...${NC}"
 echo ""
 
 # Array to store created epic keys

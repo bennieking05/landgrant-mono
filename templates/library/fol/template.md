@@ -4,7 +4,7 @@
 
 Dear {{ owner_name }},
 
-This letter memorializes the final offer for parcel {{ parcel_id }} associated with the {{ project_name }} project. Based on the certified appraisal completed on {{ appraisal_date }}, LandRight is authorized to present a final compensation amount of **${{ offer_amount }}**.
+This letter memorializes the final offer for parcel {{ parcel_id }} associated with the {{ project_name }} project. Based on the certified appraisal completed on {{ appraisal_date }}, LandGrant is authorized to present a final compensation amount of **${{ offer_amount }}**.
 
 Key citations: {{ citation_list }}.
 

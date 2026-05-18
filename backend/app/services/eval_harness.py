@@ -16,30 +16,28 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any, Optional
-
-from app.services.hashing import sha256_hex
 
 
 @dataclass
 class GoldenTestCase:
     """A golden test case for regression testing."""
+
     id: str
     name: str
     description: str
     state: str
     category: str  # deadline, clause, compliance, citation
-    
+
     # Input scenario
     scenario: dict[str, Any]
-    
+
     # Expected outputs
     expected_deadlines: Optional[list[dict[str, Any]]] = None
     expected_clauses: Optional[list[str]] = None
     expected_risk_level: Optional[str] = None
     expected_citations: Optional[list[str]] = None
-    
+
     # Metadata
     created_at: datetime = field(default_factory=datetime.utcnow)
     version: str = "1.0.0"
@@ -48,6 +46,7 @@ class GoldenTestCase:
 @dataclass
 class TestResult:
     """Result of a single test."""
+
     test_id: str
     passed: bool
     category: str
@@ -60,6 +59,7 @@ class TestResult:
 @dataclass
 class EvalReport:
     """Report from an evaluation run."""
+
     id: str
     timestamp: datetime
     total_tests: int
@@ -124,7 +124,6 @@ GOLDEN_TEST_CASES: list[GoldenTestCase] = [
             "just_compensation",
         ],
     ),
-    
     # California - Resolution of Necessity
     GoldenTestCase(
         id="ca_001",
@@ -155,7 +154,6 @@ GOLDEN_TEST_CASES: list[GoldenTestCase] = [
             "resolution_necessity",
         ],
     ),
-    
     # Florida - Full Compensation
     GoldenTestCase(
         id="fl_001",
@@ -184,7 +182,6 @@ GOLDEN_TEST_CASES: list[GoldenTestCase] = [
             "fee_disclosure",
         ],
     ),
-    
     # Michigan - Multiplier Application
     GoldenTestCase(
         id="mi_001",
@@ -215,7 +212,6 @@ GOLDEN_TEST_CASES: list[GoldenTestCase] = [
             "fee_reimbursement",
         ],
     ),
-    
     # Missouri - Heritage Property
     GoldenTestCase(
         id="mo_001",
@@ -231,7 +227,6 @@ GOLDEN_TEST_CASES: list[GoldenTestCase] = [
         },
         expected_risk_level="yellow",  # Should be 1.50
     ),
-    
     # New York - No specific reforms
     GoldenTestCase(
         id="ny_001",
@@ -251,7 +246,6 @@ GOLDEN_TEST_CASES: list[GoldenTestCase] = [
             },
         ],
     ),
-    
     # Illinois - Repurchase right
     GoldenTestCase(
         id="il_001",
@@ -289,72 +283,67 @@ class EvalHarness:
     ) -> list[GoldenTestCase]:
         """List test cases with optional filters."""
         cases = list(self._test_cases.values())
-        
+
         if state:
             cases = [c for c in cases if c.state == state.upper()]
         if category:
             cases = [c for c in cases if c.category == category]
-        
+
         return cases
 
     def run_deadline_test(
         self,
         test_case: GoldenTestCase,
     ) -> TestResult:
-        """Run a deadline derivation test."""
+        """Run a deadline derivation test against the real rules engine.
+
+        We call :func:`app.services.deadline_rules.derive_deadlines` with the
+        anchor dates in the scenario so state packs stay authoritative.  The
+        old simulation branch incorrectly hard-coded a TX-only shortcut and
+        masked regressions in the YAML packs.
+        """
+
         import time
+
         start = time.time()
-        
-        from app.services.deadline_rules import derive_deadlines
-        
-        # Mock the scenario
         scenario = test_case.scenario
         jurisdiction = scenario.get("jurisdiction", test_case.state)
-        
-        # Derive deadlines
+
         try:
-            # Create a mock context
-            mock_dates = {}
-            for key, value in scenario.items():
-                if "date" in key.lower():
-                    mock_dates[key] = datetime.fromisoformat(value)
-            
-            # This would call the actual deadline derivation
-            # For now, we simulate
-            actual_deadlines = []
-            
-            # Simple simulation based on known rules
-            if "initial_offer_date" in scenario and jurisdiction == "TX":
-                initial = datetime.fromisoformat(scenario["initial_offer_date"])
-                actual_deadlines.append({
-                    "name": "minimum_final_offer_date",
-                    "due_date": (initial + timedelta(days=30)).strftime("%Y-%m-%d"),
-                    "citation": "Tex. Prop. Code §21.0113",
-                })
-            
-            if "final_offer_date" in scenario and jurisdiction == "TX":
-                final = datetime.fromisoformat(scenario["final_offer_date"])
-                actual_deadlines.append({
-                    "name": "bill_of_rights_delivery",
-                    "due_date": (final - timedelta(days=7)).strftime("%Y-%m-%d"),
-                    "citation": "Tex. Prop. Code §21.0112",
-                })
-            
-            # Compare
+            from app.services.deadline_rules import derive_deadlines
+
+            anchor_events = {
+                k: v
+                for k, v in scenario.items()
+                if isinstance(v, str) and ("date" in k.lower() or k.endswith("_at"))
+            }
+            derivation = derive_deadlines(jurisdiction, anchor_events)
+
+            actual_deadlines = [
+                {
+                    "name": d.id,
+                    "due_date": d.due_date.strftime("%Y-%m-%d"),
+                    "citation": d.citation,
+                    "anchor_event": d.anchor_event,
+                }
+                for d in derivation.deadlines
+            ]
+
             passed = self._compare_deadlines(
                 test_case.expected_deadlines or [],
                 actual_deadlines,
             )
-            
+
             return TestResult(
                 test_id=test_case.id,
-                passed=passed,
+                passed=passed and not derivation.errors,
                 category="deadline",
                 expected=test_case.expected_deadlines,
                 actual=actual_deadlines,
+                diff=", ".join(derivation.errors) if derivation.errors else None,
                 execution_time_ms=int((time.time() - start) * 1000),
             )
-            
+
         except Exception as e:
             return TestResult(
                 test_id=test_case.id,
@@ -371,20 +360,26 @@ class EvalHarness:
         expected: list[dict[str, Any]],
         actual: list[dict[str, Any]],
     ) -> bool:
-        """Compare expected and actual deadlines."""
-        if len(expected) != len(actual):
-            return False
-        
+        """Subset-match: every expected deadline must appear in ``actual``.
+
+        This intentionally tolerates extra derived deadlines (e.g. new rule
+        packs adding hearings) while still failing when a golden-listed
+        deadline is missing or has drifted to a new date.
+        """
+
         for exp in expected:
-            found = False
-            for act in actual:
-                if (exp.get("name") == act.get("name") and
-                    exp.get("due_date") == act.get("due_date")):
-                    found = True
-                    break
-            if not found:
+            exp_name = exp.get("name")
+            exp_date = exp.get("due_date")
+            match = next(
+                (
+                    a
+                    for a in actual
+                    if a.get("name") == exp_name and a.get("due_date") == exp_date
+                ),
+                None,
+            )
+            if not match:
                 return False
-        
         return True
 
     def run_clause_test(
@@ -393,22 +388,23 @@ class EvalHarness:
     ) -> TestResult:
         """Run a required clause test."""
         import time
+
         start = time.time()
-        
+
         from app.services.qa_checks import STATE_REQUIRED_CLAUSES
-        
+
         jurisdiction = test_case.scenario.get("jurisdiction", test_case.state)
         expected_clauses = set(test_case.expected_clauses or [])
-        
+
         # Get actual required clauses for jurisdiction
         actual_clause_ids = {
             c["id"] for c in STATE_REQUIRED_CLAUSES.get(jurisdiction, [])
         }
-        
+
         # Check if expected clauses are in actual
         missing = expected_clauses - actual_clause_ids
         passed = len(missing) == 0
-        
+
         return TestResult(
             test_id=test_case.id,
             passed=passed,
@@ -425,31 +421,35 @@ class EvalHarness:
     ) -> TestResult:
         """Run a compliance check test."""
         import time
+
         start = time.time()
-        
+
         # Simulate compliance check based on scenario
         scenario = test_case.scenario
         jurisdiction = scenario.get("jurisdiction", test_case.state)
-        
+
         actual_risk_level = "green"  # Default
-        
+
         # Check specific scenarios
         if jurisdiction == "CA" and not scenario.get("resolution_obtained"):
             actual_risk_level = "red"
-        
-        if jurisdiction == "FL" and scenario.get("compensation_calculation") == "fair_market_value_only":
+
+        if (
+            jurisdiction == "FL"
+            and scenario.get("compensation_calculation") == "fair_market_value_only"
+        ):
             actual_risk_level = "red"
-        
+
         if jurisdiction == "MI" and scenario.get("owner_occupied"):
             if scenario.get("offered_multiplier", 1.0) < 1.25:
                 actual_risk_level = "yellow"
-        
+
         if jurisdiction == "MO" and scenario.get("family_ownership_years", 0) >= 50:
             if scenario.get("offered_multiplier", 1.0) < 1.50:
                 actual_risk_level = "yellow"
-        
+
         passed = actual_risk_level == test_case.expected_risk_level
-        
+
         return TestResult(
             test_id=test_case.id,
             passed=passed,
@@ -466,7 +466,7 @@ class EvalHarness:
         """Run all tests and generate report."""
         cases = self.list_test_cases(state=state)
         results = []
-        
+
         for case in cases:
             if case.category == "deadline":
                 result = self.run_deadline_test(case)
@@ -476,12 +476,12 @@ class EvalHarness:
                 result = self.run_compliance_test(case)
             else:
                 continue
-            
+
             results.append(result)
-        
+
         passed = sum(1 for r in results if r.passed)
         failed = len(results) - passed
-        
+
         report_id = f"eval_{uuid.uuid4().hex[:8]}"
         report = EvalReport(
             id=report_id,
@@ -492,7 +492,7 @@ class EvalHarness:
             results=results,
             summary=f"{passed}/{len(results)} tests passed ({failed} failed)",
         )
-        
+
         self._reports[report_id] = report
         return report
 
@@ -501,19 +501,20 @@ class EvalHarness:
         state: str,
     ) -> dict[str, Any]:
         """Validate a state pack against golden tests.
-        
+
         This is a "contract test" that ensures the state pack
         doesn't break known requirements.
         """
-        cases = self.list_test_cases(state=state)
+        _cases = self.list_test_cases(state=state)
         report = self.run_all_tests(state=state)
-        
+
         # Check for critical failures
         critical_failures = [
-            r for r in report.results
+            r
+            for r in report.results
             if not r.passed and r.category in ["deadline", "compliance"]
         ]
-        
+
         return {
             "state": state,
             "pack_valid": len(critical_failures) == 0,
@@ -535,16 +536,16 @@ class EvalHarness:
 
 def generate_uat_checklist(state: str) -> str:
     """Generate a UAT checklist for human review.
-    
+
     Args:
         state: State code
-        
+
     Returns:
         Markdown formatted checklist
     """
     harness = EvalHarness()
     cases = harness.list_test_cases(state=state)
-    
+
     lines = [
         f"# UAT Checklist for {state}",
         "",
@@ -553,7 +554,7 @@ def generate_uat_checklist(state: str) -> str:
         "## Test Cases",
         "",
     ]
-    
+
     for case in cases:
         lines.append(f"### {case.name}")
         lines.append(f"*Category: {case.category}*")
@@ -565,20 +566,20 @@ def generate_uat_checklist(state: str) -> str:
         lines.append(json.dumps(case.scenario, indent=2))
         lines.append("```")
         lines.append("")
-        
+
         if case.expected_deadlines:
             lines.append("**Expected Deadlines:**")
             for dl in case.expected_deadlines:
                 lines.append(f"- [ ] {dl['name']}: {dl['due_date']} ({dl['citation']})")
-        
+
         if case.expected_clauses:
             lines.append("**Expected Clauses:**")
             for clause in case.expected_clauses:
                 lines.append(f"- [ ] {clause}")
-        
+
         if case.expected_risk_level:
             lines.append(f"**Expected Risk Level:** {case.expected_risk_level}")
-        
+
         lines.append("")
         lines.append("**Result:** [ ] PASS  [ ] FAIL")
         lines.append("")
@@ -586,5 +587,5 @@ def generate_uat_checklist(state: str) -> str:
         lines.append("")
         lines.append("---")
         lines.append("")
-    
+
     return "\n".join(lines)

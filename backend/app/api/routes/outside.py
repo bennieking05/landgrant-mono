@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Optional
 
 from datetime import datetime
 from uuid import uuid4
@@ -25,7 +26,10 @@ def repository_completeness(
 ):
     authorize(persona, "case", Action.READ)
     # Minimal completeness model: binder + at least one title instrument + one appraisal.
-    has_binder = db.query(models.Document).filter(models.Document.doc_type == "binder").count() > 0
+    has_binder = (
+        db.query(models.Document).filter(models.Document.doc_type == "binder").count()
+        > 0
+    )
     has_title = db.query(models.TitleInstrument).count() > 0
     has_appraisal = db.query(models.Appraisal).count() > 0
     checks = {
@@ -35,7 +39,12 @@ def repository_completeness(
     }
     percent = int(round((sum(1 for v in checks.values() if v) / len(checks)) * 100))
     missing = [k for k, v in checks.items() if not v]
-    return {"project_id": project_id, "percent": percent, "checks": checks, "missing": missing}
+    return {
+        "project_id": project_id,
+        "percent": percent,
+        "checks": checks,
+        "missing": missing,
+    }
 
 
 class CaseInitiate(BaseModel):
@@ -80,12 +89,14 @@ def initiate_case(
 
 class StatusUpdate(BaseModel):
     project_id: str
-    parcel_id: str | None = None
+    parcel_id: Optional[str] = None
     new_status: str
     reason: str
 
 
-def validate_stage_transition(old_stage: ParcelStage | None, new_stage: ParcelStage) -> bool:
+def validate_stage_transition(
+    old_stage: Optional[ParcelStage], new_stage: ParcelStage
+) -> bool:
     """Validate that a stage transition is allowed."""
     if old_stage is None:
         # Allow setting initial stage
@@ -117,7 +128,11 @@ def update_status(
     old_stage = None
     old_status_str = None
     if payload.parcel_id:
-        parcel = db.query(models.Parcel).filter(models.Parcel.id == payload.parcel_id).first()
+        parcel = (
+            db.query(models.Parcel)
+            .filter(models.Parcel.id == payload.parcel_id)
+            .first()
+        )
         if parcel:
             old_stage = parcel.stage
             old_status_str = old_stage.value if old_stage else None
@@ -128,7 +143,7 @@ def update_status(
                 raise HTTPException(
                     status_code=400,
                     detail=f"Invalid transition from '{old_status_str}' to '{payload.new_status}'. "
-                           f"Allowed transitions: {allowed}",
+                    f"Allowed transitions: {allowed}",
                 )
 
             # Update parcel stage
@@ -165,7 +180,9 @@ def update_status(
         )
     )
     db.commit()
-    return {"status_change_id": record["occurred_at"], "status": "ok", "old_status": old_status_str, "new_status": payload.new_status}
-
-
-
+    return {
+        "status_change_id": record["occurred_at"],
+        "status": "ok",
+        "old_status": old_status_str,
+        "new_status": payload.new_status,
+    }

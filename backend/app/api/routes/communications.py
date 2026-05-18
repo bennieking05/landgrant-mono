@@ -7,7 +7,6 @@ including single and batch message sending via multiple channels.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -39,6 +38,7 @@ class RecipientInfo(BaseModel):
 
 class BatchSendRequest(BaseModel):
     """Request to send communications to multiple recipients."""
+
     project_id: str
     template_id: str
     channel: str  # email, sms, mail, portal
@@ -67,6 +67,7 @@ class BatchSendResponse(BaseModel):
 
 class SingleSendRequest(BaseModel):
     """Request to send a single communication."""
+
     parcel_id: str
     project_id: str
     template_id: str
@@ -77,7 +78,11 @@ class SingleSendRequest(BaseModel):
 
 
 @router.get("")
-def list_communications(parcel_id: str, persona: Persona = Depends(get_current_persona), db: Session = Depends(get_db)):
+def list_communications(
+    parcel_id: str,
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
     authorize(persona, "communication", Action.READ)
     try:
         comms = (
@@ -135,19 +140,19 @@ def send_single_communication(
 ):
     """
     Send a single communication to one recipient.
-    
+
     Uses the notification service to send via the specified channel.
     """
     authorize(persona, "communication", Action.WRITE)
-    
+
     comm_id = str(uuid4())
-    
+
     try:
         # Build variables with parcel-specific data
         variables = payload.variables or {}
         variables["parcel_id"] = payload.parcel_id
         variables["project_id"] = payload.project_id
-        
+
         # Send via notification service
         preview_or_send(
             db,
@@ -160,7 +165,7 @@ def send_single_communication(
             parcel_id=payload.parcel_id,
             user_id=getattr(user, "id", None),
         )
-        
+
         # Record communication
         comm = models.Communication(
             id=comm_id,
@@ -171,10 +176,12 @@ def send_single_communication(
             content=f"Sent via {payload.template_id}",
             delivery_status="sent",
             delivery_proof={"template_id": payload.template_id, "to": payload.to},
-            hash=sha256_hex({"comm_id": comm_id, "to": payload.to, "channel": payload.channel}),
+            hash=sha256_hex(
+                {"comm_id": comm_id, "to": payload.to, "channel": payload.channel}
+            ),
         )
         db.add(comm)
-        
+
         # Audit log
         db.add(
             models.AuditEvent(
@@ -192,16 +199,16 @@ def send_single_communication(
                 hash=sha256_hex({"comm_id": comm_id, "action": "send"}),
             )
         )
-        
+
         db.commit()
-        
+
         return {
             "status": "sent",
             "message_id": comm_id,
             "channel": payload.channel,
             "parcel_id": payload.parcel_id,
         }
-        
+
     except Exception as e:
         db.rollback()
         return {
@@ -222,26 +229,26 @@ def send_batch_communications(
 ):
     """
     Send communications to multiple recipients in batch.
-    
+
     Supports sending to multiple parcels using a template.
     Returns summary of results and individual status for each recipient.
     """
     authorize(persona, "communication", Action.WRITE)
-    
+
     if len(payload.recipients) == 0:
         raise HTTPException(status_code=400, detail="At least one recipient required")
-    
+
     if len(payload.recipients) > 1000:
         raise HTTPException(status_code=400, detail="Maximum 1000 recipients per batch")
-    
+
     batch_id = f"BATCH-{uuid4().hex[:12].upper()}"
     results: list[BatchResult] = []
     successful = 0
     failed = 0
-    
+
     for recipient in payload.recipients:
         comm_id = str(uuid4())
-        
+
         # Determine recipient address based on channel
         to_address = None
         if payload.channel == "email":
@@ -250,17 +257,19 @@ def send_batch_communications(
             to_address = recipient.phone
         elif payload.channel == "portal":
             to_address = recipient.email  # Portal notifications use email
-        
+
         if not to_address:
-            results.append(BatchResult(
-                recipient_id=comm_id,
-                parcel_id=recipient.parcel_id,
-                status="skipped",
-                error=f"No {payload.channel} address for recipient",
-            ))
+            results.append(
+                BatchResult(
+                    recipient_id=comm_id,
+                    parcel_id=recipient.parcel_id,
+                    status="skipped",
+                    error=f"No {payload.channel} address for recipient",
+                )
+            )
             failed += 1
             continue
-        
+
         try:
             # Build recipient-specific variables
             variables = dict(payload.variables or {})
@@ -268,7 +277,7 @@ def send_batch_communications(
             variables["project_id"] = payload.project_id
             if recipient.name:
                 variables["recipient_name"] = recipient.name
-            
+
             # Send via notification service
             preview_or_send(
                 db,
@@ -281,7 +290,7 @@ def send_batch_communications(
                 parcel_id=recipient.parcel_id,
                 user_id=getattr(user, "id", None),
             )
-            
+
             # Record communication
             comm = models.Communication(
                 id=comm_id,
@@ -299,24 +308,28 @@ def send_batch_communications(
                 hash=sha256_hex({"comm_id": comm_id, "batch_id": batch_id}),
             )
             db.add(comm)
-            
-            results.append(BatchResult(
-                recipient_id=comm_id,
-                parcel_id=recipient.parcel_id,
-                status="sent",
-                message_id=comm_id,
-            ))
+
+            results.append(
+                BatchResult(
+                    recipient_id=comm_id,
+                    parcel_id=recipient.parcel_id,
+                    status="sent",
+                    message_id=comm_id,
+                )
+            )
             successful += 1
-            
+
         except Exception as e:
-            results.append(BatchResult(
-                recipient_id=comm_id,
-                parcel_id=recipient.parcel_id,
-                status="failed",
-                error=str(e),
-            ))
+            results.append(
+                BatchResult(
+                    recipient_id=comm_id,
+                    parcel_id=recipient.parcel_id,
+                    status="failed",
+                    error=str(e),
+                )
+            )
             failed += 1
-    
+
     # Audit log for batch
     db.add(
         models.AuditEvent(
@@ -337,9 +350,9 @@ def send_batch_communications(
             hash=sha256_hex({"batch_id": batch_id, "action": "batch_send"}),
         )
     )
-    
+
     db.commit()
-    
+
     return BatchSendResponse(
         batch_id=batch_id,
         total=len(payload.recipients),
@@ -358,30 +371,34 @@ def get_batch_status(
 ):
     """
     Get status of a batch send operation.
-    
+
     Returns all communications associated with the batch.
     """
     authorize(persona, "communication", Action.READ)
-    
-    comms = db.query(models.Communication).filter(
-        models.Communication.delivery_proof.contains({"batch_id": batch_id})
-    ).all()
-    
+
+    comms = (
+        db.query(models.Communication)
+        .filter(models.Communication.delivery_proof.contains({"batch_id": batch_id}))
+        .all()
+    )
+
     if not comms:
         raise HTTPException(status_code=404, detail="batch_not_found")
-    
+
     items = []
     for c in comms:
         proof = c.delivery_proof or {}
-        items.append({
-            "id": c.id,
-            "parcel_id": c.parcel_id,
-            "channel": c.channel,
-            "status": c.delivery_status,
-            "to": proof.get("to"),
-            "created_at": c.created_at.isoformat() + "Z" if c.created_at else None,
-        })
-    
+        items.append(
+            {
+                "id": c.id,
+                "parcel_id": c.parcel_id,
+                "channel": c.channel,
+                "status": c.delivery_status,
+                "to": proof.get("to"),
+                "created_at": c.created_at.isoformat() + "Z" if c.created_at else None,
+            }
+        )
+
     return {
         "batch_id": batch_id,
         "total": len(items),
@@ -403,33 +420,38 @@ def list_project_communications(
     List all communications for a project with optional filters.
     """
     authorize(persona, "communication", Action.READ)
-    
+
     query = db.query(models.Communication).filter(
         models.Communication.project_id == project_id
     )
-    
+
     if channel:
         query = query.filter(models.Communication.channel == channel)
     if status:
         query = query.filter(models.Communication.delivery_status == status)
-    
+
     total = query.count()
-    comms = query.order_by(
-        models.Communication.created_at.desc()
-    ).offset(offset).limit(limit).all()
-    
+    comms = (
+        query.order_by(models.Communication.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
     items = []
     for c in comms:
-        items.append({
-            "id": c.id,
-            "parcel_id": c.parcel_id,
-            "channel": c.channel,
-            "direction": c.direction,
-            "content": c.content,
-            "status": c.delivery_status,
-            "created_at": c.created_at.isoformat() + "Z" if c.created_at else None,
-        })
-    
+        items.append(
+            {
+                "id": c.id,
+                "parcel_id": c.parcel_id,
+                "channel": c.channel,
+                "direction": c.direction,
+                "content": c.content,
+                "status": c.delivery_status,
+                "created_at": c.created_at.isoformat() + "Z" if c.created_at else None,
+            }
+        )
+
     return {
         "items": items,
         "total": total,
@@ -446,28 +468,30 @@ def get_communication_stats(
 ):
     """
     Get communication statistics for a project.
-    
+
     Returns counts by channel and delivery status.
     """
     authorize(persona, "communication", Action.READ)
-    
-    comms = db.query(models.Communication).filter(
-        models.Communication.project_id == project_id
-    ).all()
-    
+
+    comms = (
+        db.query(models.Communication)
+        .filter(models.Communication.project_id == project_id)
+        .all()
+    )
+
     by_channel: dict[str, int] = {}
     by_status: dict[str, int] = {}
     by_direction: dict[str, int] = {}
-    
+
     for c in comms:
         channel = c.channel or "unknown"
         status = c.delivery_status or "unknown"
         direction = c.direction or "unknown"
-        
+
         by_channel[channel] = by_channel.get(channel, 0) + 1
         by_status[status] = by_status.get(status, 0) + 1
         by_direction[direction] = by_direction.get(direction, 0) + 1
-    
+
     return {
         "project_id": project_id,
         "total": len(comms),
@@ -475,4 +499,3 @@ def get_communication_stats(
         "by_status": by_status,
         "by_direction": by_direction,
     }
-

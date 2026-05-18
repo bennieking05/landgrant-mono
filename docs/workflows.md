@@ -1,4 +1,4 @@
-# LandRight Workflows
+# LandGrant Workflows
 
 This document maps the complete application workflow for all personas, linking frontend pages to backend API endpoints.
 

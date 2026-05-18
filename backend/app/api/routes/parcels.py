@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Optional
 
 from datetime import datetime
 
@@ -16,10 +17,10 @@ router = APIRouter(prefix="/parcels", tags=["parcels"])
 
 @router.get("")
 def list_parcels(
-    project_id: str | None = None,
-    stage: str | None = None,
-    min_risk: int | None = None,
-    deadline_before: str | None = None,
+    project_id: Optional[str] = None,
+    stage: Optional[str] = None,
+    min_risk: Optional[int] = None,
+    deadline_before: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     persona: Persona = Depends(get_current_persona),
@@ -41,7 +42,9 @@ def list_parcels(
     if deadline_before:
         try:
             dt = datetime.fromisoformat(deadline_before.replace("Z", ""))
-            q = q.filter(models.Parcel.next_deadline_at.isnot(None)).filter(models.Parcel.next_deadline_at <= dt)
+            q = q.filter(models.Parcel.next_deadline_at.isnot(None)).filter(
+                models.Parcel.next_deadline_at <= dt
+            )
         except Exception:
             pass
     total = q.count()
@@ -59,12 +62,11 @@ def list_parcels(
                 "project_id": p.project_id,
                 "stage": p.stage.value if p.stage else "intake",
                 "risk_score": p.risk_score,
-                "next_deadline_at": p.next_deadline_at.isoformat() + "Z" if p.next_deadline_at else None,
+                "next_deadline_at": (
+                    p.next_deadline_at.isoformat() + "Z" if p.next_deadline_at else None
+                ),
                 "geom": p.geom,
             }
             for p in items
         ],
     }
-
-
-

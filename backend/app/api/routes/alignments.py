@@ -3,6 +3,7 @@
 Agreement Reference: Section 3.2(h) - GIS alignment and parcel segmentation
 (alignment import, segment generation, per-segment ED status)
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -30,6 +31,7 @@ router = APIRouter(prefix="/alignments", tags=["alignments"])
 
 class AlignmentImport(BaseModel):
     """Import alignment geometry."""
+
     project_id: str
     name: str
     description: Optional[str] = None
@@ -40,6 +42,7 @@ class AlignmentImport(BaseModel):
 
 class AlignmentUpdate(BaseModel):
     """Update alignment metadata."""
+
     name: Optional[str] = None
     description: Optional[str] = None
     alignment_type: Optional[str] = None
@@ -49,6 +52,7 @@ class AlignmentUpdate(BaseModel):
 
 class SegmentCreate(BaseModel):
     """Create a segment linking alignment to parcel."""
+
     parcel_id: str
     segment_number: Optional[int] = None
     name: Optional[str] = None
@@ -56,11 +60,14 @@ class SegmentCreate(BaseModel):
     length_feet: Optional[float] = None
     width_feet: Optional[float] = None
     area_sqft: Optional[float] = None
-    acquisition_type: Optional[str] = None  # fee, permanent_easement, temporary_easement
+    acquisition_type: Optional[str] = (
+        None  # fee, permanent_easement, temporary_easement
+    )
 
 
 class SegmentUpdate(BaseModel):
     """Update segment, particularly ED status."""
+
     ed_status: Optional[str] = None
     acquisition_type: Optional[str] = None
     length_feet: Optional[float] = None
@@ -70,6 +77,7 @@ class SegmentUpdate(BaseModel):
 
 class BulkSegmentGenerate(BaseModel):
     """Bulk generate segments from parcel list."""
+
     parcel_ids: list[str]
     acquisition_type: Optional[str] = "permanent_easement"
 
@@ -88,15 +96,14 @@ def import_alignment(
 ):
     """Import alignment geometry (GeoJSON) for a project."""
     authorize(persona, "alignment", Action.WRITE)
-    
+
     # Validate geometry type
     geom_type = payload.geometry.get("type")
     if geom_type not in ("LineString", "MultiLineString"):
         raise HTTPException(
-            status_code=422,
-            detail="geometry_must_be_linestring_or_multilinestring"
+            status_code=422, detail="geometry_must_be_linestring_or_multilinestring"
         )
-    
+
     alignment_id = str(uuid4())
     alignment = models.Alignment(
         id=alignment_id,
@@ -110,7 +117,7 @@ def import_alignment(
         created_by=getattr(user, "id", None),
     )
     db.add(alignment)
-    
+
     # Audit
     db.add(
         models.AuditEvent(
@@ -125,14 +132,16 @@ def import_alignment(
                 "name": payload.name,
                 "geometry_type": geom_type,
             },
-            hash=sha256_hex({
-                "alignment_id": alignment_id,
-                "project_id": payload.project_id,
-            }),
+            hash=sha256_hex(
+                {
+                    "alignment_id": alignment_id,
+                    "project_id": payload.project_id,
+                }
+            ),
         )
     )
     db.commit()
-    
+
     return {"alignment_id": alignment_id, "name": payload.name}
 
 
@@ -144,14 +153,14 @@ def list_alignments(
 ):
     """List alignments for a project."""
     authorize(persona, "alignment", Action.READ)
-    
+
     items = (
         db.query(models.Alignment)
         .filter(models.Alignment.project_id == project_id)
         .order_by(models.Alignment.created_at.desc())
         .all()
     )
-    
+
     return {
         "project_id": project_id,
         "count": len(items),
@@ -161,7 +170,9 @@ def list_alignments(
                 "name": a.name,
                 "description": a.description,
                 "alignment_type": a.alignment_type,
-                "total_length_miles": float(a.total_length_miles) if a.total_length_miles else None,
+                "total_length_miles": (
+                    float(a.total_length_miles) if a.total_length_miles else None
+                ),
                 "total_parcels": a.total_parcels,
                 "status": a.status,
                 "created_at": a.created_at.isoformat() + "Z" if a.created_at else None,
@@ -180,11 +191,13 @@ def get_alignment(
 ):
     """Get alignment details including geometry and segments."""
     authorize(persona, "alignment", Action.READ)
-    
-    alignment = db.query(models.Alignment).filter(models.Alignment.id == alignment_id).first()
+
+    alignment = (
+        db.query(models.Alignment).filter(models.Alignment.id == alignment_id).first()
+    )
     if not alignment:
         raise HTTPException(status_code=404, detail="alignment_not_found")
-    
+
     # Get segments
     segments = (
         db.query(models.Segment)
@@ -192,18 +205,26 @@ def get_alignment(
         .order_by(models.Segment.segment_number.asc())
         .all()
     )
-    
+
     result = {
         "id": alignment.id,
         "project_id": alignment.project_id,
         "name": alignment.name,
         "description": alignment.description,
         "alignment_type": alignment.alignment_type,
-        "total_length_miles": float(alignment.total_length_miles) if alignment.total_length_miles else None,
+        "total_length_miles": (
+            float(alignment.total_length_miles)
+            if alignment.total_length_miles
+            else None
+        ),
         "total_parcels": alignment.total_parcels,
         "status": alignment.status,
-        "created_at": alignment.created_at.isoformat() + "Z" if alignment.created_at else None,
-        "updated_at": alignment.updated_at.isoformat() + "Z" if alignment.updated_at else None,
+        "created_at": (
+            alignment.created_at.isoformat() + "Z" if alignment.created_at else None
+        ),
+        "updated_at": (
+            alignment.updated_at.isoformat() + "Z" if alignment.updated_at else None
+        ),
         "segments": [
             {
                 "id": s.id,
@@ -219,12 +240,12 @@ def get_alignment(
             for s in segments
         ],
     }
-    
+
     if include_geometry:
         result["geometry"] = alignment.geometry
         for i, s in enumerate(segments):
             result["segments"][i]["geometry"] = s.geometry
-    
+
     return result
 
 
@@ -238,35 +259,37 @@ def update_alignment(
 ):
     """Update alignment metadata."""
     authorize(persona, "alignment", Action.WRITE)
-    
-    alignment = db.query(models.Alignment).filter(models.Alignment.id == alignment_id).first()
+
+    alignment = (
+        db.query(models.Alignment).filter(models.Alignment.id == alignment_id).first()
+    )
     if not alignment:
         raise HTTPException(status_code=404, detail="alignment_not_found")
-    
+
     changes = {}
-    
+
     if payload.name is not None:
         alignment.name = payload.name
         changes["name"] = payload.name
-    
+
     if payload.description is not None:
         alignment.description = payload.description
         changes["description"] = payload.description
-    
+
     if payload.alignment_type is not None:
         alignment.alignment_type = payload.alignment_type
         changes["alignment_type"] = payload.alignment_type
-    
+
     if payload.status is not None:
         alignment.status = payload.status
         changes["status"] = payload.status
-    
+
     if payload.total_length_miles is not None:
         alignment.total_length_miles = payload.total_length_miles
         changes["total_length_miles"] = payload.total_length_miles
-    
+
     alignment.updated_at = datetime.utcnow()
-    
+
     if changes:
         db.add(
             models.AuditEvent(
@@ -279,9 +302,9 @@ def update_alignment(
                 hash=sha256_hex({"alignment_id": alignment_id, "changes": changes}),
             )
         )
-    
+
     db.commit()
-    
+
     return {"alignment_id": alignment_id, "updated": True, "changes": changes}
 
 
@@ -300,11 +323,13 @@ def create_segment(
 ):
     """Create a segment linking alignment to parcel."""
     authorize(persona, "alignment", Action.WRITE)
-    
-    alignment = db.query(models.Alignment).filter(models.Alignment.id == alignment_id).first()
+
+    alignment = (
+        db.query(models.Alignment).filter(models.Alignment.id == alignment_id).first()
+    )
     if not alignment:
         raise HTTPException(status_code=404, detail="alignment_not_found")
-    
+
     # Determine segment number
     existing_count = (
         db.query(models.Segment)
@@ -312,7 +337,7 @@ def create_segment(
         .count()
     )
     segment_number = payload.segment_number or (existing_count + 1)
-    
+
     segment_id = str(uuid4())
     segment = models.Segment(
         id=segment_id,
@@ -328,10 +353,10 @@ def create_segment(
         acquisition_type=payload.acquisition_type,
     )
     db.add(segment)
-    
+
     # Update alignment parcel count
     alignment.total_parcels = existing_count + 1
-    
+
     # Audit
     db.add(
         models.AuditEvent(
@@ -346,14 +371,16 @@ def create_segment(
                 "parcel_id": payload.parcel_id,
                 "segment_number": segment_number,
             },
-            hash=sha256_hex({
-                "segment_id": segment_id,
-                "alignment_id": alignment_id,
-            }),
+            hash=sha256_hex(
+                {
+                    "segment_id": segment_id,
+                    "alignment_id": alignment_id,
+                }
+            ),
         )
     )
     db.commit()
-    
+
     return {"segment_id": segment_id, "segment_number": segment_number}
 
 
@@ -367,23 +394,25 @@ def bulk_generate_segments(
 ):
     """Bulk generate segments for multiple parcels."""
     authorize(persona, "alignment", Action.WRITE)
-    
-    alignment = db.query(models.Alignment).filter(models.Alignment.id == alignment_id).first()
+
+    alignment = (
+        db.query(models.Alignment).filter(models.Alignment.id == alignment_id).first()
+    )
     if not alignment:
         raise HTTPException(status_code=404, detail="alignment_not_found")
-    
+
     # Get existing segment count
     existing_count = (
         db.query(models.Segment)
         .filter(models.Segment.alignment_id == alignment_id)
         .count()
     )
-    
+
     created_segments = []
     for i, parcel_id in enumerate(payload.parcel_ids):
         segment_number = existing_count + i + 1
         segment_id = str(uuid4())
-        
+
         segment = models.Segment(
             id=segment_id,
             alignment_id=alignment_id,
@@ -394,15 +423,17 @@ def bulk_generate_segments(
             acquisition_type=payload.acquisition_type,
         )
         db.add(segment)
-        created_segments.append({
-            "segment_id": segment_id,
-            "parcel_id": parcel_id,
-            "segment_number": segment_number,
-        })
-    
+        created_segments.append(
+            {
+                "segment_id": segment_id,
+                "parcel_id": parcel_id,
+                "segment_number": segment_number,
+            }
+        )
+
     # Update alignment parcel count
     alignment.total_parcels = existing_count + len(payload.parcel_ids)
-    
+
     # Audit
     db.add(
         models.AuditEvent(
@@ -415,14 +446,16 @@ def bulk_generate_segments(
                 "alignment_id": alignment_id,
                 "parcel_count": len(payload.parcel_ids),
             },
-            hash=sha256_hex({
-                "alignment_id": alignment_id,
-                "parcel_ids": payload.parcel_ids,
-            }),
+            hash=sha256_hex(
+                {
+                    "alignment_id": alignment_id,
+                    "parcel_ids": payload.parcel_ids,
+                }
+            ),
         )
     )
     db.commit()
-    
+
     return {
         "alignment_id": alignment_id,
         "created_count": len(created_segments),
@@ -446,14 +479,14 @@ def get_segments_by_parcel(
 ):
     """Get all segments linked to a parcel."""
     authorize(persona, "alignment", Action.READ)
-    
+
     segments = (
         db.query(models.Segment)
         .filter(models.Segment.parcel_id == parcel_id)
         .order_by(models.Segment.segment_number.asc())
         .all()
     )
-    
+
     return {
         "parcel_id": parcel_id,
         "count": len(segments),
@@ -485,39 +518,42 @@ def update_segment(
 ):
     """Update segment, particularly ED status."""
     authorize(persona, "alignment", Action.WRITE)
-    
+
     segment = db.query(models.Segment).filter(models.Segment.id == segment_id).first()
     if not segment:
         raise HTTPException(status_code=404, detail="segment_not_found")
-    
+
     changes = {}
-    
+
     if payload.ed_status is not None:
         try:
             old_status = segment.ed_status
             segment.ed_status = SegmentEDStatus(payload.ed_status)
-            changes["ed_status"] = {"from": old_status.value if old_status else None, "to": payload.ed_status}
+            changes["ed_status"] = {
+                "from": old_status.value if old_status else None,
+                "to": payload.ed_status,
+            }
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="invalid_ed_status") from exc
-    
+
     if payload.acquisition_type is not None:
         segment.acquisition_type = payload.acquisition_type
         changes["acquisition_type"] = payload.acquisition_type
-    
+
     if payload.length_feet is not None:
         segment.length_feet = payload.length_feet
         changes["length_feet"] = payload.length_feet
-    
+
     if payload.width_feet is not None:
         segment.width_feet = payload.width_feet
         changes["width_feet"] = payload.width_feet
-    
+
     if payload.area_sqft is not None:
         segment.area_sqft = payload.area_sqft
         changes["area_sqft"] = payload.area_sqft
-    
+
     segment.updated_at = datetime.utcnow()
-    
+
     if changes:
         db.add(
             models.AuditEvent(
@@ -526,13 +562,17 @@ def update_segment(
                 actor_persona=persona,
                 action="segment.update",
                 resource="alignment",
-                payload={"segment_id": segment_id, "parcel_id": segment.parcel_id, "changes": changes},
+                payload={
+                    "segment_id": segment_id,
+                    "parcel_id": segment.parcel_id,
+                    "changes": changes,
+                },
                 hash=sha256_hex({"segment_id": segment_id, "changes": changes}),
             )
         )
-    
+
     db.commit()
-    
+
     return {"segment_id": segment_id, "updated": True, "changes": changes}
 
 

@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useState, useCallback } from "react";
 
 // Mapbox types - imported dynamically
@@ -108,6 +106,7 @@ export function ParcelMap({
         // Import CSS
         await import("mapbox-gl/dist/mapbox-gl.css");
 
+        // @ts-expect-error mapbox-gl typings
         mapboxgl.accessToken = mapboxToken!;
 
         map = new mapboxgl.Map({
@@ -262,8 +261,8 @@ export function ParcelMap({
 
     source.setData({
       type: "FeatureCollection",
-      features: filteredFeatures,
-    });
+      features: filteredFeatures as unknown as GeoJSON.Feature[],
+    } as GeoJSON.FeatureCollection);
   }, [mapLoaded, parcels, filters]);
 
   // Handle selected parcel highlighting

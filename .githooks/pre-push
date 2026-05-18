@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# LandRight Pre-Push Hook
-# Enforces quality gate: Playwright regression must pass before push
+# LandGrant Pre-Push Hook
+# Enforces quality gate before push:
+#   1. Backend ruff + black check
+#   2. Backend pytest (fast subset)
+#   3. Frontend smoke Playwright tests
 #
 # To install: ./scripts/install-githooks.sh
 # To bypass (emergency only): git push --no-verify
@@ -9,63 +12,47 @@
 set -e
 
 echo "============================================"
-echo "  LandRight Pre-Push Quality Gate"
+echo "  LandGrant Pre-Push Quality Gate"
 echo "============================================"
 echo ""
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Navigate to frontend directory
-FRONTEND_DIR="$(git rev-parse --show-toplevel)/frontend"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+BACKEND_DIR="$REPO_ROOT/backend"
+FRONTEND_DIR="$REPO_ROOT/frontend"
 
-if [ ! -d "$FRONTEND_DIR" ]; then
-    echo -e "${RED}ERROR: frontend directory not found${NC}"
+fail() {
+    echo ""
+    echo -e "${RED}❌ QUALITY GATE FAILED: $1${NC}"
+    echo ""
+    echo -e "${YELLOW}To bypass (EMERGENCY ONLY):${NC} git push --no-verify"
+    echo ""
     exit 1
-fi
+}
 
-cd "$FRONTEND_DIR"
+if [ -d "$BACKEND_DIR" ] && command -v python3 >/dev/null 2>&1; then
+    echo "Running backend lint (ruff + black)..."
+    (cd "$BACKEND_DIR" && python3 -m ruff check app && python3 -m black --check app) \
+        || fail "Backend lint failed"
 
-echo "Running Playwright regression tests..."
-echo "Command: npm run test:smoke"
-echo ""
-
-# Run smoke tests (faster than full regression for pre-push)
-# For full regression, change to: npm run test:e2e
-if npm run test:smoke; then
-    echo ""
-    echo -e "${GREEN}✅ Smoke tests PASSED${NC}"
-    echo ""
-    
-    # Optionally run evidence screenshots
-    # Uncomment below for stricter enforcement
-    # echo "Capturing evidence screenshots..."
-    # npm run test:evidence
-    
-    echo "============================================"
-    echo -e "${GREEN}  QUALITY GATE: PASSED${NC}"
-    echo "  Push allowed."
-    echo "============================================"
-    exit 0
+    echo "Running backend fast pytest..."
+    (cd "$BACKEND_DIR" && python3 -m pytest -q -x --ignore=tests/rules tests) \
+        || fail "Backend pytest failed"
 else
-    echo ""
-    echo -e "${RED}❌ QUALITY GATE FAILED${NC}"
-    echo ""
-    echo "============================================"
-    echo -e "${RED}  PUSH BLOCKED: Playwright tests failed${NC}"
-    echo "============================================"
-    echo ""
-    echo "To fix:"
-    echo "  1. Run: cd frontend && npm run test:e2e:debug"
-    echo "  2. Fix failing tests"
-    echo "  3. Re-run: npm run test:e2e"
-    echo "  4. Push again"
-    echo ""
-    echo -e "${YELLOW}To bypass (EMERGENCY ONLY):${NC}"
-    echo "  git push --no-verify"
-    echo ""
-    exit 1
+    echo -e "${YELLOW}Skipping backend checks (python3 unavailable)${NC}"
 fi
+
+if [ -d "$FRONTEND_DIR" ]; then
+    cd "$FRONTEND_DIR"
+    echo "Running Playwright smoke tests..."
+    npm run test:smoke || fail "Playwright smoke failed"
+fi
+
+echo ""
+echo -e "${GREEN}✅ QUALITY GATE: PASSED${NC}"
+echo "============================================"
+exit 0

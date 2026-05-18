@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import {
   listTitleInstruments,
@@ -13,6 +11,7 @@ import {
   type CurativeItemCreatePayload,
   type CurativeAnalyticsResponse,
 } from "@/lib/api";
+import { DocumentExtraction } from "@/components/DocumentExtraction";
 
 type Props = {
   parcelId: string;
@@ -36,7 +35,7 @@ const SEVERITY_COLORS: Record<CurativeSeverity, string> = {
   critical: "bg-rose-50 text-rose-700",
 };
 
-type TabType = "instruments" | "curative";
+type TabType = "instruments" | "curative" | "extraction";
 
 export function TitlePanel({ parcelId }: Props) {
   const [activeTab, setActiveTab] = useState<TabType>("instruments");
@@ -202,7 +201,7 @@ export function TitlePanel({ parcelId }: Props) {
           <p className="text-sm text-slate-500">Parcel: {parcelId}</p>
         </div>
         <div className="flex items-center gap-3">
-          {activeTab === "curative" && curativeAnalytics && curativeAnalytics.overdue > 0 && (
+          {activeTab === "curative" && curativeAnalytics && (curativeAnalytics.overdue ?? 0) > 0 && (
             <span className="text-xs px-2 py-1 rounded-full bg-rose-50 text-rose-700">
               {curativeAnalytics.overdue} overdue
             </span>
@@ -244,6 +243,17 @@ export function TitlePanel({ parcelId }: Props) {
             </span>
           )}
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("extraction")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "extraction"
+              ? "border-brand text-brand"
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Extraction
+        </button>
       </div>
 
       {error && <p className="text-sm text-rose-600 mb-3">{error}</p>}
@@ -282,19 +292,19 @@ export function TitlePanel({ parcelId }: Props) {
                     <p className="text-xs text-slate-500 mt-1">
                       Doc ID: {inst.document_id ?? "—"} · Added: {formatDate(inst.created_at)}
                     </p>
-                    {inst.ocr_payload?.entities && Array.isArray(inst.ocr_payload.entities) && (
+                    {inst.ocr_payload?.entities && Array.isArray(inst.ocr_payload.entities) ? (
                       <p className="text-xs text-slate-500 mt-1">
                         Entities: {(inst.ocr_payload.entities as string[]).join(", ")}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                   <div className="text-right text-xs text-slate-500">
-                    {inst.metadata?.recorded_date && (
+                    {inst.metadata?.recorded_date ? (
                       <span>Recorded: {String(inst.metadata.recorded_date)}</span>
-                    )}
-                    {inst.metadata?.survey_date && (
+                    ) : null}
+                    {inst.metadata?.survey_date ? (
                       <span>Survey: {String(inst.metadata.survey_date)}</span>
-                    )}
+                    ) : null}
                   </div>
                 </li>
               );
@@ -480,6 +490,10 @@ export function TitlePanel({ parcelId }: Props) {
             )}
           </ul>
         </>
+      )}
+
+      {activeTab === "extraction" && (
+        <DocumentExtraction parcelId={parcelId} />
       )}
     </div>
   );

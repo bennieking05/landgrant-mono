@@ -16,12 +16,14 @@ from app.api.deps import get_current_persona
 from app.db.models import Persona
 from app.security.rbac import authorize, Action
 
-router = APIRouter(prefix="/rules/summary", tags=["summaries"])
+# Mounted under /rules via rules_ops.include_router → paths stay /rules/summary/*
+router = APIRouter(prefix="/summary", tags=["summaries"])
 
 
 # Response models
 class CommonCoreRequirementResponse(BaseModel):
     """A common-core requirement."""
+
     requirement_id: str
     description: str
     applies_to_all: bool
@@ -32,6 +34,7 @@ class CommonCoreRequirementResponse(BaseModel):
 
 class StateClusterResponse(BaseModel):
     """A cluster of similar states."""
+
     name: str
     description: str
     states: list[str]
@@ -40,6 +43,7 @@ class StateClusterResponse(BaseModel):
 
 class StateDeltaResponse(BaseModel):
     """How a state differs from common core."""
+
     requirement_id: str
     common_core_value: Any
     state_value: Any
@@ -52,17 +56,17 @@ async def get_common_core(
     persona: Persona = Depends(get_current_persona),
 ):
     """Get requirements common to all (or most) states.
-    
+
     Returns the baseline requirements that apply
     across jurisdictions.
     """
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.state_summary import StateSummaryService
-    
+
     service = StateSummaryService()
     common = service.get_common_core()
-    
+
     return {
         "count": len(common),
         "requirements": [
@@ -84,7 +88,7 @@ async def get_state_clusters(
     persona: Persona = Depends(get_current_persona),
 ):
     """Get state clusters by characteristics.
-    
+
     Groups states by common features like:
     - Quick-take availability
     - Commissioner panels
@@ -92,12 +96,12 @@ async def get_state_clusters(
     - Post-Kelo reforms
     """
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.state_summary import StateSummaryService
-    
+
     service = StateSummaryService()
     clusters = service.get_clusters()
-    
+
     return {
         "count": len(clusters),
         "clusters": [
@@ -118,20 +122,20 @@ async def get_state_summary(
     persona: Persona = Depends(get_current_persona),
 ):
     """Get complete summary for a state.
-    
+
     Includes key characteristics, cluster membership,
     and deltas from common core.
     """
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.state_summary import StateSummaryService
-    
+
     service = StateSummaryService()
     summary = service.get_state_summary(state)
-    
+
     if "error" in summary:
         raise HTTPException(status_code=404, detail=summary["error"])
-    
+
     return summary
 
 
@@ -141,17 +145,17 @@ async def get_state_deltas(
     persona: Persona = Depends(get_current_persona),
 ):
     """Get deltas showing how a state differs.
-    
+
     Lists specific requirements where the state
     differs from the common core or default.
     """
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.state_summary import StateSummaryService
-    
+
     service = StateSummaryService()
     deltas = service.get_state_delta(state)
-    
+
     return [
         StateDeltaResponse(
             requirement_id=d.requirement_id,
@@ -170,17 +174,17 @@ async def compare_states(
     persona: Persona = Depends(get_current_persona),
 ):
     """Compare multiple states side-by-side.
-    
+
     Shows key characteristics for each state
     in a comparison format.
     """
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.state_summary import StateSummaryService
-    
+
     service = StateSummaryService()
     state_list = [s.strip().upper() for s in states.split(",")]
-    
+
     comparison = {}
     for state in state_list:
         summary = service.get_state_summary(state)
@@ -189,7 +193,7 @@ async def compare_states(
                 "key_characteristics": summary.get("key_characteristics", {}),
                 "clusters": summary.get("clusters", []),
             }
-    
+
     return {
         "states": state_list,
         "comparison": comparison,
@@ -201,17 +205,17 @@ async def export_markdown(
     persona: Persona = Depends(get_current_persona),
 ):
     """Export full comparison as Markdown.
-    
+
     Generates a formatted document suitable
     for documentation or sharing.
     """
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.state_summary import StateSummaryService
-    
+
     service = StateSummaryService()
     markdown = service.export_markdown()
-    
+
     return PlainTextResponse(
         content=markdown,
         media_type="text/markdown",
@@ -223,14 +227,14 @@ async def export_json(
     persona: Persona = Depends(get_current_persona),
 ):
     """Export full comparison as JSON.
-    
+
     Complete data export for analysis
     or integration with other systems.
     """
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.state_summary import StateSummaryService
-    
+
     service = StateSummaryService()
     return service.export_json()
 
@@ -241,7 +245,7 @@ async def get_comparison_matrix(
     persona: Persona = Depends(get_current_persona),
 ):
     """Get a matrix of states by characteristic.
-    
+
     Supported characteristics:
     - quick_take
     - bill_of_rights
@@ -250,11 +254,11 @@ async def get_comparison_matrix(
     - economic_development_banned
     """
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.state_summary import StateSummaryService
-    
+
     service = StateSummaryService()
-    
+
     # Map characteristic to path
     char_map = {
         "quick_take": ("initiation", "quick_take", "available"),
@@ -263,19 +267,19 @@ async def get_comparison_matrix(
         "attorney_fees_automatic": ("compensation", "attorney_fees", "automatic"),
         "economic_development_banned": ("public_use", "economic_development_banned"),
     }
-    
+
     if characteristic not in char_map:
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown characteristic: {characteristic}. Supported: {list(char_map.keys())}"
+            detail=f"Unknown characteristic: {characteristic}. Supported: {list(char_map.keys())}",
         )
-    
+
     path = char_map[characteristic]
-    
+
     # Get all states and check characteristic
     states_with = []
     states_without = []
-    
+
     for state, config in service._state_configs.items():
         # Navigate to value
         value = config
@@ -285,12 +289,12 @@ async def get_comparison_matrix(
             else:
                 value = None
                 break
-        
+
         if value:
             states_with.append(state)
         else:
             states_without.append(state)
-    
+
     return {
         "characteristic": characteristic,
         "states_with": sorted(states_with),

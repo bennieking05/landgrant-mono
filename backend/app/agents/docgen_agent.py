@@ -76,6 +76,7 @@ Return JSON:
 @dataclass
 class DocumentDraft:
     """Generated document draft."""
+
     document_id: str
     template_id: str
     content: str
@@ -85,12 +86,14 @@ class DocumentDraft:
     enhancements: Optional[dict[str, Any]]
     storage_path: Optional[str]
     sha256: str
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "document_id": self.document_id,
             "template_id": self.template_id,
-            "content_preview": self.content[:500] + "..." if len(self.content) > 500 else self.content,
+            "content_preview": (
+                self.content[:500] + "..." if len(self.content) > 500 else self.content
+            ),
             "variables": self.variables,
             "jurisdiction": self.jurisdiction,
             "enhanced": self.enhanced,
@@ -102,71 +105,71 @@ class DocumentDraft:
 
 class DocGenAgent(BaseAgent):
     """Agent for document generation with AI enhancement.
-    
+
     Responsibilities:
     - Generate documents from templates
     - Enhance documents with AI (citations, terminology)
     - Render to PDF/DOCX formats
     - Create review tasks for counsel
-    
+
     All generated legal documents require human review.
     """
-    
+
     agent_type = AgentType.DOCGEN
     confidence_threshold = 0.90  # Higher threshold for legal docs
-    
+
     def __init__(self, db_session=None, confidence_threshold: float = None):
         """Initialize the document generation agent.
-        
+
         Args:
             db_session: Database session
             confidence_threshold: Override default threshold
         """
         super().__init__(confidence_threshold)
         self.db = db_session
-    
+
     async def execute(self, context: AgentContext) -> AgentResult:
         """Generate a document from template.
-        
+
         Args:
             context: Agent context with template and variables
-            
+
         Returns:
             AgentResult with generated document
         """
         start_time = datetime.utcnow()
-        
+
         try:
             if not context.template_id:
                 return AgentResult.failure_result(
                     error="No template_id provided",
                     error_code="MISSING_TEMPLATE_ID",
                 )
-            
+
             if not context.variables:
                 return AgentResult.failure_result(
                     error="No variables provided",
                     error_code="MISSING_VARIABLES",
                 )
-            
+
             jurisdiction = context.jurisdiction or "TX"
-            
+
             # Generate the document
             draft = await self.generate_document(
                 context.template_id,
                 context.variables,
                 jurisdiction,
             )
-            
+
             # Create review task
             review_task_id = await self._create_review_task(
                 draft,
                 context.project_id,
                 context.parcel_id,
             )
-            
+
             execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
-            
+
             return AgentResult(
                 success=True,
                 confidence=0.85 if draft.enhanced else 0.75,
@@ -183,14 +186,14 @@ class DocGenAgent(BaseAgent):
                 },
                 execution_time_ms=int(execution_time),
             )
-            
+
         except Exception as e:
             self.logger.error(f"Document generation failed: {e}", exc_info=True)
             return AgentResult.failure_result(
                 error=str(e),
                 error_code="DOCGEN_ERROR",
             )
-    
+
     async def generate_document(
         self,
         template_id: str,
@@ -198,27 +201,29 @@ class DocGenAgent(BaseAgent):
         jurisdiction: str,
     ) -> DocumentDraft:
         """Generate a document from template with AI enhancement.
-        
+
         Args:
             template_id: Template identifier
             variables: Template variables
             jurisdiction: State code
-            
+
         Returns:
             Generated document draft
         """
         # Load template
         template_content, template_meta = await self._load_template(template_id)
-        
+
         # Get jurisdiction-specific clauses
-        clauses = await self._get_jurisdiction_clauses(jurisdiction, template_id, template_meta)
-        
+        clauses = await self._get_jurisdiction_clauses(
+            jurisdiction, template_id, template_meta
+        )
+
         # Merge clauses into variables
         merged_variables = {**variables, **clauses}
-        
+
         # Render template with variables
         rendered_content = self._render_template(template_content, merged_variables)
-        
+
         # AI enhancement
         enhancements = await self.enhance_with_ai(
             rendered_content,
@@ -227,15 +232,15 @@ class DocGenAgent(BaseAgent):
             jurisdiction,
             merged_variables,
         )
-        
+
         # Apply enhancements if available
         if enhancements and enhancements.get("enhanced_sections"):
             rendered_content = self._apply_enhancements(rendered_content, enhancements)
-        
+
         # Generate document ID and hash
         document_id = str(uuid4())
         content_hash = sha256_hex(rendered_content + str(variables))
-        
+
         # Create draft
         draft = DocumentDraft(
             document_id=document_id,
@@ -248,13 +253,13 @@ class DocGenAgent(BaseAgent):
             storage_path=None,  # Set after persistence
             sha256=content_hash,
         )
-        
+
         # Persist document if DB available
         if self.db:
             await self._persist_document(draft)
-        
+
         return draft
-    
+
     async def enhance_with_ai(
         self,
         content: str,
@@ -264,14 +269,14 @@ class DocGenAgent(BaseAgent):
         variables: dict[str, Any],
     ) -> Optional[dict[str, Any]]:
         """Enhance document with AI suggestions.
-        
+
         Args:
             content: Document content
             template_id: Template identifier
             document_type: Type of document
             jurisdiction: State code
             variables: Template variables
-            
+
         Returns:
             Enhancement suggestions or None
         """
@@ -282,44 +287,103 @@ class DocGenAgent(BaseAgent):
             draft_content=content[:8000],  # Limit length
             variables=str(variables)[:2000],
         )
-        
+
         response = await self.call_ai(prompt, task_type="document_enhancement")
         return response
-    
-    async def render_to_pdf(self, document_id: str) -> dict[str, Any]:
-        """Render document to PDF format.
-        
-        Args:
-            document_id: Document ID to render
-            
-        Returns:
-            PDF metadata with storage path
+
+    async def render_to_pdf(
+        self,
+        document_id: str,
+        content: Optional[str] = None,
+        storage_dir: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Render document to PDF.
+
+        Uses WeasyPrint when available; otherwise falls back to a text PDF
+        that still produces a real file on disk so downstream filing / e-sign
+        flows have a byte stream to work with.
         """
-        # TODO: Implement PDF rendering with WeasyPrint
-        # For now, return placeholder
+
+        out_dir = Path(storage_dir or "/tmp/landgrant/rendered")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"{document_id}.pdf"
+
+        text = content or ""
+        page_count = 1
+        renderer = "text_fallback"
+
+        try:
+            from weasyprint import HTML  # type: ignore
+
+            html = f"<html><body><pre>{text}</pre></body></html>"
+            HTML(string=html).write_pdf(str(out_path))
+            renderer = "weasyprint"
+        except Exception:
+            try:
+                from reportlab.lib.pagesizes import letter  # type: ignore
+                from reportlab.pdfgen import canvas  # type: ignore
+
+                c = canvas.Canvas(str(out_path), pagesize=letter)
+                y = 750
+                for line in (text or f"Document {document_id}").splitlines() or [
+                    f"Document {document_id}"
+                ]:
+                    c.drawString(50, y, line[:110])
+                    y -= 14
+                    if y < 50:
+                        c.showPage()
+                        page_count += 1
+                        y = 750
+                c.save()
+                renderer = "reportlab"
+            except Exception:
+                out_path.write_bytes(
+                    f"%PDF-1.4\n% {document_id}\n{text}".encode("utf-8", "ignore")
+                )
+
         return {
             "document_id": document_id,
-            "storage_path": f"rendered/{document_id}.pdf",
-            "page_count": 1,
+            "storage_path": str(out_path),
+            "page_count": page_count,
+            "renderer": renderer,
             "rendered_at": datetime.utcnow().isoformat(),
         }
-    
-    async def render_to_docx(self, document_id: str) -> dict[str, Any]:
-        """Render document to DOCX format.
-        
-        Args:
-            document_id: Document ID to render
-            
-        Returns:
-            DOCX metadata with storage path
+
+    async def render_to_docx(
+        self,
+        document_id: str,
+        content: Optional[str] = None,
+        storage_dir: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Render document to DOCX.
+
+        Uses ``python-docx`` when installed; falls back to writing the raw
+        text as ``.docx`` bytes so workers always get a file.
         """
-        # TODO: Implement DOCX rendering with python-docx
+
+        out_dir = Path(storage_dir or "/tmp/landgrant/rendered")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"{document_id}.docx"
+
+        renderer = "text_fallback"
+        try:
+            from docx import Document as DocxDocument  # type: ignore
+
+            doc = DocxDocument()
+            for line in (content or "").splitlines() or [""]:
+                doc.add_paragraph(line)
+            doc.save(str(out_path))
+            renderer = "python-docx"
+        except Exception:
+            out_path.write_text(content or "")
+
         return {
             "document_id": document_id,
-            "storage_path": f"rendered/{document_id}.docx",
+            "storage_path": str(out_path),
+            "renderer": renderer,
             "rendered_at": datetime.utcnow().isoformat(),
         }
-    
+
     async def generate_court_petition(
         self,
         project_id: str,
@@ -327,12 +391,12 @@ class DocGenAgent(BaseAgent):
         petition_type: str = "condemnation",
     ) -> dict[str, Any]:
         """Generate a court petition document.
-        
+
         Args:
             project_id: Project ID
             parcel_id: Parcel ID
             petition_type: Type of petition
-            
+
         Returns:
             Generated petition with review task
         """
@@ -342,12 +406,12 @@ class DocGenAgent(BaseAgent):
             "motion_possession": "motion_for_possession",
             "motion_deposit": "motion_to_deposit",
         }
-        
+
         template_id = template_mapping.get(petition_type, "condemnation_petition")
-        
+
         # Fetch case data for variables
         case_data = await self._get_case_data(project_id, parcel_id)
-        
+
         # Generate document
         context = AgentContext(
             template_id=template_id,
@@ -356,40 +420,41 @@ class DocGenAgent(BaseAgent):
             project_id=project_id,
             parcel_id=parcel_id,
         )
-        
+
         result = await self.execute(context)
         return result.data
-    
+
     async def _load_template(self, template_id: str) -> tuple[str, dict[str, Any]]:
         """Load template content and metadata.
-        
+
         Args:
             template_id: Template identifier
-            
+
         Returns:
             Tuple of (content, metadata)
         """
         # Try library templates first
         template_path = TEMPLATES_DIR / "library" / template_id / "template.md"
         meta_path = TEMPLATES_DIR / "library" / template_id / "meta.json"
-        
+
         if not template_path.exists():
             # Fall back to base templates
             template_path = TEMPLATES_DIR / "base" / template_id / "template.md"
             meta_path = TEMPLATES_DIR / "base" / template_id / "meta.json"
-        
+
         if not template_path.exists():
             raise FileNotFoundError(f"Template not found: {template_id}")
-        
+
         content = template_path.read_text()
-        
+
         meta = {}
         if meta_path.exists():
             import json
+
             meta = json.loads(meta_path.read_text())
-        
+
         return content, meta
-    
+
     async def _get_jurisdiction_clauses(
         self,
         jurisdiction: str,
@@ -397,72 +462,72 @@ class DocGenAgent(BaseAgent):
         template_meta: dict[str, Any],
     ) -> dict[str, str]:
         """Get jurisdiction-specific clauses for template.
-        
+
         Args:
             jurisdiction: State code
             template_id: Template identifier
             template_meta: Template metadata
-            
+
         Returns:
             Dict of clause variables
         """
         clauses = {}
-        
+
         # Check for jurisdiction clauses in template metadata
         jurisdiction_clauses = template_meta.get("jurisdiction_clauses", {})
         if jurisdiction in jurisdiction_clauses:
             clauses.update(jurisdiction_clauses[jurisdiction])
-        
+
         return clauses
-    
+
     def _render_template(self, content: str, variables: dict[str, Any]) -> str:
         """Render template with variable substitution.
-        
+
         Args:
             content: Template content
             variables: Variables to substitute
-            
+
         Returns:
             Rendered content
         """
         rendered = content
-        
+
         for key, value in variables.items():
             placeholder = "{{ " + key + " }}"
             alt_placeholder = "{{" + key + "}}"
-            
+
             str_value = str(value) if value is not None else ""
-            
+
             rendered = rendered.replace(placeholder, str_value)
             rendered = rendered.replace(alt_placeholder, str_value)
-        
+
         return rendered
-    
+
     def _apply_enhancements(
         self,
         content: str,
         enhancements: dict[str, Any],
     ) -> str:
         """Apply AI enhancements to content.
-        
+
         Args:
             content: Original content
             enhancements: Enhancement suggestions
-            
+
         Returns:
             Enhanced content
         """
         enhanced_content = content
-        
+
         for section in enhancements.get("enhanced_sections", []):
             original = section.get("original", "")
             enhanced = section.get("enhanced", "")
-            
+
             if original and enhanced and original != enhanced:
                 enhanced_content = enhanced_content.replace(original, enhanced)
-        
+
         return enhanced_content
-    
+
     async def _create_review_task(
         self,
         draft: DocumentDraft,
@@ -470,25 +535,25 @@ class DocGenAgent(BaseAgent):
         parcel_id: str = None,
     ) -> str:
         """Create a review task for the generated document.
-        
+
         Also sends notifications to counsel about the pending review.
-        
+
         Args:
             draft: Document draft
             project_id: Optional project ID
             parcel_id: Optional parcel ID
-            
+
         Returns:
             Review task ID
         """
         task_id = str(uuid4())
         reviewer_ids = []
-        
+
         if self.db:
             try:
                 from app.db.models import Task, Persona, User
                 from sqlalchemy import select
-                
+
                 task = Task(
                     id=task_id,
                     project_id=project_id or "",
@@ -505,17 +570,17 @@ class DocGenAgent(BaseAgent):
                 )
                 self.db.add(task)
                 await self.db.commit()
-                
+
                 # Get counsel users to notify
                 result = await self.db.execute(
                     select(User).where(User.persona == Persona.IN_HOUSE_COUNSEL)
                 )
                 users = result.scalars().all()
                 reviewer_ids = [u.id for u in users]
-                
+
             except Exception as e:
                 self.logger.warning(f"Failed to create review task: {e}")
-        
+
         # Send notification to reviewers
         if reviewer_ids:
             await self._notify_document_ready(
@@ -524,9 +589,9 @@ class DocGenAgent(BaseAgent):
                 draft.template_id,
                 project_id,
             )
-        
+
         return task_id
-    
+
     async def _notify_document_ready(
         self,
         document_id: str,
@@ -535,7 +600,7 @@ class DocGenAgent(BaseAgent):
         project_id: str = None,
     ) -> None:
         """Send notification that document is ready for review.
-        
+
         Args:
             document_id: Document ID
             reviewer_ids: Users to notify
@@ -544,34 +609,34 @@ class DocGenAgent(BaseAgent):
         """
         try:
             from app.tasks.notifications import send_document_ready_notification
-            
+
             send_document_ready_notification.delay(
                 document_id=document_id,
                 reviewer_ids=reviewer_ids,
                 document_type=document_type,
                 project_id=project_id,
             )
-            
+
             self.logger.info(
                 f"Queued document review notification for {document_id} to {len(reviewer_ids)} reviewers"
             )
-            
+
         except Exception as e:
             # Don't fail the document generation if notification fails
             self.logger.warning(f"Failed to queue document notification: {e}")
-    
+
     async def _persist_document(self, draft: DocumentDraft) -> None:
         """Persist document to database and storage.
-        
+
         Args:
             draft: Document draft to persist
         """
         try:
             from app.db.models import Document
-            
+
             storage_path = f"generated/{draft.document_id}.md"
             draft.storage_path = storage_path
-            
+
             document = Document(
                 id=draft.document_id,
                 doc_type=draft.template_id,
@@ -587,21 +652,21 @@ class DocGenAgent(BaseAgent):
             )
             self.db.add(document)
             await self.db.commit()
-            
+
         except Exception as e:
             self.logger.warning(f"Failed to persist document: {e}")
-    
+
     async def _get_case_data(
         self,
         project_id: str,
         parcel_id: str,
     ) -> dict[str, Any]:
         """Fetch case data for petition generation.
-        
+
         Args:
             project_id: Project ID
             parcel_id: Parcel ID
-            
+
         Returns:
             Case data for template variables
         """
@@ -616,36 +681,38 @@ class DocGenAgent(BaseAgent):
                 "public_use": "Road expansion",
                 "appraisal_value": 350000.0,
             }
-        
+
         try:
             from app.db.models import Project, Parcel, Appraisal
             from sqlalchemy import select
-            
+
             # Fetch project
             project_result = await self.db.execute(
                 select(Project).where(Project.id == project_id)
             )
             project = project_result.scalar_one_or_none()
-            
+
             # Fetch parcel
             parcel_result = await self.db.execute(
                 select(Parcel).where(Parcel.id == parcel_id)
             )
             parcel = parcel_result.scalar_one_or_none()
-            
+
             # Fetch appraisal
             appraisal_result = await self.db.execute(
                 select(Appraisal).where(Appraisal.parcel_id == parcel_id)
             )
             appraisal = appraisal_result.scalar_one_or_none()
-            
+
             return {
                 "jurisdiction": project.jurisdiction_code if project else "TX",
                 "project_name": project.name if project else "",
-                "parcel_address": parcel.metadata_json.get("address", "") if parcel else "",
+                "parcel_address": (
+                    parcel.metadata_json.get("address", "") if parcel else ""
+                ),
                 "appraisal_value": float(appraisal.value) if appraisal else 0,
             }
-            
+
         except Exception as e:
             self.logger.error(f"Failed to fetch case data: {e}")
             return {}

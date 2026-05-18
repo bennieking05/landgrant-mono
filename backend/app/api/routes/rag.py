@@ -6,10 +6,14 @@ Provides REST API for:
 - Checking knowledge base health
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel, Field
 from typing import Optional, Any
 import logging
+
+from app.api.deps import get_current_persona
+from app.db.models import Persona
+from app.security.rbac import authorize, Action
 
 from app.services.rag_service import (
     search,
@@ -19,7 +23,6 @@ from app.services.rag_service import (
     get_collection_stats,
     SearchRequest,
     DocumentType,
-    RetrievalResult,
 )
 from app.tasks.ingest import (
     ingest_rule_pack_task,
@@ -37,10 +40,14 @@ router = APIRouter(prefix="/rag", tags=["RAG Knowledge Base"])
 # Request/Response Models
 # =============================================================================
 
+
 class SearchRequestModel(BaseModel):
     """Request model for knowledge base search."""
+
     query: str = Field(..., description="Search query (natural language)")
-    jurisdiction: Optional[str] = Field(None, description="Filter by jurisdiction (e.g., TX, CA)")
+    jurisdiction: Optional[str] = Field(
+        None, description="Filter by jurisdiction (e.g., TX, CA)"
+    )
     doc_types: Optional[list[str]] = Field(None, description="Filter by document types")
     top_k: int = Field(5, ge=1, le=20, description="Number of results to return")
     min_score: float = Field(0.7, ge=0.0, le=1.0, description="Minimum relevance score")
@@ -48,6 +55,7 @@ class SearchRequestModel(BaseModel):
 
 class SearchResultModel(BaseModel):
     """Response model for a single search result."""
+
     chunk_id: str
     content: str
     relevance_score: float
@@ -59,6 +67,7 @@ class SearchResultModel(BaseModel):
 
 class SearchResponseModel(BaseModel):
     """Response model for search endpoint."""
+
     query: str
     result_count: int
     results: list[SearchResultModel]
@@ -67,9 +76,12 @@ class SearchResponseModel(BaseModel):
 
 class IngestDocumentRequest(BaseModel):
     """Request model for document ingestion."""
+
     document_id: str = Field(..., description="Unique document identifier")
     content: str = Field(..., description="Document text content")
-    doc_type: str = Field(..., description="Document type (statute, case_law, template, etc.)")
+    doc_type: str = Field(
+        ..., description="Document type (statute, case_law, template, etc.)"
+    )
     jurisdiction: Optional[str] = Field(None, description="Jurisdiction code")
     citation: Optional[str] = Field(None, description="Legal citation")
     metadata: Optional[dict[str, Any]] = Field(None, description="Additional metadata")
@@ -77,6 +89,7 @@ class IngestDocumentRequest(BaseModel):
 
 class IngestResponse(BaseModel):
     """Response model for ingestion endpoints."""
+
     status: str
     message: str
     task_id: Optional[str] = None
@@ -85,6 +98,7 @@ class IngestResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """Response model for health check."""
+
     rag_enabled: bool
     chroma_status: str
     embedding_status: str
@@ -96,26 +110,30 @@ class HealthResponse(BaseModel):
 # Search Endpoints
 # =============================================================================
 
+
 @router.post("/search", response_model=SearchResponseModel)
-async def search_knowledge_base(request: SearchRequestModel):
+async def search_knowledge_base(
+    request: SearchRequestModel, persona: Persona = Depends(get_current_persona)
+):
     """Search the legal knowledge base.
-    
+
     Returns relevant statutes, case law, and rule pack information
     based on the search query. Results can be filtered by jurisdiction
     and document type.
     """
+    authorize(persona, "rag", Action.READ)
     try:
         # Convert doc_types to enum
         doc_type_enums = None
         if request.doc_types:
             try:
                 doc_type_enums = [DocumentType(dt) for dt in request.doc_types]
-            except ValueError as e:
+            except ValueError:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Invalid document type. Valid types: {[dt.value for dt in DocumentType]}"
+                    detail=f"Invalid document type. Valid types: {[dt.value for dt in DocumentType]}",
                 )
-        
+
         search_req = SearchRequest(
             query=request.query,
             jurisdiction=request.jurisdiction,
@@ -123,12 +141,12 @@ async def search_knowledge_base(request: SearchRequestModel):
             top_k=request.top_k,
             min_score=request.min_score,
         )
-        
+
         results = await search(search_req)
-        
+
         # Format for prompt
         formatted = format_context_for_prompt(results)
-        
+
         return SearchResponseModel(
             query=request.query,
             result_count=len(results),
@@ -146,7 +164,7 @@ async def search_knowledge_base(request: SearchRequestModel):
             ],
             formatted_context=formatted,
         )
-        
+
     except Exception as e:
         logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -157,15 +175,17 @@ async def get_context_for_query(
     query: str,
     jurisdiction: Optional[str] = None,
     top_k: int = 5,
+    persona: Persona = Depends(get_current_persona),
 ):
     """Simplified search endpoint for AI agents.
-    
+
     Returns formatted context string suitable for inclusion in LLM prompts.
     """
+    authorize(persona, "rag", Action.READ)
     try:
         results = await search_for_context(query, jurisdiction, top_k)
         formatted = format_context_for_prompt(results)
-        
+
         return {
             "query": query,
             "jurisdiction": jurisdiction,
@@ -173,7 +193,7 @@ async def get_context_for_query(
             "context": formatted,
             "citations": [r.citation for r in results if r.citation],
         }
-        
+
     except Exception as e:
         logger.error(f"Context retrieval failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -183,15 +203,18 @@ async def get_context_for_query(
 # Ingestion Endpoints
 # =============================================================================
 
+
 @router.post("/ingest/document", response_model=IngestResponse)
 async def ingest_document(
     request: IngestDocumentRequest,
     background_tasks: BackgroundTasks,
+    persona: Persona = Depends(get_current_persona),
 ):
     """Ingest a single document into the knowledge base.
-    
+
     Document is processed asynchronously via Celery task.
     """
+    authorize(persona, "rag", Action.WRITE)
     try:
         # Validate document type
         try:
@@ -199,9 +222,9 @@ async def ingest_document(
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid document type. Valid types: {[dt.value for dt in DocumentType]}"
+                detail=f"Invalid document type. Valid types: {[dt.value for dt in DocumentType]}",
             )
-        
+
         # Queue ingestion task
         task = ingest_document_task.delay(
             document_id=request.document_id,
@@ -211,13 +234,13 @@ async def ingest_document(
             citation=request.citation,
             metadata=request.metadata,
         )
-        
+
         return IngestResponse(
             status="queued",
             message=f"Document {request.document_id} queued for ingestion",
             task_id=task.id,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -229,64 +252,72 @@ async def ingest_document(
 async def ingest_jurisdiction_rules(
     jurisdiction: str,
     background_tasks: BackgroundTasks,
+    persona: Persona = Depends(get_current_persona),
 ):
     """Ingest a jurisdiction rule pack into the knowledge base.
-    
+
     Processes the rule pack YAML file and creates searchable chunks
     for initiation procedures, compensation rules, owner rights, etc.
     """
+    authorize(persona, "rag", Action.WRITE)
     try:
         jurisdiction = jurisdiction.upper()
-        
+
         # Queue ingestion task
         task = ingest_rule_pack_task.delay(jurisdiction)
-        
+
         return IngestResponse(
             status="queued",
             message=f"Rule pack {jurisdiction} queued for ingestion",
             task_id=task.id,
         )
-        
+
     except Exception as e:
         logger.error(f"Rule pack ingestion request failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/ingest/all-rules", response_model=IngestResponse)
-async def ingest_all_jurisdiction_rules(background_tasks: BackgroundTasks):
+async def ingest_all_jurisdiction_rules(
+    background_tasks: BackgroundTasks, persona: Persona = Depends(get_current_persona)
+):
     """Ingest all available jurisdiction rule packs.
-    
+
     Scans the rules directory and ingests all YAML rule packs.
     """
+    authorize(persona, "rag", Action.WRITE)
     try:
         task = ingest_all_rule_packs.delay()
-        
+
         return IngestResponse(
             status="queued",
             message="All rule packs queued for ingestion",
             task_id=task.id,
         )
-        
+
     except Exception as e:
         logger.error(f"Batch rule ingestion request failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/refresh", response_model=IngestResponse)
-async def trigger_knowledge_base_refresh(background_tasks: BackgroundTasks):
+async def trigger_knowledge_base_refresh(
+    background_tasks: BackgroundTasks, persona: Persona = Depends(get_current_persona)
+):
     """Trigger a full knowledge base refresh.
-    
+
     Re-ingests all rule packs and updates collection statistics.
     """
+    authorize(persona, "rag", Action.WRITE)
     try:
         task = refresh_knowledge_base.delay()
-        
+
         return IngestResponse(
             status="queued",
             message="Knowledge base refresh queued",
             task_id=task.id,
         )
-        
+
     except Exception as e:
         logger.error(f"Refresh request failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -296,12 +327,14 @@ async def trigger_knowledge_base_refresh(background_tasks: BackgroundTasks):
 # Health & Stats Endpoints
 # =============================================================================
 
+
 @router.get("/health", response_model=HealthResponse)
-async def check_rag_health():
+async def check_rag_health(persona: Persona = Depends(get_current_persona)):
     """Check RAG service health status.
-    
+
     Returns status of ChromaDB, embedding model, and document counts.
     """
+    authorize(persona, "rag", Action.READ)
     try:
         health = await health_check()
         return HealthResponse(**health)
@@ -311,11 +344,12 @@ async def check_rag_health():
 
 
 @router.get("/stats")
-async def get_knowledge_base_stats():
+async def get_knowledge_base_stats(persona: Persona = Depends(get_current_persona)):
     """Get knowledge base statistics.
-    
+
     Returns document counts, collection info, and configuration.
     """
+    authorize(persona, "rag", Action.READ)
     try:
         stats = get_collection_stats()
         return stats
@@ -325,11 +359,7 @@ async def get_knowledge_base_stats():
 
 
 @router.get("/doc-types")
-async def list_document_types():
+async def list_document_types(persona: Persona = Depends(get_current_persona)):
     """List available document types for the knowledge base."""
-    return {
-        "doc_types": [
-            {"value": dt.value, "name": dt.name}
-            for dt in DocumentType
-        ]
-    }
+    authorize(persona, "rag", Action.READ)
+    return {"doc_types": [{"value": dt.value, "name": dt.name} for dt in DocumentType]}

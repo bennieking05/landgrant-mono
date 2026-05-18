@@ -6,14 +6,34 @@ import { BinderStatus } from "@/components/BinderStatus";
 import { DeadlineManager } from "@/components/DeadlineManager";
 import { TemplateViewer } from "@/components/TemplateViewer";
 import { OutsideCounselPanel } from "@/components/OutsideCounselPanel";
+import { LitigationPanel } from "@/components/LitigationPanel";
+import { TaskManager } from "@/components/TaskManager";
 import { AIDecisionReview } from "@/components/AIDecisionReview";
 import { CopilotPanel } from "@/components/CopilotPanel";
 import { SettlementPredictor } from "@/components/SettlementPredictor";
+import { AIAuditDrawer } from "@/components/AIAuditDrawer";
+
+type CounselTab = "approvals" | "binder" | "litigation" | "tasks";
 
 export function CounselPage() {
   const { projectId, parcelId } = useAppContext();
   const effectiveParcelId = parcelId ?? "PARCEL-001";
   const [showCopilot, setShowCopilot] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
+  const [tab, setTab] = useState<CounselTab>("approvals");
+
+  const tabBtn = (id: CounselTab, label: string) => (
+    <button
+      type="button"
+      key={id}
+      onClick={() => setTab(id)}
+      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+        tab === id ? "bg-brand text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+      }`}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="flex h-full">
@@ -27,48 +47,76 @@ export function CounselPage() {
               Deterministic gate before filings, with audit logging + outside counsel handoffs per scope instructions.
             </p>
           </div>
-          <button
-            onClick={() => setShowCopilot(!showCopilot)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
-              showCopilot
-                ? "bg-brand text-white border-brand"
-                : "bg-white text-slate-700 border-slate-200 hover:border-brand hover:text-brand"
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-            <span className="text-sm font-medium">AI Copilot</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAudit(true)}
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-brand hover:text-brand"
+              data-testid="open-ai-audit"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              AI Audit
+            </button>
+            <button
+              onClick={() => setShowCopilot(!showCopilot)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                showCopilot
+                  ? "bg-brand text-white border-brand"
+                  : "bg-white text-slate-700 border-slate-200 hover:border-brand hover:text-brand"
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              <span className="text-sm font-medium">AI Copilot</span>
+            </button>
+          </div>
         </div>
 
-        {/* Original counsel components */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <CounselQueue />
-          <BudgetPanel projectId={projectId} />
+        <div
+          className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1"
+          role="tablist"
+          aria-label="Counsel sections"
+        >
+          {tabBtn("approvals", "Approvals & templates")}
+          {tabBtn("binder", "Binder & deadlines")}
+          {tabBtn("litigation", "Litigation")}
+          {tabBtn("tasks", "Tasks")}
         </div>
 
-        {/* Binder and Deadline management */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <BinderStatus projectId={projectId} />
-          <DeadlineManager projectId={projectId} />
-        </div>
+        {tab === "approvals" && (
+          <>
+            <div className="grid gap-4 md:grid-cols-2">
+              <CounselQueue />
+              <BudgetPanel projectId={projectId} />
+            </div>
+            <TemplateViewer />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <AIDecisionReview />
+              <SettlementPredictor
+                parcelId={effectiveParcelId}
+                jurisdiction="TX"
+                assessedValue={350000}
+              />
+            </div>
+            <OutsideCounselPanel projectId={projectId} parcelId={effectiveParcelId} />
+          </>
+        )}
 
-        {/* Template library */}
-        <TemplateViewer />
+        {tab === "binder" && (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <BinderStatus projectId={projectId} />
+            <DeadlineManager projectId={projectId} />
+          </div>
+        )}
 
-        {/* AI Decision Review & Settlement Predictor */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <AIDecisionReview />
-          <SettlementPredictor
-            parcelId={effectiveParcelId}
-            jurisdiction="TX"
-            assessedValue={350000}
-          />
-        </div>
+        {tab === "litigation" && (
+          <LitigationPanel parcelId={effectiveParcelId} projectId={projectId} />
+        )}
 
-        {/* Outside counsel handoff */}
-        <OutsideCounselPanel projectId={projectId} parcelId={effectiveParcelId} />
+        {tab === "tasks" && <TaskManager projectId={projectId} parcelId={effectiveParcelId} />}
       </section>
 
       {/* Copilot Panel */}
@@ -83,6 +131,14 @@ export function CounselPage() {
           />
         </div>
       )}
+
+      {/* AI Audit drawer - surfaces signed provenance of AI decisions */}
+      <AIAuditDrawer
+        open={showAudit}
+        onClose={() => setShowAudit(false)}
+        resourceId={effectiveParcelId}
+        title="AI decisions for this parcel"
+      />
     </div>
   );
 }

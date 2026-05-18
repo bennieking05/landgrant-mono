@@ -6,7 +6,7 @@
 
 ## Context
 
-LandRight serves multiple user types with different access needs:
+LandGrant serves multiple user types with different access needs:
 - **Landowners:** View/respond to their own parcel information
 - **Land Agents:** Manage parcels, communications, offers
 - **In-House Counsel:** Approve documents, manage litigation

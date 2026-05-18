@@ -1,4 +1,4 @@
-"""Celery worker initialization for LandRight background tasks.
+"""Celery worker initialization for LandGrant background tasks.
 
 This module initializes the Celery application and discovers tasks from
 the tasks package. It supports both Redis broker and Cloud Pub/Sub (planned).
@@ -21,7 +21,7 @@ settings = get_settings()
 
 # Initialize Celery app
 app = Celery(
-    "landright",
+    "landgrant",
     broker=settings.effective_redis_url,
     backend=settings.effective_redis_url,
     include=[

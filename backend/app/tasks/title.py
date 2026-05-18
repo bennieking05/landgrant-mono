@@ -17,27 +17,26 @@ logger = logging.getLogger(__name__)
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def process_title_document_ocr(self, document_id: str) -> dict[str, Any]:
     """Process a title document with OCR.
-    
+
     Args:
         document_id: Document to process
-        
+
     Returns:
         OCR result with extracted text
     """
     try:
         from app.agents.title_agent import TitleAgent
-        
+
         agent = TitleAgent()
         import asyncio
+
         loop = asyncio.new_event_loop()
         try:
-            result = loop.run_until_complete(
-                agent.ocr_document(document_id)
-            )
+            result = loop.run_until_complete(agent.ocr_document(document_id))
             return result
         finally:
             loop.close()
-            
+
     except Exception as exc:
         logger.error(f"OCR processing failed for document {document_id}: {exc}")
         raise self.retry(exc=exc)
@@ -46,26 +45,27 @@ def process_title_document_ocr(self, document_id: str) -> dict[str, Any]:
 @shared_task(bind=True, max_retries=2)
 def analyze_title_document(self, document_id: str) -> dict[str, Any]:
     """Analyze a title document for entities and issues.
-    
+
     Args:
         document_id: Document to analyze
-        
+
     Returns:
         Analysis with extracted entities and flagged issues
     """
     try:
         from app.agents.title_agent import TitleAgent
         from app.agents.orchestrator import AgentOrchestrator, AgentContext
-        
+
         agent = TitleAgent()
         orchestrator = AgentOrchestrator()
-        
+
         context = AgentContext(
             document_id=document_id,
             action="analyze_document",
         )
-        
+
         import asyncio
+
         loop = asyncio.new_event_loop()
         try:
             result = loop.run_until_complete(
@@ -78,7 +78,7 @@ def analyze_title_document(self, document_id: str) -> dict[str, Any]:
             }
         finally:
             loop.close()
-            
+
     except Exception as exc:
         logger.error(f"Title analysis failed for document {document_id}: {exc}")
         raise self.retry(exc=exc)
@@ -87,26 +87,27 @@ def analyze_title_document(self, document_id: str) -> dict[str, Any]:
 @shared_task(bind=True)
 def build_chain_of_title(self, parcel_id: str) -> dict[str, Any]:
     """Build chain of title from all parcel instruments.
-    
+
     Args:
         parcel_id: Parcel to analyze
-        
+
     Returns:
         Chain of title with gaps and issues identified
     """
     try:
         from app.agents.title_agent import TitleAgent
         from app.agents.orchestrator import AgentOrchestrator, AgentContext
-        
+
         agent = TitleAgent()
         orchestrator = AgentOrchestrator()
-        
+
         context = AgentContext(
             parcel_id=parcel_id,
             action="build_chain",
         )
-        
+
         import asyncio
+
         loop = asyncio.new_event_loop()
         try:
             result = loop.run_until_complete(
@@ -114,13 +115,15 @@ def build_chain_of_title(self, parcel_id: str) -> dict[str, Any]:
             )
             return {
                 "status": result.status,
-                "chain": result.result.data.get("chain_of_title") if result.result else None,
+                "chain": (
+                    result.result.data.get("chain_of_title") if result.result else None
+                ),
                 "issues": result.result.data.get("issues") if result.result else [],
                 "requires_review": result.status == "pending_review",
             }
         finally:
             loop.close()
-            
+
     except Exception as exc:
         logger.error(f"Chain of title build failed for parcel {parcel_id}: {exc}")
         raise
@@ -129,19 +132,20 @@ def build_chain_of_title(self, parcel_id: str) -> dict[str, Any]:
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def fetch_public_records(self, parcel_id: str, county_fips: str) -> dict[str, Any]:
     """Fetch public records for a parcel (tax, GIS, zoning).
-    
+
     Args:
         parcel_id: Parcel ID
         county_fips: County FIPS code
-        
+
     Returns:
         Public records data
     """
     try:
         from app.agents.title_agent import TitleAgent
-        
+
         agent = TitleAgent()
         import asyncio
+
         loop = asyncio.new_event_loop()
         try:
             # Fetch multiple data sources in parallel
@@ -151,7 +155,7 @@ def fetch_public_records(self, parcel_id: str, county_fips: str) -> dict[str, An
             return result
         finally:
             loop.close()
-            
+
     except Exception as exc:
         logger.error(f"Public records fetch failed for parcel {parcel_id}: {exc}")
         raise self.retry(exc=exc)
@@ -160,19 +164,20 @@ def fetch_public_records(self, parcel_id: str, county_fips: str) -> dict[str, An
 @shared_task(bind=True)
 def extract_title_entities(self, ocr_text: str, document_type: str) -> dict[str, Any]:
     """Extract entities from OCR text using NLP.
-    
+
     Args:
         ocr_text: Text from OCR processing
         document_type: Type of title document
-        
+
     Returns:
         Extracted entities (parties, dates, amounts, etc.)
     """
     try:
         from app.agents.title_agent import TitleAgent
-        
+
         agent = TitleAgent()
         import asyncio
+
         loop = asyncio.new_event_loop()
         try:
             result = loop.run_until_complete(
@@ -181,28 +186,31 @@ def extract_title_entities(self, ocr_text: str, document_type: str) -> dict[str,
             return result
         finally:
             loop.close()
-            
+
     except Exception as exc:
         logger.error(f"Entity extraction failed: {exc}")
         raise
 
 
 @shared_task(bind=True)
-def identify_title_issues(self, parcel_id: str, chain_data: dict[str, Any]) -> dict[str, Any]:
+def identify_title_issues(
+    self, parcel_id: str, chain_data: dict[str, Any]
+) -> dict[str, Any]:
     """Use AI to identify potential title issues.
-    
+
     Args:
         parcel_id: Parcel ID
         chain_data: Chain of title data
-        
+
     Returns:
         Identified issues with severity and recommendations
     """
     try:
         from app.agents.title_agent import TitleAgent
-        
+
         agent = TitleAgent()
         import asyncio
+
         loop = asyncio.new_event_loop()
         try:
             result = loop.run_until_complete(
@@ -211,7 +219,7 @@ def identify_title_issues(self, parcel_id: str, chain_data: dict[str, Any]) -> d
             return result
         finally:
             loop.close()
-            
+
     except Exception as exc:
         logger.error(f"Title issue identification failed for parcel {parcel_id}: {exc}")
         raise

@@ -1,0 +1,39 @@
+---
+description: Quality enforcement rules for the LandGrant platform
+globs: ["**/*.py", "**/*.ts", "**/*.tsx"]
+alwaysApply: false
+---
+
+# LandGrant Quality Rules
+
+## Completion Criteria
+
+- Do NOT mark work complete until implementation is done and tested
+- TypeScript must pass `npx tsc --noEmit` with zero errors
+- Python must pass `ruff check` with zero errors
+- All existing tests must pass: `cd backend && .venv/bin/python -m pytest --tb=short -q`
+- Changed workflows must be manually reviewable via the running app
+
+## Code Standards
+
+- All public Python functions must have type hints
+- All FastAPI endpoints must have response models or explicit return types
+- Frontend components must use TypeScript strict mode
+- No `any` types in TypeScript except where interfacing with untyped libraries
+- No bare `except:` in Python -- always catch specific exceptions
+
+## Documentation Requirements
+
+- Major changes must be reflected in corresponding docs/ files
+- New API routes must be documented in `docs/api-reference.md`
+- New RBAC resources must be added to the permission matrix AND documented
+- Architecture changes require updating `docs/architecture.md`
+
+## Review Checklist
+
+Before completing any task:
+1. Does the code compile/typecheck?
+2. Do all tests pass?
+3. Is the change reflected in documentation?
+4. Does the UI render correctly for all relevant personas?
+5. Are there no regressions in existing functionality?

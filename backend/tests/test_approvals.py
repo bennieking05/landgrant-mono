@@ -7,7 +7,7 @@ from app.services.approvals import (
     ApprovalService,
     ApprovalRequest,
     ApprovalGate,
-    requires_approval,
+    action_requires_approval as requires_approval,
     check_approval_status,
 )
 

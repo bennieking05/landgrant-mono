@@ -1,20 +1,20 @@
-version: "3.9"
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: landright
-      POSTGRES_USER: landright
-      POSTGRES_PASSWORD: landright
+      POSTGRES_DB: landgrant
+      POSTGRES_USER: landgrant
+      POSTGRES_PASSWORD: landgrant
     ports:
       - "55432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U landright"]
+      test: ["CMD-SHELL", "pg_isready -U landgrant"]
       interval: 5s
       timeout: 5s
       retries: 5
+
   redis:
     image: redis:7-alpine
     ports:
@@ -24,5 +24,79 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Durable vector store.  Persists to the ``chroma_data`` named volume so
+  # restarts don't wipe the legal KB index.  Phase 3.4.
+  chroma:
+    image: chromadb/chroma:0.5.20
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    ports:
+      - "58000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    # Build from repo root so Dockerfile's ``COPY backend/... rules/ templates/``
+    # paths resolve (see backend/Dockerfile).
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+    environment:
+      ENVIRONMENT: dev
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RAG_CHROMA_MODE: http
+      RAG_CHROMA_HOST: chroma
+      RAG_CHROMA_PORT: 8000
+      ALEMBIC_AUTO: "1"
+      # Align container with repo convention (backend on :8050). The Dockerfile
+      # defaults to 8080 (Cloud Run); compose overrides to 8050.
+      PORT: "8050"
+      # OTLP tracing is opt-in and requires an OTEL collector. Leave disabled
+      # in local dev to avoid noisy connection errors; set ENABLE_OTLP=true and
+      # OTEL_EXPORTER_OTLP_ENDPOINT when you run a collector alongside compose.
+      ENABLE_OTLP: "false"
+    ports:
+      - "8050:8050"
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.worker
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+    environment:
+      ENVIRONMENT: dev
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RAG_CHROMA_MODE: http
+      RAG_CHROMA_HOST: chroma
+      RAG_CHROMA_PORT: 8000
+      ENABLE_OTLP: "false"
+
 volumes:
   pgdata:
+  chroma_data:

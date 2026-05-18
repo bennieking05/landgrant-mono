@@ -143,7 +143,7 @@ test.describe("Agent Workbench Flow", () => {
   test("should navigate between pages", async ({ page }) => {
     // Click home link or navigate
     await page.goto("/");
-    await expect(page.locator("text=LandRight MVP")).toBeVisible();
+    await expect(page.locator("text=LandGrant MVP")).toBeVisible();
     
     // Navigate back to workbench
     await page.click("text=Agent Workbench");

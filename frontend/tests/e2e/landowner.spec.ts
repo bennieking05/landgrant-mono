@@ -99,7 +99,7 @@ test.describe("Landowner Portal Flow", () => {
     await page.goto("/");
     
     // Verify home page loads
-    await expect(page.locator("text=LandRight MVP")).toBeVisible();
+    await expect(page.locator("text=LandGrant MVP")).toBeVisible();
     
     await page.screenshot({
       path: path.join(ARTIFACTS_DIR, "landowner-06-home-return.png"),

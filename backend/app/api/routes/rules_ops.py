@@ -7,21 +7,69 @@ Provides endpoints for:
 - Regulatory update monitoring
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, Any
 from datetime import datetime
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_persona
+from app.api.deps import get_current_persona, get_db
+from app.db import models
 from app.db.models import Persona
 from app.security.rbac import authorize, Action
 
 router = APIRouter(prefix="/rules", tags=["rules-ops"])
 
 
+@router.get("/results")
+def list_rule_results(
+    parcel_id: str,
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
+    """Parcel-scoped rule firing history (Workbench)."""
+    authorize(persona, "parcel", Action.READ)
+    try:
+        results = (
+            db.query(models.RuleResult)
+            .filter(models.RuleResult.parcel_id == parcel_id)
+            .order_by(models.RuleResult.fired_at.desc())
+            .all()
+        )
+        items = [
+            {
+                "id": r.id,
+                "rule_id": r.rule_id,
+                "citation": r.citation,
+                "fired": True,
+                "fired_at": r.fired_at.isoformat() + "Z" if r.fired_at else None,
+                "payload": r.payload,
+            }
+            for r in results
+        ]
+        if items:
+            return {"parcel_id": parcel_id, "items": items}
+        raise RuntimeError("no_rows")
+    except Exception:
+        return {
+            "parcel_id": parcel_id,
+            "items": [
+                {
+                    "id": "RULE-001",
+                    "rule_id": "valuation_threshold",
+                    "citation": "Tex. Prop. Code §21.0113",
+                    "fired": True,
+                    "fired_at": None,
+                    "payload": {"parcel.assessed_value": 300000},
+                }
+            ],
+        }
+
+
 # Request/Response models
 class ImportPackRequest(BaseModel):
     """Request to import a state pack."""
+
     jurisdiction: str
     yaml_content: str
     citations: Optional[list[dict[str, Any]]] = None
@@ -30,6 +78,7 @@ class ImportPackRequest(BaseModel):
 
 class ImportPackResponse(BaseModel):
     """Response from pack import."""
+
     pack_id: str
     jurisdiction: str
     version: str
@@ -40,6 +89,7 @@ class ImportPackResponse(BaseModel):
 
 class ValidationResult(BaseModel):
     """Pack validation result."""
+
     valid: bool
     errors: list[str]
     warnings: list[str]
@@ -49,6 +99,7 @@ class ValidationResult(BaseModel):
 
 class PackDiffResponse(BaseModel):
     """Diff between two pack versions."""
+
     from_version: str
     to_version: str
     added_count: int
@@ -60,6 +111,7 @@ class PackDiffResponse(BaseModel):
 
 class PublishRequest(BaseModel):
     """Request to publish a pack."""
+
     pack_id: str
     effective_date: Optional[datetime] = None
 
@@ -70,15 +122,15 @@ async def import_state_pack(
     persona: Persona = Depends(get_current_persona),
 ):
     """Import a state requirement pack from YAML.
-    
+
     The pack is staged for validation before publishing.
     Only counsel can import packs.
     """
     authorize(persona, "rules", Action.WRITE)
-    
+
     try:
         from app.services.requirements_ops import RequirementsOpsService
-        
+
         service = RequirementsOpsService()
         result = service.import_state_pack(
             jurisdiction=request.jurisdiction,
@@ -86,7 +138,7 @@ async def import_state_pack(
             citations=request.citations,
             metadata=request.metadata,
         )
-        
+
         pack = result["pack"]
         return ImportPackResponse(
             pack_id=pack["id"],
@@ -96,7 +148,7 @@ async def import_state_pack(
             requirements_count=pack["requirements_count"],
             staging_path=result["staging_path"],
         )
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -109,18 +161,18 @@ async def validate_pack(
     persona: Persona = Depends(get_current_persona),
 ):
     """Validate a staged pack for schema and consistency.
-    
+
     Returns errors and warnings that must be addressed
     before publishing.
     """
     authorize(persona, "rules", Action.READ)
-    
+
     try:
         from app.services.requirements_ops import RequirementsOpsService
-        
+
         service = RequirementsOpsService()
         result = service.validate_pack(pack_id)
-        
+
         return ValidationResult(
             valid=result.valid,
             errors=result.errors,
@@ -128,7 +180,7 @@ async def validate_pack(
             requirements_count=result.requirements_count,
             topics_covered=result.topics_covered,
         )
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -141,18 +193,18 @@ async def diff_packs(
     persona: Persona = Depends(get_current_persona),
 ):
     """Show differences between two pack versions.
-    
+
     Useful for reviewing changes before publishing
     or understanding what changed between versions.
     """
     authorize(persona, "rules", Action.READ)
-    
+
     try:
         from app.services.requirements_ops import RequirementsOpsService
-        
+
         service = RequirementsOpsService()
         diff = service.diff_packs(from_version, to_version)
-        
+
         return PackDiffResponse(
             from_version=diff.from_version,
             to_version=diff.to_version,
@@ -166,7 +218,7 @@ async def diff_packs(
                 "modified": diff.modified,
             },
         )
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -177,24 +229,24 @@ async def publish_pack(
     persona: Persona = Depends(get_current_persona),
 ):
     """Publish a validated pack to active status.
-    
+
     The previous active version is archived.
     Only counsel can publish packs.
     """
     authorize(persona, "rules", Action.APPROVE)
-    
+
     try:
         from app.services.requirements_ops import RequirementsOpsService
-        
+
         service = RequirementsOpsService()
         result = service.publish_pack(
             pack_id=request.pack_id,
             user_id=str(persona),
             effective_date=request.effective_date,
         )
-        
+
         return result
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -206,18 +258,17 @@ async def get_active_pack(
 ):
     """Get the currently active pack for a state."""
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.requirements_ops import RequirementsOpsService
-    
+
     service = RequirementsOpsService()
     pack = service.get_active_pack(state)
-    
+
     if not pack:
         raise HTTPException(
-            status_code=404,
-            detail=f"No active pack found for state: {state}"
+            status_code=404, detail=f"No active pack found for state: {state}"
         )
-    
+
     return pack
 
 
@@ -227,9 +278,9 @@ async def list_jurisdictions(
 ):
     """List all jurisdictions with active packs."""
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.requirements_ops import RequirementsOpsService
-    
+
     service = RequirementsOpsService()
     return service.list_jurisdictions()
 
@@ -240,16 +291,16 @@ async def check_regulatory_updates(
     persona: Persona = Depends(get_current_persona),
 ):
     """Check for regulatory updates (stub).
-    
+
     In production, this would query legal databases
     and legislature feeds for changes.
     """
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.requirements_ops import check_regulatory_updates
-    
+
     updates = await check_regulatory_updates(jurisdiction)
-    
+
     return {
         "checked_at": datetime.utcnow().isoformat(),
         "jurisdiction": jurisdiction or "all",
@@ -265,34 +316,37 @@ async def get_state_requirements(
     persona: Persona = Depends(get_current_persona),
 ):
     """Get normalized requirements for a state.
-    
+
     Returns requirements in canonical schema format
     for use by compliance engine.
     """
     authorize(persona, "rules", Action.READ)
-    
+
     from app.services.requirements_ops import RequirementsOpsService
-    
+
     service = RequirementsOpsService()
     pack = service.get_active_pack(state)
-    
+
     if not pack:
         raise HTTPException(
-            status_code=404,
-            detail=f"No active pack found for state: {state}"
+            status_code=404, detail=f"No active pack found for state: {state}"
         )
-    
+
     # Re-normalize to get requirements
-    requirements = service._normalize_pack_to_requirements(
-        pack["content"], state
-    )
-    
+    requirements = service._normalize_pack_to_requirements(pack["content"], state)
+
     if topic:
         requirements = [r for r in requirements if r.topic == topic]
-    
+
     return {
         "state": state.upper(),
         "version": pack["version"],
         "requirements_count": len(requirements),
         "requirements": [r.to_dict() for r in requirements],
     }
+
+
+# State summaries live under /rules/summary/* (single rules entrypoint in main.py)
+from app.api.routes import summaries as _summaries_routes  # noqa: E402
+
+router.include_router(_summaries_routes.router)

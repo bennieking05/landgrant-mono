@@ -8,7 +8,7 @@
 
 ## Overview
 
-The LandRight MVP data model is organized into functional domains aligned with Agreement Section 3.2 MVP Scope. Each entity includes agreement reference for traceability.
+The LandGrant MVP data model is organized into functional domains aligned with Agreement Section 3.2 MVP Scope. Each entity includes agreement reference for traceability.
 
 ---
 

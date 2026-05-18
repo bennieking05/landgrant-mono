@@ -22,12 +22,42 @@ def route_plan(
     parcels = (
         db.query(models.Parcel)
         .filter(models.Parcel.project_id == project_id)
-        .order_by(models.Parcel.risk_score.desc(), models.Parcel.next_deadline_at.asc().nulls_last())
+        .order_by(
+            models.Parcel.risk_score.desc(),
+            models.Parcel.next_deadline_at.asc().nulls_last(),
+        )
         .all()
     )
     ordered = [p.id for p in parcels]
-    csv_lines = ["stop,parcel_id"] + [f"{idx+1},{pid}" for idx, pid in enumerate(ordered)]
-    return {"project_id": project_id, "parcel_ids": ordered, "csv": "\n".join(csv_lines) + "\n"}
+    csv_lines = ["stop,parcel_id"] + [
+        f"{idx+1},{pid}" for idx, pid in enumerate(ordered)
+    ]
+    return {
+        "project_id": project_id,
+        "parcel_ids": ordered,
+        "csv": "\n".join(csv_lines) + "\n",
+    }
 
 
+@router.post("/regulatory-monitor/run")
+async def run_regulatory_monitor(
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
+    """Trigger the registered regulatory feeds and persist deltas.
 
+    Called by Cloud Scheduler (see ``infra/gcp/scheduled_jobs.tf``) every
+    6h; humans with ADMIN persona can run it manually for investigation.
+    """
+
+    authorize(persona, "ops", Action.APPROVE)
+
+    from app.services.regulatory_monitor import run_monitor
+
+    jurisdictions = [
+        row[0]
+        for row in db.query(models.Project.jurisdiction_code).distinct().all()
+        if row[0]
+    ] or ["TX"]
+    result = await run_monitor(db, jurisdictions=jurisdictions)
+    return result

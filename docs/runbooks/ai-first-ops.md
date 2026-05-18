@@ -1,6 +1,6 @@
 # AI-First Operations Runbook
 
-> Operational procedures for LandRight AI-first modules.
+> Operational procedures for LandGrant AI-first modules.
 
 ## Table of Contents
 
@@ -13,6 +13,9 @@
 7. [Investigating AI Failures](#investigating-ai-failures)
 8. [Managing Citations and Sources](#managing-citations-and-sources)
 9. [Cost Monitoring](#cost-monitoring)
+10. [Audit Chain Integrity](#audit-chain-integrity)
+11. [Rotating Prod Secrets](#rotating-prod-secrets)
+12. [Regulatory Monitor & ML Training](#regulatory-monitor--ml-training)
 
 ---
 
@@ -481,3 +484,92 @@ If AI is producing incorrect outputs:
    - Run regression tests
    - Deploy fix
    - Restore normal thresholds
+
+---
+
+## Audit Chain Integrity
+
+The `audit_events` table forms a hash chain (Phase 3.2).  Each row stores
+`prev_hash` and `hash = sha256(prev || resource || action || canonical(payload))`.
+
+### Scheduled verification
+
+Cloud Scheduler posts to `POST /audit/chain/verify` nightly per firm.  The
+endpoint returns:
+
+```json
+{ "verified": true, "rows_checked": 1234, "first_bad_event": null }
+```
+
+If `verified == false`:
+
+1. Page the on-call security lead immediately.
+2. Snapshot the `audit_events` table (`pg_dump -t audit_events`).
+3. Export the break point from the response and match against backups to
+   identify the tampering window.
+4. Freeze further writes to the affected firm via the `firms.active` flag
+   (`UPDATE firms SET active = false WHERE id = '<firm_id>'`).
+5. Involve legal; produce an incident report within 24h.
+
+### Manual verification
+
+```bash
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  "https://api.landgrantiq.com/audit/chain/verify?firm_id=firm_default"
+```
+
+---
+
+## Rotating Prod Secrets
+
+Phase 3.3 enforces that `jwt_secret`, `session_secret`, and `encryption_key`
+are non-placeholder values at startup (`Settings.validate_prod_secrets`).
+
+### Rotation steps
+
+1. Generate new values:
+
+   ```bash
+   for k in jwt-secret session-secret encryption-key; do
+     openssl rand -base64 48 \
+       | gcloud secrets versions add "$k" --data-file=- \
+         --project clearpath-490715
+   done
+   ```
+
+2. Ensure the new secret version is pinned by Cloud Run via Terraform
+   (`infra/gcp/secrets.tf`) and redeploy:
+
+   ```bash
+   cd infra/gcp && terraform apply -var-file=environments/dev.tfvars
+   ```
+
+3. Verify `/health/live` returns 200 and no `Refusing to start with
+   insecure configuration` message appears in logs.
+4. Revoke prior JWTs by forcing logout on all clients (publish a
+   `revoke_before` timestamp in the auth service).
+
+---
+
+## Regulatory Monitor & ML Training
+
+Phase 2.2 added durable regulatory-update ingestion and a nightly ML
+training loop.  Both are invoked by Cloud Scheduler → Cloud Run jobs.
+
+### Regulatory feed failures
+
+- Symptom: `law_changes` / `regulatory_updates` row count stale for >48h.
+- Action: inspect the compliance worker logs for `run_monitor` errors,
+  re-run manually:
+
+  ```bash
+  kubectl exec -it worker-pod -- \
+    python -m app.tasks.compliance run_regulatory_monitor
+  ```
+
+### ML training skipped
+
+- `run_training_loop` reports `{"status": "skipped", "reason":
+  "insufficient_data"}` when fewer than `min_records` outcomes are
+  available.  Confirm `prediction_outcomes` table growth; if stuck,
+  backfill historical cases via the admin CLI.

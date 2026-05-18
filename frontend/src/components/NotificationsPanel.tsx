@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { previewNotification, type NotificationPreviewResponse } from "@/lib/api";
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# LandRight one-command bootstrap for a fresh clone
+# LandGrant one-command bootstrap for a fresh clone
 # Copies env templates, starts Postgres/Redis, installs backend and frontend deps, installs git hooks.
 #
 # Usage: ./scripts/setup.sh
@@ -14,7 +14,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "============================================"
-echo "  LandRight setup"
+echo "  LandGrant setup"
 echo "============================================"
 echo ""
 
@@ -43,8 +43,20 @@ echo ""
 # 3. Python venv and backend deps
 echo "Setting up backend (Python venv + deps)..."
 cd "$REPO_ROOT/backend"
+
+PYTHON_CMD="python3.11"
+if ! command -v $PYTHON_CMD &> /dev/null; then
+  PYTHON_CMD="python3"
+fi
+
+PY_VER=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+if [[ "$(echo "$PY_VER < 3.11" | bc -l 2>/dev/null || python3 -c "print(1 if tuple(map(int,'$PY_VER'.split('.'))) < (3,11) else 0)")" == "1" ]]; then
+  echo "ERROR: Python 3.11+ is required (found $PY_VER). Install via pyenv or Homebrew."
+  exit 1
+fi
+
 if [ ! -d .venv ]; then
-  python3 -m venv .venv
+  $PYTHON_CMD -m venv .venv
 fi
 # shellcheck source=/dev/null
 . .venv/bin/activate

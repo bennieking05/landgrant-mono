@@ -1,18 +1,18 @@
 #!/bin/bash
 # ------------------------------------------------------------------------------
-# Bootstrap script for LandRight GCP infrastructure
+# Bootstrap script for LandGrant GCP infrastructure
 # Run this ONCE before running terraform init/apply
 # ------------------------------------------------------------------------------
 
 set -e
 
 # Configuration
-PROJECT_ID="genuine-park-487014-a7"
+PROJECT_ID="clearpath-490715"
 BILLING_ACCOUNT="010525-01B070-3501CE"
 REGION="us-central1"
 STATE_BUCKET="${PROJECT_ID}-tfstate"
 
-echo "=== LandRight GCP Bootstrap ==="
+echo "=== LandGrant GCP Bootstrap ==="
 echo "Project: ${PROJECT_ID}"
 echo "Billing Account: ${BILLING_ACCOUNT}"
 echo "Region: ${REGION}"
@@ -64,6 +64,6 @@ echo "4. terraform apply -var-file=environments/dev.tfvars"
 echo ""
 echo "After Terraform apply, build and deploy the application:"
 echo "5. cd ../../backend"
-echo "6. gcloud builds submit --tag ${REGION}-docker.pkg.dev/${PROJECT_ID}/landright/api:latest"
+echo "6. gcloud builds submit --tag ${REGION}-docker.pkg.dev/${PROJECT_ID}/landgrant/api:latest"
 echo "7. cd ../frontend && npm run build"
 echo "8. gsutil -m rsync -r -d dist gs://${PROJECT_ID}-frontend"

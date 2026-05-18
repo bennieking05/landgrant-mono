@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createCase } from "@/lib/api";
 import { useNavigate } from "react-router-dom";

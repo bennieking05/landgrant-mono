@@ -1,22 +1,22 @@
 #!/bin/bash
 # ------------------------------------------------------------------------------
-# List all LandRight secrets and their status
+# List all LandGrant secrets and their status
 # ------------------------------------------------------------------------------
 
-PROJECT_ID="landright-483916"
+PROJECT_ID="clearpath-490715"
 
-echo "=== LandRight Secrets in Secret Manager ==="
+echo "=== LandGrant Secrets in Secret Manager ==="
 echo "Project: ${PROJECT_ID}"
 echo ""
 
-gcloud secrets list --project="${PROJECT_ID}" --filter="labels.app=landright" \
+gcloud secrets list --project="${PROJECT_ID}" --filter="labels.app=landgrant" \
     --format="table(name.basename(), createTime.date('%Y-%m-%d'), labels)"
 
 echo ""
 echo "=== Secret Details ==="
 echo ""
 
-for secret in $(gcloud secrets list --project="${PROJECT_ID}" --filter="labels.app=landright" --format="value(name)"); do
+for secret in $(gcloud secrets list --project="${PROJECT_ID}" --filter="labels.app=landgrant" --format="value(name)"); do
     secret_name=$(basename $secret)
     version_count=$(gcloud secrets versions list "$secret_name" --project="${PROJECT_ID}" --format="value(name)" | wc -l | tr -d ' ')
     latest_version=$(gcloud secrets versions list "$secret_name" --project="${PROJECT_ID}" --limit=1 --format="value(name)")

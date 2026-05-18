@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { generateDraft, type AIDraftResponse } from "@/lib/api";
 

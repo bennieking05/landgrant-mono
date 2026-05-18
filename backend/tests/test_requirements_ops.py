@@ -74,7 +74,7 @@ def test_import_state_pack(requirements_service):
     assert result["pack"]["jurisdiction"] == "TX"
     assert result["pack"]["version"] == "1.0.0"
     assert result["pack"]["status"] == "draft"
-    assert result["requirements_count"] > 0
+    assert result["pack"]["requirements_count"] > 0
     assert "staging_path" in result
 
 

@@ -1,6 +1,6 @@
-# LandRight GCP Infrastructure
+# LandGrant GCP Infrastructure
 
-Terraform configuration for deploying LandRight to Google Cloud Platform.
+Terraform configuration for deploying LandGrant to Google Cloud Platform.
 
 ## Architecture
 
@@ -16,7 +16,7 @@ Terraform configuration for deploying LandRight to Google Cloud Platform.
 1. Google Cloud SDK (`gcloud`) installed and authenticated
 2. Terraform >= 1.6.0
 3. Billing account access: `012FC5-228A56-495D5E`
-4. Project: `landright-483916`
+4. Project: `clearpath-490715`
 
 ## Quick Start
 
@@ -60,12 +60,12 @@ terraform apply -var-file=environments/dev.tfvars
 ```bash
 # Backend API
 cd ../../backend
-gcloud builds submit --tag us-central1-docker.pkg.dev/landright-483916/landright/api:latest
+gcloud builds submit --tag us-central1-docker.pkg.dev/clearpath-490715/landgrant/api:latest
 
 # Frontend
 cd ../frontend
 npm run build
-gsutil -m rsync -r -d dist gs://landright-483916-frontend
+gsutil -m rsync -r -d dist gs://clearpath-490715-frontend
 ```
 
 ## File Structure
@@ -101,8 +101,8 @@ infra/gcp/
 
 After deployment, update these placeholder secrets in Secret Manager:
 
-1. `landright-sendgrid-api-key` - SendGrid API key for email
-2. `landright-twilio-credentials` - Twilio credentials for SMS
+1. `landgrant-sendgrid-api-key` - SendGrid API key for email
+2. `landgrant-twilio-*` secrets — Twilio credentials for SMS
 
 ## Scaling to Production
 
@@ -138,14 +138,14 @@ Verify the service account has `roles/aiplatform.user` permission.
 
 ```bash
 # View Cloud Run logs
-gcloud run services logs read landright-api --region us-central1
+gcloud run services logs read landgrant-api --region us-central1
 
 # View Cloud SQL connection info
-gcloud sql instances describe landright-sql-dev
+gcloud sql instances describe landgrant-sql-dev
 
 # Access Secret Manager
-gcloud secrets versions access latest --secret=landright-db-password
+gcloud secrets versions access latest --secret=landgrant-db-password
 
 # Invalidate CDN cache
-gcloud compute url-maps invalidate-cdn-cache landright-frontend-urlmap --path="/*"
+gcloud compute url-maps invalidate-cdn-cache landgrant-frontend-urlmap --path="/*"
 ```

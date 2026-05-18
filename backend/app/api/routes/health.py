@@ -21,7 +21,9 @@ def live() -> dict[str, str]:
 
 @router.get("/invite", response_model=InviteProbeResponse)
 def invite_probe() -> InviteProbeResponse:
-    return InviteProbeResponse(status="invite-flow", checks=["magic_link", "email_queue"])
+    return InviteProbeResponse(
+        status="invite-flow", checks=["magic_link", "email_queue"]
+    )
 
 
 @router.get("/esign", response_model=EsignProbeResponse)

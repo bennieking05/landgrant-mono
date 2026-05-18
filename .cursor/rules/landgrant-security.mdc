@@ -1,0 +1,54 @@
+---
+description: Security enforcement rules for the LandGrant legal platform
+globs: ["**/*.py", "**/*.ts", "**/*.tsx"]
+alwaysApply: false
+---
+
+# LandGrant Security Rules
+
+## Attorney-in-the-Loop Principle
+
+- NEVER place AI in a legal decision path
+- AI may assist with drafting, summarization, search, and workflow acceleration only
+- All legally significant decisions must pass through a human approval gate
+- The rules engine must remain deterministic and citation-backed
+- Do NOT weaken approval gates, audit trails, or human review checkpoints
+
+## Authentication and Authorization
+
+- Every new API route MUST use `get_current_persona` from `deps.py`
+- Every new API route MUST call `authorize(persona, resource, action)` from `rbac.py`
+- NEVER trust `X-Persona` header alone in production -- the API key layer in `deps.py` gates it
+- New RBAC resources MUST be added to `PERMISSION_MATRIX` in `rbac.py`
+- Health check endpoints (`/health/*`) are the ONLY routes that may skip auth
+- Portal routes use session cookies with `httponly=True`, `secure=True`, `samesite` flags
+
+## Data Protection
+
+- Binder exports MUST filter by `project_id` -- never query all documents
+- Webhook endpoints MUST verify signatures in non-dev environments
+- CORS origins MUST be explicitly listed -- never use `["*"]` as default
+- Do NOT expose stack traces, internal IDs, or database errors in production responses
+- Validate all uploads: check file type, size, and content before storage
+
+## Audit and Traceability
+
+- Preserve SHA-256 hashes on all documents and binder exports
+- Preserve `AuditEvent` records for all legally significant actions
+- Do NOT remove or weaken audit logging
+- Citations must remain traceable to their source rule and version
+- Jurisdiction-specific rules must remain versioned
+
+## Secrets and Configuration
+
+- NEVER hardcode API keys, tokens, or passwords in source code
+- Use `config.py` settings backed by environment variables or Secret Manager
+- JWT secrets, encryption keys, and session secrets must come from env vars
+- Do NOT log sensitive values (tokens, passwords, PII)
+
+## Frontend Security
+
+- Do NOT render user-supplied HTML without sanitization
+- Portal pages must validate token presence before showing content
+- Persona-based nav filtering must match RBAC on the backend
+- Do NOT store tokens in localStorage -- use httpOnly cookies for portal sessions

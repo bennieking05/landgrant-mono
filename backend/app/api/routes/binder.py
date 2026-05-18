@@ -20,7 +20,3 @@ def binder_status(project_id: str, persona: Persona = Depends(get_current_person
             {"name": "Approvals", "status": "Pending"},
         ],
     }
-
-
-
-

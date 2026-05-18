@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Iterable
 
 from fastapi import HTTPException, status
 
@@ -9,6 +8,9 @@ from app.db.models import Persona
 class Action(Enum):
     READ = "read"
     WRITE = "write"
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
     APPROVE = "approve"
     EXECUTE = "execute"
 
@@ -17,10 +19,10 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
     Persona.LANDOWNER: {
         "portal": {Action.READ, Action.WRITE},
         "decision": {Action.EXECUTE},
-        "esign": {Action.READ},  # Can view signing status
+        "esign": {Action.READ},
     },
     Persona.LAND_AGENT: {
-        "parcel": {Action.READ, Action.WRITE},
+        "parcel": {Action.READ, Action.WRITE, Action.UPDATE},
         "communication": {Action.READ, Action.WRITE},
         "packet": {Action.EXECUTE},
         "title": {Action.READ, Action.WRITE},
@@ -29,8 +31,14 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
         "roe": {Action.READ, Action.WRITE},
         "offer": {Action.READ, Action.WRITE},
         "alignment": {Action.READ, Action.WRITE},
-        "esign": {Action.READ, Action.WRITE},  # Can initiate signing
-        "portal": {Action.READ, Action.WRITE},  # Can send portal invites to landowners
+        "esign": {Action.READ, Action.WRITE},
+        "portal": {Action.READ, Action.WRITE},
+        "task": {Action.READ, Action.CREATE, Action.UPDATE},
+        "rules": {Action.READ},
+        "analytics": {Action.READ},
+        "predictions": {Action.READ},
+        "rag": {Action.READ},
+        "copilot": {Action.READ, Action.WRITE},
     },
     Persona.IN_HOUSE_COUNSEL: {
         "template": {Action.READ, Action.WRITE, Action.APPROVE, Action.EXECUTE},
@@ -43,18 +51,29 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
         "offer": {Action.READ, Action.APPROVE},
         "litigation": {Action.READ, Action.WRITE},
         "alignment": {Action.READ},
-        "esign": {Action.READ, Action.WRITE, Action.APPROVE},  # Full e-sign access
-        "portal": {Action.READ, Action.WRITE},  # Can send portal invites
+        "esign": {Action.READ, Action.WRITE, Action.APPROVE},
+        "portal": {Action.READ, Action.WRITE},
+        "ai_agent": {Action.READ, Action.WRITE, Action.EXECUTE, Action.APPROVE},
+        "parcel": {Action.READ, Action.APPROVE, Action.UPDATE},
+        "task": {Action.READ, Action.CREATE, Action.UPDATE, Action.DELETE},
+        "rules": {Action.READ, Action.WRITE},
+        "qa": {Action.READ, Action.WRITE},
+        "approvals": {Action.READ, Action.WRITE, Action.APPROVE},
+        "analytics": {Action.READ},
+        "predictions": {Action.READ},
+        "rag": {Action.READ},
+        "copilot": {Action.READ, Action.WRITE},
     },
     Persona.OUTSIDE_COUNSEL: {
         "case": {Action.READ, Action.WRITE},
         "deadline": {Action.READ, Action.WRITE},
         "status": {Action.EXECUTE},
         "litigation": {Action.READ, Action.WRITE},
-        "esign": {Action.READ},  # Can view signing status
+        "esign": {Action.READ},
+        "task": {Action.READ},
+        "rules": {Action.READ},
     },
     Persona.FIRM_ADMIN: {
-        # Law firm admin - read access to cases within their firm's projects
         "parcel": {Action.READ},
         "communication": {Action.READ},
         "offer": {Action.READ},
@@ -65,16 +84,16 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
         "alignment": {Action.READ},
         "portal": {Action.READ},
         "esign": {Action.READ},
-        "admin_firm": {Action.READ},  # Firm admin dashboard access
-        "audit": {Action.READ},  # Can view audit logs for their projects
+        "admin_firm": {Action.READ},
+        "audit": {Action.READ},
+        "task": {Action.READ},
     },
     Persona.ADMIN: {
-        # Platform admin - global access across all firms/projects
         "rbac": {Action.READ, Action.WRITE},
-        "audit": {Action.READ},
+        "audit": {Action.READ, Action.WRITE},
         "esign": {Action.READ, Action.WRITE},
-        "admin_platform": {Action.READ},  # Platform admin dashboard access
-        "parcel": {Action.READ},  # Global read access
+        "admin_platform": {Action.READ},
+        "parcel": {Action.READ},
         "communication": {Action.READ},
         "offer": {Action.READ},
         "litigation": {Action.READ},
@@ -83,7 +102,15 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
         "appraisal": {Action.READ},
         "alignment": {Action.READ},
         "portal": {Action.READ},
-        "project": {Action.READ},  # Can see all projects
+        "project": {Action.READ},
+        "task": {Action.READ, Action.CREATE, Action.UPDATE, Action.DELETE},
+        "rules": {Action.READ, Action.WRITE},
+        "qa": {Action.READ, Action.WRITE},
+        "approvals": {Action.READ, Action.WRITE, Action.APPROVE},
+        "analytics": {Action.READ},
+        "predictions": {Action.READ},
+        "rag": {Action.READ, Action.WRITE},
+        "copilot": {Action.READ, Action.WRITE},
     },
 }
 

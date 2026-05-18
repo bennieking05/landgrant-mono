@@ -190,7 +190,7 @@ def test_claim_checker_no_citations(claim_checker):
     
     assert not result.is_valid
     assert not result.citation_found
-    assert "No citations provided" in result.issues
+    assert "No citations provided for claim" in result.issues
 
 
 def test_claim_checker_missing_source(claim_checker):

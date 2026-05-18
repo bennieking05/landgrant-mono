@@ -1,7 +1,7 @@
 """
 Performance Testing Script using Locust
 
-This script provides load testing for the LandRight API endpoints.
+This script provides load testing for the LandGrant API endpoints.
 Run with: locust -f scripts/perf_test.py --headless -u 50 -r 10 --run-time 2m
 
 Alternatively, run with UI:

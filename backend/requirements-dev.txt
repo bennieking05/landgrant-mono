@@ -22,6 +22,7 @@ httpx==0.26.0
 python-multipart==0.0.9
 python-jose==3.3.0
 passlib[bcrypt]==1.7.4
+slowapi==0.1.9
 
 # Data Formats
 PyYAML==6.0.1
@@ -31,6 +32,7 @@ orjson==3.9.13
 sentry-sdk==1.40.4
 opentelemetry-sdk==1.22.0
 opentelemetry-instrumentation-fastapi==0.43b0
+opentelemetry-instrumentation-sqlalchemy==0.43b0
 opentelemetry-exporter-otlp==1.22.0
 
 # GCP / Vertex AI

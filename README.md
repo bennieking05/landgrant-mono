@@ -1,6 +1,6 @@
-# LandRight Platform
+# LandGrant Platform
 
-LandRight is an attorney-in-the-loop platform that ingests landowner cases, orchestrates deterministic rules for every U.S. jurisdiction, and prepares AI-assisted filings with rigorous evidence tracking.
+LandGrant is an attorney-in-the-loop platform that ingests landowner cases, orchestrates deterministic rules for every U.S. jurisdiction, and prepares AI-assisted filings with rigorous evidence tracking.
 
 This repository is a mono-repo that contains:
 

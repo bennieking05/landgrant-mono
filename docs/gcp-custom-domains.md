@@ -39,7 +39,7 @@ Propagation and managed certificate issuance often take **15–60 minutes** afte
 
 ## LandGrant (marketing apex on Cloud Run)
 
-In this repo, **`apex_domain` (e.g. `landgrantiq.com`) is not on the global load balancer.** Marketing uses [Cloud Run domain mapping](https://cloud.google.com/run/docs/mapping-custom-domains) (`landright-marketing`) with its own Google-managed certificate. DNS for **`@`** must follow `terraform output dns_instructions` (typically **four A records** to `216.239.32.21`, `216.239.34.21`, `216.239.36.21`, `216.239.38.21`), **not** `frontend_ip`. **`app`** and **`www`** still use the LB static IP; the LB managed cert covers `app` + `www` only.
+In this repo, **`apex_domain` (e.g. `landgrantiq.com`) is not on the global load balancer.** Marketing uses [Cloud Run domain mapping](https://cloud.google.com/run/docs/mapping-custom-domains) (`landgrant-marketing`) with its own Google-managed certificate. DNS for **`@`** must follow `terraform output dns_instructions` (typically **four A records** to `216.239.32.21`, `216.239.34.21`, `216.239.36.21`, `216.239.38.21`), **not** `frontend_ip`. **`app`** and **`www`** still use the LB static IP; the LB managed cert covers `app` + `www` only.
 
 **TLS / “Not secure” checks**
 

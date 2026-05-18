@@ -21,8 +21,10 @@ terraform {
 
   # Remote state bucket - will be created via bootstrap script
   backend "gcs" {
-    bucket = "genuine-park-487014-a7-tfstate"
-    prefix = "landright/infra"
+    bucket = "clearpath-490715-tfstate"
+    # GCS object prefix only — must match existing state objects. Renaming requires copying
+    # state in the bucket before changing this value.
+    prefix = "landgrant/infra"
   }
 }
 

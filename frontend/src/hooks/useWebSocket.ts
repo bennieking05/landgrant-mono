@@ -66,7 +66,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log("WebSocket connected, sending auth...");
+        if (import.meta.env.DEV) console.debug("WebSocket connected, sending auth...");
         // Send auth message
         ws.send(JSON.stringify({
           type: "auth",
@@ -83,7 +83,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             case "connected":
               setStatus("connected");
               reconnectAttemptsRef.current = 0;
-              console.log("WebSocket authenticated:", data);
+              if (import.meta.env.DEV) console.debug("WebSocket authenticated:", data);
               break;
             
             case "deadline_alert":
@@ -120,14 +120,19 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       };
 
       ws.onclose = (event) => {
-        console.log("WebSocket closed:", event.code, event.reason);
+        if (import.meta.env.DEV) {
+          console.debug("WebSocket closed:", event.code, event.reason);
+        }
         setStatus("disconnected");
         wsRef.current = null;
 
-        // Attempt to reconnect
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current++;
-          console.log(`Reconnecting in ${reconnectInterval}ms (attempt ${reconnectAttemptsRef.current})`);
+          if (import.meta.env.DEV) {
+            console.debug(
+              `Reconnecting in ${reconnectInterval}ms (attempt ${reconnectAttemptsRef.current})`,
+            );
+          }
           reconnectTimeoutRef.current = setTimeout(connect, reconnectInterval);
         }
       };

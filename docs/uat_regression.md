@@ -2,6 +2,34 @@
 
 This document provides a human-led regression test checklist for User Acceptance Testing (UAT) before each release.
 
+## AI-First Robustness Regression Additions (Phases 1–4)
+
+The following scenarios were added as part of the AI-first robustness
+rollout and MUST be executed before any release that touches AI pipelines
+or security:
+
+- **Telemetry persistence** – exercise an AI call and confirm a new row in
+  `ai_events` with `prompt_template_id`, `prompt_version`, token counts,
+  and redacted payload.
+- **Approval gating** – hit an endpoint decorated with `@requires_approval`
+  and verify the 428 response + `approvals` row; approve it and replay.
+- **Citation gate** – POST an AI output without citations to
+  `/qa/check?ai_output=...` and verify `citation_gate.blocking == true`.
+- **Audit chain** – call `GET /audit/chain/verify` and confirm
+  `verified: true`; then manually mutate a payload in `audit_events` and
+  re-run; confirm `first_bad_event` is returned.
+- **Firm scoping** – run a dual-firm scenario (two `firm_id`s) and confirm
+  cross-firm reads are suppressed by the session-level filter.
+- **Prod-secret guardrail** – start the API in `ENVIRONMENT=prod` with the
+  default `jwt_secret`; the process must refuse to start.
+- **Rate limit** – burst 200 requests to `/health/live`; at least one
+  must return HTTP 429.
+- **AI Audit drawer** – open the drawer in the SPA for a known parcel and
+  confirm `grounded`/`escalated` badges render with correct colour.
+- **SSE copilot** – exercise the copilot streaming panel on a slow
+  connection (Chrome dev-tools throttling) and confirm partial
+  `data:` lines are assembled correctly.
+
 ## How to Use
 
 1. **Before Testing**: Ensure backend (port 8050) and frontend (port 3050) are running
@@ -339,7 +367,7 @@ These tests are important but do not block deployment. Failures should be tracke
 
 **Expected Output:**
 - HTTP 200
-- Response: `{"app": "LandRight", "environment": "dev"}` or similar
+- Response: `{"app": "LandGrant", "environment": "dev"}` or similar
 
 | Result | Notes |
 |--------|-------|

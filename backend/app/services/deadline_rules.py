@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Optional, Any, Union
 
 import yaml
 
@@ -33,7 +33,7 @@ class DerivedDeadline:
     deadline_type: str  # deadline, floor, eligibility, service_requirement
     extendable: bool = False
     max_extension_days: int = 0
-    notes: str | None = None
+    notes: Optional[str] = None
     warning_days: list[int] = field(default_factory=list)
 
 
@@ -47,7 +47,7 @@ class DerivationResult:
     errors: list[str] = field(default_factory=list)
 
 
-def load_jurisdiction_rules(jurisdiction: str) -> dict[str, Any] | None:
+def load_jurisdiction_rules(jurisdiction: str) -> Optional[dict[str, Any]]:
     """Load rules YAML for a jurisdiction."""
     file_path = RULES_DIR / f"{jurisdiction.lower()}.yaml"
     if not file_path.exists():
@@ -55,7 +55,7 @@ def load_jurisdiction_rules(jurisdiction: str) -> dict[str, Any] | None:
     return yaml.safe_load(file_path.read_text())
 
 
-def _parse_date(value: str | date | datetime) -> date:
+def _parse_date(value: Union[str, date, datetime]) -> date:
     """Parse a date from various input formats."""
     if isinstance(value, date) and not isinstance(value, datetime):
         return value
@@ -86,7 +86,7 @@ def _format_deadline_title(deadline_id: str) -> str:
 
 def derive_deadlines(
     jurisdiction: str,
-    anchor_events: dict[str, str | date | datetime],
+    anchor_events: dict[str, Union[str, date, datetime]],
 ) -> DerivationResult:
     """
     Derive statutory deadlines from anchor events for a jurisdiction.
@@ -192,7 +192,7 @@ def derive_deadlines_from_template_render(
     jurisdiction: str,
     template_id: str,
     render_variables: dict[str, Any],
-    additional_anchors: dict[str, str | date | datetime] | None = None,
+    additional_anchors: Optional[dict[str, Union[str, date, datetime]]] = None,
 ) -> DerivationResult:
     """
     Derive deadlines from a template render's variables.
@@ -235,7 +235,7 @@ def derive_deadlines_from_template_render(
 
 def get_upcoming_warnings(
     deadlines: list[DerivedDeadline],
-    as_of: date | None = None,
+    as_of: Optional[date] = None,
 ) -> list[tuple[DerivedDeadline, int]]:
     """
     Get deadlines that have upcoming warnings.

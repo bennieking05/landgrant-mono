@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import {
   listLitigationCases,
@@ -123,7 +121,14 @@ export function LitigationPanel({ parcelId, projectId }: Props) {
         getLitigationHistory(caseId),
       ]);
       setSelectedCase(caseDetail);
-      setHistory(historyRes.history);
+      setHistory(historyRes.history.map(h => ({
+        id: h.id,
+        old_status: h.old_status ?? null,
+        new_status: h.new_status,
+        changed_by: h.actor_persona ?? "system",
+        changed_at: h.occurred_at ?? "",
+        notes: h.reason,
+      })));
       // Pre-fill update form
       if (caseDetail.filing_date) {
         setFilingDate(caseDetail.filing_date.split("T")[0]);

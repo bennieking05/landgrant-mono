@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "path";
 
 /**
- * LandRight Playwright Configuration
+ * LandGrant Playwright Configuration
  *
  * Run tests:
  *   npm run test:e2e          # headless regression

@@ -38,6 +38,12 @@ def agent_context():
         jurisdiction="TX",
         apn="123-456-789",
         county_fips="48439",
+        payload={
+            "condemning_authority": "Texas DOT",
+            "authority_type": "state_agency",
+            "public_use": "Highway expansion",
+            "public_use_type": "transportation"
+        }
     )
 
 

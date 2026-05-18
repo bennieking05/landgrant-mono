@@ -4,7 +4,7 @@
 **Sprints:** 1-2  
 **Status:** Complete
 
-This document provides visual diagrams and comprehensive documentation for the LandRight MVP technical design.
+This document provides visual diagrams and comprehensive documentation for the LandGrant MVP technical design.
 
 ---
 
@@ -498,8 +498,8 @@ flowchart TB
 | Environment | API URL | Database | Redis | Purpose |
 |-------------|---------|----------|-------|---------|
 | **Local** | localhost:8050 | localhost:55432 | localhost:56379 | Development |
-| **Staging** | api-staging.landright.ai | staging-db | staging-redis | QA/Testing |
-| **Production** | api.landright.ai | prod-db (HA) | prod-redis (HA) | Live system |
+| **Staging** | api-staging.landgrant.ai | staging-db | staging-redis | QA/Testing |
+| **Production** | api.landgrant.ai | prod-db (HA) | prod-redis (HA) | Live system |
 
 ### Scaling Configuration
 

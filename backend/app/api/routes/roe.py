@@ -3,6 +3,7 @@
 Agreement Reference: Section 3.2(c) - ROE management (templates, effective/expiry dates,
 access windows, field check-in/out)
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -30,6 +31,7 @@ router = APIRouter(prefix="/roe", tags=["roe"])
 
 class ROECreate(BaseModel):
     """Create a new ROE agreement."""
+
     parcel_id: str
     project_id: str
     effective_date: str  # ISO date
@@ -43,6 +45,7 @@ class ROECreate(BaseModel):
 
 class ROEUpdate(BaseModel):
     """Update an existing ROE."""
+
     effective_date: Optional[str] = None
     expiry_date: Optional[str] = None
     conditions: Optional[str] = None
@@ -55,6 +58,7 @@ class ROEUpdate(BaseModel):
 
 class FieldEventCreate(BaseModel):
     """Record a field check-in or check-out event."""
+
     event_type: str  # check_in, check_out
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -77,16 +81,16 @@ def create_roe(
 ):
     """Create a new ROE agreement for a parcel."""
     authorize(persona, "roe", Action.WRITE)
-    
+
     try:
         effective = datetime.fromisoformat(payload.effective_date.replace("Z", ""))
         expiry = datetime.fromisoformat(payload.expiry_date.replace("Z", ""))
     except Exception as exc:
         raise HTTPException(status_code=422, detail="invalid_date_format") from exc
-    
+
     if expiry <= effective:
         raise HTTPException(status_code=422, detail="expiry_must_be_after_effective")
-    
+
     roe_id = str(uuid4())
     roe = models.ROE(
         id=roe_id,
@@ -103,7 +107,7 @@ def create_roe(
         created_by=getattr(user, "id", None),
     )
     db.add(roe)
-    
+
     # Audit event
     db.add(
         models.AuditEvent(
@@ -119,15 +123,17 @@ def create_roe(
                 "effective_date": payload.effective_date,
                 "expiry_date": payload.expiry_date,
             },
-            hash=sha256_hex({
-                "roe_id": roe_id,
-                "parcel_id": payload.parcel_id,
-                "effective_date": payload.effective_date,
-            }),
+            hash=sha256_hex(
+                {
+                    "roe_id": roe_id,
+                    "parcel_id": payload.parcel_id,
+                    "effective_date": payload.effective_date,
+                }
+            ),
         )
     )
     db.commit()
-    
+
     return {"roe_id": roe_id, "status": "draft"}
 
 
@@ -139,22 +145,26 @@ def list_roes(
 ):
     """List all ROE agreements for a parcel."""
     authorize(persona, "roe", Action.READ)
-    
+
     items = (
         db.query(models.ROE)
         .filter(models.ROE.parcel_id == parcel_id)
         .order_by(models.ROE.created_at.desc())
         .all()
     )
-    
+
     return {
         "parcel_id": parcel_id,
         "items": [
             {
                 "id": r.id,
                 "project_id": r.project_id,
-                "effective_date": r.effective_date.isoformat() + "Z" if r.effective_date else None,
-                "expiry_date": r.expiry_date.isoformat() + "Z" if r.expiry_date else None,
+                "effective_date": (
+                    r.effective_date.isoformat() + "Z" if r.effective_date else None
+                ),
+                "expiry_date": (
+                    r.expiry_date.isoformat() + "Z" if r.expiry_date else None
+                ),
                 "status": r.status.value if r.status else None,
                 "conditions": r.conditions,
                 "permitted_activities": r.permitted_activities,
@@ -178,11 +188,11 @@ def get_roe(
 ):
     """Get a specific ROE by ID."""
     authorize(persona, "roe", Action.READ)
-    
+
     roe = db.query(models.ROE).filter(models.ROE.id == roe_id).first()
     if not roe:
         raise HTTPException(status_code=404, detail="roe_not_found")
-    
+
     # Get field events
     events = (
         db.query(models.ROEFieldEvent)
@@ -190,12 +200,14 @@ def get_roe(
         .order_by(models.ROEFieldEvent.event_time.desc())
         .all()
     )
-    
+
     return {
         "id": roe.id,
         "parcel_id": roe.parcel_id,
         "project_id": roe.project_id,
-        "effective_date": roe.effective_date.isoformat() + "Z" if roe.effective_date else None,
+        "effective_date": (
+            roe.effective_date.isoformat() + "Z" if roe.effective_date else None
+        ),
         "expiry_date": roe.expiry_date.isoformat() + "Z" if roe.expiry_date else None,
         "status": roe.status.value if roe.status else None,
         "conditions": roe.conditions,
@@ -235,60 +247,66 @@ def update_roe(
 ):
     """Update an existing ROE agreement."""
     authorize(persona, "roe", Action.WRITE)
-    
+
     roe = db.query(models.ROE).filter(models.ROE.id == roe_id).first()
     if not roe:
         raise HTTPException(status_code=404, detail="roe_not_found")
-    
+
     # Track changes for audit
     changes = {}
-    
+
     if payload.effective_date is not None:
         try:
-            roe.effective_date = datetime.fromisoformat(payload.effective_date.replace("Z", ""))
+            roe.effective_date = datetime.fromisoformat(
+                payload.effective_date.replace("Z", "")
+            )
             changes["effective_date"] = payload.effective_date
         except Exception as exc:
-            raise HTTPException(status_code=422, detail="invalid_effective_date") from exc
-    
+            raise HTTPException(
+                status_code=422, detail="invalid_effective_date"
+            ) from exc
+
     if payload.expiry_date is not None:
         try:
-            roe.expiry_date = datetime.fromisoformat(payload.expiry_date.replace("Z", ""))
+            roe.expiry_date = datetime.fromisoformat(
+                payload.expiry_date.replace("Z", "")
+            )
             changes["expiry_date"] = payload.expiry_date
         except Exception as exc:
             raise HTTPException(status_code=422, detail="invalid_expiry_date") from exc
-    
+
     if payload.conditions is not None:
         roe.conditions = payload.conditions
         changes["conditions"] = payload.conditions
-    
+
     if payload.permitted_activities is not None:
         roe.permitted_activities = payload.permitted_activities
         changes["permitted_activities"] = payload.permitted_activities
-    
+
     if payload.access_windows is not None:
         roe.access_windows = payload.access_windows
         changes["access_windows"] = payload.access_windows
-    
+
     if payload.status is not None:
         try:
             roe.status = ROEStatus(payload.status)
             changes["status"] = payload.status
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="invalid_status") from exc
-    
+
     if payload.signed_by is not None:
         roe.signed_by = payload.signed_by
         changes["signed_by"] = payload.signed_by
-    
+
     if payload.signed_at is not None:
         try:
             roe.signed_at = datetime.fromisoformat(payload.signed_at.replace("Z", ""))
             changes["signed_at"] = payload.signed_at
         except Exception as exc:
             raise HTTPException(status_code=422, detail="invalid_signed_at") from exc
-    
+
     roe.updated_at = datetime.utcnow()
-    
+
     # Audit event
     if changes:
         db.add(
@@ -302,9 +320,9 @@ def update_roe(
                 hash=sha256_hex({"roe_id": roe_id, "changes": changes}),
             )
         )
-    
+
     db.commit()
-    
+
     return {"roe_id": roe_id, "updated": True, "changes": changes}
 
 
@@ -323,18 +341,18 @@ def create_field_event(
 ):
     """Record a field check-in or check-out event."""
     authorize(persona, "roe", Action.WRITE)
-    
+
     roe = db.query(models.ROE).filter(models.ROE.id == roe_id).first()
     if not roe:
         raise HTTPException(status_code=404, detail="roe_not_found")
-    
+
     if payload.event_type not in ("check_in", "check_out"):
         raise HTTPException(status_code=422, detail="invalid_event_type")
-    
+
     # Validate ROE is active
     if roe.status not in (ROEStatus.ACTIVE, ROEStatus.SIGNED):
         raise HTTPException(status_code=422, detail="roe_not_active")
-    
+
     event_id = str(uuid4())
     event = models.ROEFieldEvent(
         id=event_id,
@@ -349,7 +367,7 @@ def create_field_event(
         photo_document_ids=payload.photo_document_ids or [],
     )
     db.add(event)
-    
+
     # Audit event
     db.add(
         models.AuditEvent(
@@ -365,15 +383,17 @@ def create_field_event(
                 "latitude": payload.latitude,
                 "longitude": payload.longitude,
             },
-            hash=sha256_hex({
-                "roe_id": roe_id,
-                "event_id": event_id,
-                "event_type": payload.event_type,
-            }),
+            hash=sha256_hex(
+                {
+                    "roe_id": roe_id,
+                    "event_id": event_id,
+                    "event_type": payload.event_type,
+                }
+            ),
         )
     )
     db.commit()
-    
+
     return {
         "event_id": event_id,
         "roe_id": roe_id,
@@ -390,14 +410,14 @@ def list_field_events(
 ):
     """List all field events for an ROE."""
     authorize(persona, "roe", Action.READ)
-    
+
     events = (
         db.query(models.ROEFieldEvent)
         .filter(models.ROEFieldEvent.roe_id == roe_id)
         .order_by(models.ROEFieldEvent.event_time.desc())
         .all()
     )
-    
+
     return {
         "roe_id": roe_id,
         "items": [
@@ -431,20 +451,20 @@ def list_expiring_roes(
 ):
     """List ROEs expiring within the threshold (default 30 days)."""
     authorize(persona, "roe", Action.READ)
-    
+
     threshold_date = datetime.utcnow() + timedelta(days=days_threshold)
-    
+
     query = db.query(models.ROE).filter(
         models.ROE.expiry_date <= threshold_date,
         models.ROE.expiry_date >= datetime.utcnow(),
         models.ROE.status.in_([ROEStatus.ACTIVE, ROEStatus.SIGNED]),
     )
-    
+
     if project_id:
         query = query.filter(models.ROE.project_id == project_id)
-    
+
     items = query.order_by(models.ROE.expiry_date.asc()).all()
-    
+
     return {
         "threshold_days": days_threshold,
         "project_id": project_id,
@@ -454,8 +474,12 @@ def list_expiring_roes(
                 "id": r.id,
                 "parcel_id": r.parcel_id,
                 "project_id": r.project_id,
-                "expiry_date": r.expiry_date.isoformat() + "Z" if r.expiry_date else None,
-                "days_until_expiry": (r.expiry_date - datetime.utcnow()).days if r.expiry_date else None,
+                "expiry_date": (
+                    r.expiry_date.isoformat() + "Z" if r.expiry_date else None
+                ),
+                "days_until_expiry": (
+                    (r.expiry_date - datetime.utcnow()).days if r.expiry_date else None
+                ),
                 "status": r.status.value if r.status else None,
                 "expiry_warning_sent": r.expiry_warning_sent,
             }
@@ -472,17 +496,17 @@ def list_expired_roes(
 ):
     """List all expired ROEs."""
     authorize(persona, "roe", Action.READ)
-    
+
     query = db.query(models.ROE).filter(
         models.ROE.expiry_date < datetime.utcnow(),
         models.ROE.status.not_in([ROEStatus.EXPIRED, ROEStatus.REVOKED]),
     )
-    
+
     if project_id:
         query = query.filter(models.ROE.project_id == project_id)
-    
+
     items = query.order_by(models.ROE.expiry_date.desc()).all()
-    
+
     return {
         "project_id": project_id,
         "count": len(items),
@@ -491,8 +515,12 @@ def list_expired_roes(
                 "id": r.id,
                 "parcel_id": r.parcel_id,
                 "project_id": r.project_id,
-                "expiry_date": r.expiry_date.isoformat() + "Z" if r.expiry_date else None,
-                "days_expired": (datetime.utcnow() - r.expiry_date).days if r.expiry_date else None,
+                "expiry_date": (
+                    r.expiry_date.isoformat() + "Z" if r.expiry_date else None
+                ),
+                "days_expired": (
+                    (datetime.utcnow() - r.expiry_date).days if r.expiry_date else None
+                ),
                 "status": r.status.value if r.status else None,
             }
             for r in items

@@ -6,7 +6,7 @@
 
 ## Context
 
-LandRight requires a database that can:
+LandGrant requires a database that can:
 1. Handle complex relational data (projects, parcels, parties, documents)
 2. Support geospatial queries for parcel boundaries and alignments
 3. Provide ACID compliance for legal document integrity

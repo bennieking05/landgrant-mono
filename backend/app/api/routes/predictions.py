@@ -4,16 +4,19 @@ Provides REST API for settlement predictions using both rules-based
 and ML-based prediction models.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 from datetime import datetime
+
+from app.api.deps import get_current_persona, get_db
+from app.db.models import Persona
+from app.security.rbac import authorize, Action
 
 from app.services.prediction_service import (
     PredictionInput,
     PropertyType,
     ProjectType,
-    predict_settlement,
     compute_risk_profile,
 )
 from app.services.ml_prediction import (
@@ -33,30 +36,38 @@ router = APIRouter(prefix="/predictions", tags=["Predictions"])
 # Request/Response Models
 # =============================================================================
 
+
 class PredictionRequest(BaseModel):
     """Request for settlement prediction."""
+
     jurisdiction: str = Field(..., description="State jurisdiction code (e.g., TX, CA)")
     assessed_value: float = Field(..., gt=0, description="Property assessed value")
-    property_type: str = Field(default="residential_single", description="Property type")
-    project_type: str = Field(default="utility", description="Infrastructure project type")
-    
+    property_type: str = Field(
+        default="residential_single", description="Property type"
+    )
+    project_type: str = Field(
+        default="utility", description="Infrastructure project type"
+    )
+
     # Property characteristics
     owner_occupied: bool = Field(default=False)
     principal_residence: bool = Field(default=False)
     family_ownership_years: int = Field(default=0, ge=0)
-    
+
     # Acquisition details
     partial_taking: bool = Field(default=False)
-    severance_impact: float = Field(default=0.0, ge=0, description="Impact on remainder")
+    severance_impact: float = Field(
+        default=0.0, ge=0, description="Impact on remainder"
+    )
     access_impact: bool = Field(default=False)
     business_on_property: bool = Field(default=False)
-    
+
     # Dispute indicators
     owner_has_attorney: bool = Field(default=False)
     previous_counter_offer: bool = Field(default=False)
     counter_offer_amount: Optional[float] = Field(default=None, ge=0)
     owner_contested_appraisal: bool = Field(default=False)
-    
+
     # Model selection
     force_ml: bool = Field(default=False, description="Force ML model (if available)")
     force_rules: bool = Field(default=False, description="Force rules-based model")
@@ -64,6 +75,7 @@ class PredictionRequest(BaseModel):
 
 class SettlementRangeResponse(BaseModel):
     """Settlement range in the response."""
+
     low: float
     expected: float
     high: float
@@ -71,6 +83,7 @@ class SettlementRangeResponse(BaseModel):
 
 class TimelineResponse(BaseModel):
     """Timeline estimates in the response."""
+
     expected_days: int
     min_days: int
     max_days: int
@@ -78,6 +91,7 @@ class TimelineResponse(BaseModel):
 
 class RiskResponse(BaseModel):
     """Risk metrics in the response."""
+
     litigation_probability: float
     dispute_level: str
     risk_factors: list[str]
@@ -85,6 +99,7 @@ class RiskResponse(BaseModel):
 
 class RecommendationsResponse(BaseModel):
     """Recommendations in the response."""
+
     initial_offer: float
     ceiling: float
     strategy: str
@@ -92,6 +107,7 @@ class RecommendationsResponse(BaseModel):
 
 class PredictionResponse(BaseModel):
     """Full prediction response."""
+
     settlement_range: SettlementRangeResponse
     confidence: float
     timeline: TimelineResponse
@@ -106,6 +122,7 @@ class PredictionResponse(BaseModel):
 
 class RiskProfileResponse(BaseModel):
     """Risk profile response."""
+
     overall_risk: float
     risk_level: str
     factors: list[dict[str, Any]]
@@ -115,6 +132,7 @@ class RiskProfileResponse(BaseModel):
 
 class MLConfigResponse(BaseModel):
     """ML configuration response."""
+
     model_id: str
     endpoint_id: str
     enabled: bool
@@ -124,6 +142,7 @@ class MLConfigResponse(BaseModel):
 
 class MLConfigUpdate(BaseModel):
     """ML configuration update request."""
+
     enabled: Optional[bool] = None
     endpoint_id: Optional[str] = None
     ab_test_percentage: Optional[float] = Field(None, ge=0, le=1)
@@ -131,6 +150,7 @@ class MLConfigUpdate(BaseModel):
 
 class ModelAccuracyResponse(BaseModel):
     """Model accuracy metrics response."""
+
     model_type: str
     window_days: int
     predictions_evaluated: int
@@ -144,6 +164,7 @@ class ModelAccuracyResponse(BaseModel):
 # Helper Functions
 # =============================================================================
 
+
 def convert_request_to_input(req: PredictionRequest) -> PredictionInput:
     """Convert API request to prediction input."""
     # Map string property type to enum
@@ -151,13 +172,13 @@ def convert_request_to_input(req: PredictionRequest) -> PredictionInput:
         property_type = PropertyType(req.property_type)
     except ValueError:
         property_type = PropertyType.RESIDENTIAL_SINGLE
-    
+
     # Map string project type to enum
     try:
         project_type = ProjectType(req.project_type)
     except ValueError:
         project_type = ProjectType.UTILITY
-    
+
     return PredictionInput(
         jurisdiction=req.jurisdiction.upper(),
         assessed_value=req.assessed_value,
@@ -181,24 +202,28 @@ def convert_request_to_input(req: PredictionRequest) -> PredictionInput:
 # Prediction Endpoints
 # =============================================================================
 
+
 @router.post("/predict", response_model=PredictionResponse)
-async def make_prediction(request: PredictionRequest) -> PredictionResponse:
+async def make_prediction(
+    request: PredictionRequest, persona: Persona = Depends(get_current_persona)
+) -> PredictionResponse:
     """Generate settlement prediction.
-    
+
     Uses ML model if available and enabled, otherwise falls back
     to rules-based prediction.
     """
+    authorize(persona, "predictions", Action.READ)
     inp = convert_request_to_input(request)
-    
+
     # Get hybrid prediction (ML or rules)
     result: MLPredictionResult = await predict_settlement_hybrid(
         inp,
         force_ml=request.force_ml,
         force_rules=request.force_rules,
     )
-    
+
     prediction = result.prediction
-    
+
     return PredictionResponse(
         settlement_range=SettlementRangeResponse(
             low=prediction.low_settlement,
@@ -230,31 +255,37 @@ async def make_prediction(request: PredictionRequest) -> PredictionResponse:
 
 
 @router.post("/predict/rules", response_model=PredictionResponse)
-async def make_rules_prediction(request: PredictionRequest) -> PredictionResponse:
+async def make_rules_prediction(
+    request: PredictionRequest, persona: Persona = Depends(get_current_persona)
+) -> PredictionResponse:
     """Generate settlement prediction using rules-based model only.
-    
+
     Always uses the rules-based model regardless of ML configuration.
     """
+    authorize(persona, "predictions", Action.READ)
     request.force_rules = True
-    return await make_prediction(request)
+    return await make_prediction(request, persona)
 
 
 @router.post("/risk-profile", response_model=RiskProfileResponse)
-async def get_risk_profile(request: PredictionRequest) -> RiskProfileResponse:
+async def get_risk_profile(
+    request: PredictionRequest, persona: Persona = Depends(get_current_persona)
+) -> RiskProfileResponse:
     """Generate detailed risk profile for a case.
-    
+
     Provides comprehensive risk analysis with factors, recommendations,
     and litigation indicators.
     """
+    authorize(persona, "predictions", Action.READ)
     inp = convert_request_to_input(request)
-    
+
     # Get prediction first
     result = await predict_settlement_hybrid(inp, force_rules=True)
     prediction = result.prediction
-    
+
     # Compute risk profile
     risk_profile = compute_risk_profile(inp, prediction)
-    
+
     return RiskProfileResponse(
         overall_risk=risk_profile.overall_risk,
         risk_level=risk_profile.risk_level,
@@ -265,12 +296,15 @@ async def get_risk_profile(request: PredictionRequest) -> RiskProfileResponse:
 
 
 @router.post("/features")
-async def get_prediction_features(request: PredictionRequest) -> dict[str, Any]:
+async def get_prediction_features(
+    request: PredictionRequest, persona: Persona = Depends(get_current_persona)
+) -> dict[str, Any]:
     """Get engineered features for a prediction.
-    
+
     Useful for debugging and understanding model inputs.
     Returns the feature vector that would be sent to ML model.
     """
+    authorize(persona, "predictions", Action.READ)
     inp = convert_request_to_input(request)
     features = engineer_features(inp)
     return {
@@ -283,19 +317,26 @@ async def get_prediction_features(request: PredictionRequest) -> dict[str, Any]:
 # ML Configuration Endpoints
 # =============================================================================
 
+
 @router.get("/ml/config", response_model=MLConfigResponse)
-async def get_ml_configuration() -> MLConfigResponse:
+async def get_ml_configuration(
+    persona: Persona = Depends(get_current_persona),
+) -> MLConfigResponse:
     """Get current ML model configuration."""
+    authorize(persona, "predictions", Action.READ)
     config = get_ml_config()
     return MLConfigResponse(**config)
 
 
 @router.put("/ml/config", response_model=MLConfigResponse)
-async def update_ml_configuration(update: MLConfigUpdate) -> MLConfigResponse:
+async def update_ml_configuration(
+    update: MLConfigUpdate, persona: Persona = Depends(get_current_persona)
+) -> MLConfigResponse:
     """Update ML model configuration.
-    
+
     Requires admin permissions in production.
     """
+    authorize(persona, "predictions", Action.WRITE)
     update_ml_config(
         enabled=update.enabled,
         endpoint_id=update.endpoint_id,
@@ -305,10 +346,30 @@ async def update_ml_configuration(update: MLConfigUpdate) -> MLConfigResponse:
     return MLConfigResponse(**config)
 
 
+@router.post("/train")
+async def trigger_training(
+    jurisdiction: Optional[str] = Query(default=None),
+    force: bool = Query(default=False),
+    persona: Persona = Depends(get_current_persona),
+    db = Depends(get_db),
+) -> dict[str, Any]:
+    """Run the ML training loop (Phase 2.2).
+
+    Intended to be invoked on a schedule (see
+    ``infra/gcp/scheduled_jobs.tf``) but admins may call it manually.
+    """
+
+    authorize(persona, "predictions", Action.APPROVE)
+
+    from app.services.ml_prediction import run_training_loop
+
+    return await run_training_loop(db, jurisdiction=jurisdiction, force=force)
+
+
 @router.get("/ml/health")
 async def check_ml_service_health() -> dict[str, Any]:
     """Check health of ML prediction service.
-    
+
     Returns status of Vertex AI endpoint connectivity.
     """
     return await check_ml_health()
@@ -318,11 +379,13 @@ async def check_ml_service_health() -> dict[str, Any]:
 async def get_model_accuracy(
     model_type: str = Query(default="rules", description="Model type: 'rules' or 'ml'"),
     window_days: int = Query(default=90, ge=7, le=365, description="Days to analyze"),
+    persona: Persona = Depends(get_current_persona),
 ) -> ModelAccuracyResponse:
     """Get model accuracy metrics.
-    
+
     Calculates accuracy based on predictions with known outcomes.
     """
+    authorize(persona, "predictions", Action.READ)
     metrics = await calculate_model_accuracy(model_type, window_days)
     return ModelAccuracyResponse(**metrics)
 
@@ -331,40 +394,46 @@ async def get_model_accuracy(
 # Batch Prediction Endpoints
 # =============================================================================
 
+
 class BatchPredictionRequest(BaseModel):
     """Request for batch predictions."""
+
     predictions: list[PredictionRequest]
 
 
 class BatchPredictionResponse(BaseModel):
     """Response for batch predictions."""
+
     predictions: list[PredictionResponse]
     total: int
     processing_time_ms: float
 
 
 @router.post("/predict/batch", response_model=BatchPredictionResponse)
-async def make_batch_predictions(request: BatchPredictionRequest) -> BatchPredictionResponse:
+async def make_batch_predictions(
+    request: BatchPredictionRequest, persona: Persona = Depends(get_current_persona)
+) -> BatchPredictionResponse:
     """Generate predictions for multiple cases.
-    
+
     Limited to 50 predictions per request.
     """
+    authorize(persona, "predictions", Action.READ)
     if len(request.predictions) > 50:
         raise HTTPException(
-            status_code=400,
-            detail="Maximum 50 predictions per batch request"
+            status_code=400, detail="Maximum 50 predictions per batch request"
         )
-    
+
     import time
+
     start = time.time()
-    
+
     results = []
     for pred_request in request.predictions:
-        result = await make_prediction(pred_request)
+        result = await make_prediction(pred_request, persona)
         results.append(result)
-    
+
     elapsed = (time.time() - start) * 1000
-    
+
     return BatchPredictionResponse(
         predictions=results,
         total=len(results),
@@ -376,11 +445,15 @@ async def make_batch_predictions(request: BatchPredictionRequest) -> BatchPredic
 # Health Check
 # =============================================================================
 
+
 @router.get("/health")
-async def predictions_health() -> dict[str, Any]:
+async def predictions_health(
+    persona: Persona = Depends(get_current_persona),
+) -> dict[str, Any]:
     """Health check for predictions service."""
+    authorize(persona, "predictions", Action.READ)
     ml_health = await check_ml_health()
-    
+
     return {
         "status": "healthy",
         "rules_engine": "available",

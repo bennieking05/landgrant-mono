@@ -1,58 +1,22 @@
-/**
- * Task Management UI Component
- * 
- * Provides comprehensive task management including:
- * - Task list with filtering and sorting
- * - Task creation with auto-assignment
- * - Workload-based assignment suggestions
- * - Priority and status management
- */
-
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-
-// Types
-interface Task {
-  id: string;
-  project_id: string;
-  parcel_id?: string;
-  title: string;
-  description?: string;
-  category: string;
-  priority: string;
-  status: string;
-  persona: string;
-  assigned_to?: string;
-  assigned_to_name?: string;
-  due_at?: string;
-  created_at: string;
-  is_overdue: boolean;
-  metadata: Record<string, unknown>;
-}
-
-interface TaskStats {
-  total: number;
-  open: number;
-  in_progress: number;
-  completed: number;
-  overdue: number;
-  by_priority: Record<string, number>;
-  by_category: Record<string, number>;
-  by_assignee: Array<{ user_id: string; user_name: string; count: number }>;
-}
-
-interface AssignmentSuggestion {
-  user_id: string;
-  user_name: string;
-  persona: string;
-  current_workload: number;
-  reason: string;
-  score: number;
-}
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  listTasks,
+  getTaskStats,
+  createTaskV2,
+  updateTask,
+  completeTask,
+  suggestTaskAssignee,
+  assignTask,
+  autoAssignTask,
+  type TaskItem,
+  type TaskStatsResponse,
+  type AssignmentSuggestion,
+} from '@/lib/api';
+import { useAppContext } from '@/context';
 
 interface TaskManagerProps {
   projectId?: string;
   parcelId?: string;
-  userId?: string;
 }
 
 // Constants
@@ -82,32 +46,27 @@ const TASK_STATUSES = [
   { value: 'cancelled', label: 'Cancelled', color: 'bg-gray-100 text-gray-500' },
 ];
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8050';
-
 export const TaskManager: React.FC<TaskManagerProps> = ({
   projectId,
   parcelId,
-  userId,
 }) => {
-  // State
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [stats, setStats] = useState<TaskStats | null>(null);
+  const { persona } = useAppContext();
+
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [stats, setStats] = useState<TaskStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Filters
+
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
-  
-  // UI State
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [suggestions, setSuggestions] = useState<AssignmentSuggestion[]>([]);
-  
-  // Create Task Form
+
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
@@ -117,22 +76,17 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     auto_assign: true,
   });
 
-  // Load tasks
   const loadTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (projectId) params.append('project_id', projectId);
-      if (parcelId) params.append('parcel_id', parcelId);
-      if (statusFilter) params.append('status', statusFilter);
-      if (priorityFilter) params.append('priority', priorityFilter);
-      if (categoryFilter) params.append('category', categoryFilter);
-      if (showOverdueOnly) params.append('overdue_only', 'true');
-      
-      const response = await fetch(`${API_BASE}/tasks?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to load tasks');
-      
-      const data = await response.json();
+      const data = await listTasks({
+        project_id: projectId,
+        parcel_id: parcelId,
+        status: statusFilter || undefined,
+        priority: priorityFilter || undefined,
+        category: categoryFilter || undefined,
+        overdue_only: showOverdueOnly || undefined,
+      }, persona);
       setTasks(data.tasks);
       setError(null);
     } catch (err) {
@@ -140,55 +94,38 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [projectId, parcelId, statusFilter, priorityFilter, categoryFilter, showOverdueOnly]);
+  }, [projectId, parcelId, statusFilter, priorityFilter, categoryFilter, showOverdueOnly, persona]);
 
-  // Load stats
   const loadStats = useCallback(async () => {
     try {
-      const params = new URLSearchParams();
-      if (projectId) params.append('project_id', projectId);
-      
-      const response = await fetch(`${API_BASE}/tasks/stats/summary?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to load stats');
-      
-      const data = await response.json();
+      const data = await getTaskStats(projectId, persona);
       setStats(data);
     } catch (err) {
       console.error('Failed to load stats:', err);
     }
-  }, [projectId]);
+  }, [projectId, persona]);
 
   useEffect(() => {
     loadTasks();
     loadStats();
   }, [loadTasks, loadStats]);
 
-  // Create task
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_BASE}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_id: projectId || 'PRJ-001',
-          parcel_id: parcelId,
-          ...newTask,
-          due_at: newTask.due_at ? new Date(newTask.due_at).toISOString() : null,
-        }),
-      });
-      
-      if (!response.ok) throw new Error('Failed to create task');
-      
+      await createTaskV2({
+        project_id: projectId || 'PRJ-001',
+        parcel_id: parcelId,
+        title: newTask.title,
+        description: newTask.description || undefined,
+        category: newTask.category,
+        priority: newTask.priority || undefined,
+        due_at: newTask.due_at ? new Date(newTask.due_at).toISOString() : null,
+        auto_assign: newTask.auto_assign,
+      }, persona);
+
       setShowCreateModal(false);
-      setNewTask({
-        title: '',
-        description: '',
-        category: 'general',
-        priority: '',
-        due_at: '',
-        auto_assign: true,
-      });
+      setNewTask({ title: '', description: '', category: 'general', priority: '', due_at: '', auto_assign: true });
       loadTasks();
       loadStats();
     } catch (err) {
@@ -196,17 +133,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     }
   };
 
-  // Update task status
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
-      const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      
-      if (!response.ok) throw new Error('Failed to update task');
-      
+      await updateTask(taskId, { status: newStatus }, persona);
       loadTasks();
       loadStats();
     } catch (err) {
@@ -214,16 +143,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     }
   };
 
-  // Complete task
   const handleCompleteTask = async (taskId: string) => {
     try {
-      const response = await fetch(`${API_BASE}/tasks/${taskId}/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      
-      if (!response.ok) throw new Error('Failed to complete task');
-      
+      await completeTask(taskId, persona);
       loadTasks();
       loadStats();
     } catch (err) {
@@ -231,14 +153,10 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     }
   };
 
-  // Get assignment suggestions
-  const handleShowAssign = async (task: Task) => {
+  const handleShowAssign = async (task: TaskItem) => {
     setSelectedTask(task);
     try {
-      const response = await fetch(`${API_BASE}/tasks/${task.id}/suggest-assignee`);
-      if (!response.ok) throw new Error('Failed to get suggestions');
-      
-      const data = await response.json();
+      const data = await suggestTaskAssignee(task.id, persona);
       setSuggestions(data);
       setShowAssignModal(true);
     } catch (err) {
@@ -246,15 +164,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     }
   };
 
-  // Assign task
-  const handleAssignTask = async (taskId: string, userId: string) => {
+  const handleAssignTask = async (taskId: string, targetUserId: string) => {
     try {
-      const response = await fetch(`${API_BASE}/tasks/${taskId}/assign?user_id=${userId}`, {
-        method: 'POST',
-      });
-      
-      if (!response.ok) throw new Error('Failed to assign task');
-      
+      await assignTask(taskId, targetUserId, persona);
       setShowAssignModal(false);
       loadTasks();
     } catch (err) {
@@ -262,15 +174,9 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     }
   };
 
-  // Auto-assign task
   const handleAutoAssign = async (taskId: string) => {
     try {
-      const response = await fetch(`${API_BASE}/tasks/${taskId}/auto-assign`, {
-        method: 'POST',
-      });
-      
-      if (!response.ok) throw new Error('Failed to auto-assign task');
-      
+      await autoAssignTask(taskId, persona);
       setShowAssignModal(false);
       loadTasks();
     } catch (err) {

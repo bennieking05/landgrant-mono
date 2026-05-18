@@ -133,7 +133,7 @@ Legend:
 ### Legal review trigger engine
 - **Code**:
   - Rules: [`backend/app/services/rules_engine.py`](../backend/app/services/rules_engine.py)
-  - API list: [`backend/app/api/routes/rules.py`](../backend/app/api/routes/rules.py)
+  - API list: [`backend/app/api/routes/rules_ops.py`](../backend/app/api/routes/rules_ops.py)
   - Tests: [`backend/tests/test_rules_engine.py`](../backend/tests/test_rules_engine.py)
 - **Current status**: **Partial** (rules eval exists; task creation/gating not implemented end-to-end)
 - **Pass/fail checks**:

@@ -36,7 +36,7 @@ In a second terminal:
 cd /Users/bennieking/Sites/land-right
 source .venv/bin/activate
 cd backend
-DATABASE_URL=postgresql+psycopg://landright:landright@localhost:55432/landright python -m scripts.seed_data
+DATABASE_URL=postgresql+psycopg://landgrant:landgrant@localhost:55432/landgrant python -m scripts.seed_data
 ```
 
 ## 4) Start frontend

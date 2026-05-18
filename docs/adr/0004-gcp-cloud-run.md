@@ -6,7 +6,7 @@
 
 ## Context
 
-LandRight requires cloud infrastructure that:
+LandGrant requires cloud infrastructure that:
 1. Supports containerized Python/Node.js applications
 2. Auto-scales based on demand
 3. Provides managed PostgreSQL and Redis
@@ -102,7 +102,7 @@ Cloud Run selected for MVP simplicity. GKE migration path available if needed.
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: landright-api
+  name: landgrant-api
 spec:
   template:
     metadata:
@@ -113,7 +113,7 @@ spec:
     spec:
       containerConcurrency: 80
       containers:
-        - image: gcr.io/landright/api:latest
+        - image: gcr.io/landgrant/api:latest
           resources:
             limits:
               cpu: "2"
@@ -130,7 +130,7 @@ spec:
 ```hcl
 # terraform/cloudsql.tf
 resource "google_sql_database_instance" "main" {
-  name             = "landright-prod"
+  name             = "landgrant-prod"
   database_version = "POSTGRES_16"
   region           = "us-central1"
   

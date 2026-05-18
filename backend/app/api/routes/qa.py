@@ -9,7 +9,6 @@ Provides endpoints for:
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, Any
-from datetime import datetime
 from pydantic import BaseModel
 
 from app.api.deps import get_current_persona
@@ -22,15 +21,18 @@ router = APIRouter(prefix="/qa", tags=["qa"])
 # Request/Response models
 class QACheckRequest(BaseModel):
     """Request to run QA checks on a document."""
+
     document_content: str
     document_id: str
     jurisdiction: str
     document_type: str  # offer, petition, deed, etc.
     context: Optional[dict[str, Any]] = None  # names, dates, amounts
+    ai_output: Optional[dict[str, Any]] = None  # {claims:[...]}; triggers citation gate
 
 
 class QAReportResponse(BaseModel):
     """QA report response."""
+
     id: str
     document_id: str
     document_hash: str
@@ -48,6 +50,7 @@ class QAReportResponse(BaseModel):
 
 class RiskScoreResponse(BaseModel):
     """Risk score response."""
+
     score: int
     risk_level: str
     qa_passed: bool
@@ -57,6 +60,7 @@ class RiskScoreResponse(BaseModel):
 
 class QACheckDetail(BaseModel):
     """Detail of a single QA check."""
+
     check_type: str
     name: str
     passed: bool
@@ -74,14 +78,19 @@ async def run_qa_checks(
     persona: Persona = Depends(get_current_persona),
 ):
     """Run all QA checks on a document.
-    
+
     Returns a comprehensive report with pass/fail status
     and risk level (red/yellow/green).
     """
     authorize(persona, "qa", Action.EXECUTE)
-    
+
     from app.services.qa_checks import QACheckService
-    
+    from app.services.citations import enforce_citation_gate
+
+    gate = None
+    if request.ai_output is not None:
+        gate = enforce_citation_gate(request.ai_output)
+
     service = QACheckService()
     report = service.check_document(
         document_content=request.document_content,
@@ -89,8 +98,9 @@ async def run_qa_checks(
         jurisdiction=request.jurisdiction,
         document_type=request.document_type,
         context=request.context,
+        citation_gate=gate,
     )
-    
+
     return QAReportResponse(
         id=report.id,
         document_id=report.document_id,
@@ -114,19 +124,19 @@ async def get_qa_report(
     persona: Persona = Depends(get_current_persona),
 ):
     """Get full details of a QA report.
-    
+
     Includes all individual check results.
     """
     authorize(persona, "qa", Action.READ)
-    
+
     from app.services.qa_checks import QACheckService
-    
+
     service = QACheckService()
     report = service.get_report(report_id)
-    
+
     if not report:
         raise HTTPException(status_code=404, detail="QA report not found")
-    
+
     return report.to_dict()
 
 
@@ -138,26 +148,26 @@ async def get_qa_check_details(
     persona: Persona = Depends(get_current_persona),
 ):
     """Get individual check results from a QA report.
-    
+
     Can filter by risk level or pass/fail status.
     """
     authorize(persona, "qa", Action.READ)
-    
+
     from app.services.qa_checks import QACheckService
-    
+
     service = QACheckService()
     report = service.get_report(report_id)
-    
+
     if not report:
         raise HTTPException(status_code=404, detail="QA report not found")
-    
+
     results = report.all_results
-    
+
     if risk_level:
         results = [r for r in results if r.risk_level == risk_level]
     if passed is not None:
         results = [r for r in results if r.passed == passed]
-    
+
     return [
         QACheckDetail(
             check_type=r.check_type,
@@ -183,16 +193,16 @@ async def list_qa_reports(
 ):
     """List QA reports with optional filters."""
     authorize(persona, "qa", Action.READ)
-    
+
     from app.services.qa_checks import QACheckService
-    
+
     service = QACheckService()
     reports = service.list_reports(
         document_id=document_id,
         risk_level=risk_level,
         limit=limit,
     )
-    
+
     return {
         "count": len(reports),
         "reports": [
@@ -223,21 +233,21 @@ async def calculate_risk_score(
     persona: Persona = Depends(get_current_persona),
 ):
     """Calculate overall risk score for a document.
-    
+
     Combines QA report with citation verification.
     """
     authorize(persona, "qa", Action.READ)
-    
+
     from app.services.qa_checks import QACheckService, calculate_risk_score
-    
+
     service = QACheckService()
     report = service.get_report(qa_report_id)
-    
+
     if not report:
         raise HTTPException(status_code=404, detail="QA report not found")
-    
+
     result = calculate_risk_score(report, citation_check)
-    
+
     return RiskScoreResponse(**result)
 
 
@@ -251,15 +261,14 @@ async def validate_for_send(
     persona: Persona = Depends(get_current_persona),
 ):
     """Validate a document before sending.
-    
+
     Comprehensive check that must pass before
     any document is sent to landowner.
     """
     authorize(persona, "qa", Action.EXECUTE)
-    
+
     from app.services.qa_checks import QACheckService, calculate_risk_score
-    from app.services.citations import CitationService, ClaimChecker
-    
+
     # Run QA checks
     qa_service = QACheckService()
     qa_report = qa_service.check_document(
@@ -269,25 +278,21 @@ async def validate_for_send(
         document_type=document_type,
         context=context,
     )
-    
+
     # Calculate risk score
     risk = calculate_risk_score(qa_report, None)
-    
+
     # Determine if sendable
     can_send = qa_report.passed and risk["risk_level"] != "red"
-    
+
     return {
         "can_send": can_send,
         "qa_report_id": qa_report.id,
         "risk_level": risk["risk_level"],
         "risk_score": risk["score"],
         "requires_counsel_review": risk["requires_counsel_review"],
-        "blocking_issues": [
-            i.to_dict() for i in qa_report.critical_issues
-        ],
-        "warnings": [
-            w.to_dict() for w in qa_report.warnings
-        ],
+        "blocking_issues": [i.to_dict() for i in qa_report.critical_issues],
+        "warnings": [w.to_dict() for w in qa_report.warnings],
         "missing_clauses": qa_report.required_clauses_missing,
     }
 
@@ -299,16 +304,16 @@ async def get_required_clauses(
     persona: Persona = Depends(get_current_persona),
 ):
     """Get required clauses for a jurisdiction.
-    
+
     Lists all clauses that must be present in documents
     for the specified state.
     """
     authorize(persona, "qa", Action.READ)
-    
+
     from app.services.qa_checks import STATE_REQUIRED_CLAUSES
-    
+
     clauses = STATE_REQUIRED_CLAUSES.get(jurisdiction.upper(), [])
-    
+
     return {
         "jurisdiction": jurisdiction.upper(),
         "clauses_count": len(clauses),

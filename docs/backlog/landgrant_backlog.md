@@ -1,4 +1,4 @@
-# LandRight MVP Backlog
+# LandGrant MVP Backlog
 
 > **Source**: Software Development Agreement (Effective Date: January 5, 2026)  
 > **Project Fee**: $175,000  
@@ -9,7 +9,7 @@
 
 ## Overview
 
-This backlog is derived from the Software Development Agreement between LandRight AI, Inc. and NexGen Software Solutions LLC. It covers all functional requirements from Exhibit A (Product Requirements Document) and deliverables from Exhibit B (Milestones, Schedule and Fees).
+This backlog is derived from the Software Development Agreement between LandGrant AI, Inc. and NexGen Software Solutions LLC. It covers all functional requirements from Exhibit A (Product Requirements Document) and deliverables from Exhibit B (Milestones, Schedule and Fees).
 
 ### Milestone Summary
 

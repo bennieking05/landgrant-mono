@@ -1,10 +1,10 @@
-# LandRight AI-First Modules
+# LandGrant AI-First Modules
 
-> Implementation guide for AI-first functionality in the LandRight eminent domain platform.
+> Implementation guide for AI-first functionality in the LandGrant eminent domain platform.
 
 ## Overview
 
-This document describes the AI-first modules that provide audit-grade evidence, human-in-the-loop controls, and multi-state requirement management for the LandRight platform.
+This document describes the AI-first modules that provide audit-grade evidence, human-in-the-loop controls, and multi-state requirement management for the LandGrant platform.
 
 ## Architecture Summary
 
@@ -101,11 +101,13 @@ GET  /audit/ai-events/{id}/replay Get replay config
 GET  /audit/costs                 Cost summary
 ```
 
-**Database Tables**:
+**Database Tables** (declared on `Base.metadata`; being wired into the service in the current "AI-first robustness" roadmap — today the service keeps an in-memory store):
 - `ai_events`: All AI calls with full context
 - `prompt_templates`: Versioned prompts
 
-**Service**: `backend/app/services/ai_telemetry.py`
+**Service**: `backend/app/services/ai_telemetry.py` — currently `_events` is an
+in-memory dict; Phase 1.1 of the AI-first robustness plan moves persistence to
+the `ai_events` table.
 
 ### D. Document QA & Risk Scoring (`/qa/*` endpoints)
 
@@ -128,7 +130,9 @@ POST /qa/validate-for-send        Pre-send validation
 GET  /qa/required-clauses/{state} Get required clauses
 ```
 
-**Database Tables**:
+**Database Tables** (declared on `Base.metadata`; the service still reads/writes
+an in-memory `_reports` dict — persistence is tracked under Phase 1 of the
+AI-first robustness plan):
 - `qa_reports`: QA check results
 - `qa_checks`: Individual check results
 
@@ -156,7 +160,9 @@ GET  /approvals/check/{type}/{id} Check approval status
 POST /approvals/{id}/execute      Mark as executed
 ```
 
-**Database Tables**:
+**Database Tables** (declared on `Base.metadata`; service currently keeps
+`_approvals` in memory — persistence is tracked under Phase 1 of the AI-first
+robustness plan):
 - `approvals`: Approval records with audit trail
 
 **Service**: `backend/app/services/approvals.py`

@@ -75,16 +75,17 @@ class TestAgentRoutes:
         assert response.status_code == 200
 
     def test_get_ai_decision(self, client, counsel_headers):
-        """Test getting a specific AI decision."""
+        """Test getting a specific AI decision.
+
+        Phase 1.3: /agents/decisions/{id} now queries the AIDecision table.
+        Unknown IDs return 404 instead of returning mock data.
+        """
         response = client.get(
             "/agents/decisions/decision-001",
             headers=counsel_headers,
         )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "id" in data
-        assert "agent_type" in data
+
+        assert response.status_code == 404
 
     def test_list_escalations(self, client, counsel_headers):
         """Test listing escalations."""
@@ -107,19 +108,16 @@ class TestAgentRoutes:
         assert response.status_code == 200
 
     def test_get_escalation(self, client, counsel_headers):
-        """Test getting a specific escalation."""
+        """Phase 1.3: unknown escalations 404 against the real table."""
         response = client.get(
             "/agents/escalations/esc-001",
             headers=counsel_headers,
         )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "id" in data
-        assert "reason" in data
+
+        assert response.status_code == 404
 
     def test_resolve_escalation(self, client, counsel_headers):
-        """Test resolving an escalation."""
+        """Phase 1.3: resolving a non-existent escalation now 404s."""
         response = client.post(
             "/agents/escalations/esc-001/resolve",
             json={
@@ -128,22 +126,17 @@ class TestAgentRoutes:
             },
             headers=counsel_headers,
         )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "resolved"
-        assert data["outcome"] == "approved"
+
+        assert response.status_code == 404
 
     def test_assign_escalation(self, client, counsel_headers):
-        """Test assigning an escalation."""
+        """Phase 1.3: assigning a non-existent escalation now 404s."""
         response = client.post(
             "/agents/escalations/esc-001/assign?assignee_id=COUNSEL-001",
             headers=counsel_headers,
         )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["assigned_to"] == "COUNSEL-001"
+
+        assert response.status_code == 404
 
 
 class TestAgentAuthorization:

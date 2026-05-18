@@ -224,7 +224,7 @@ def main() -> int:
         Exit code (0 for success, non-zero for failures)
     """
     print("=" * 60)
-    print("LandRight Regression Test Runner")
+    print("LandGrant Regression Test Runner")
     print("=" * 60)
     
     # Generate unique run ID and timestamp

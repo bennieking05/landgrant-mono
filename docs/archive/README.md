@@ -22,7 +22,7 @@ This folder contains archived documents that have been superseded by updated ver
    - Appraisal computations
 4. 29 stories vs 72 required
 
-**Replacement**: `/docs/backlog/landright_backlog.csv`
+**Replacement**: `/docs/backlog/landgrant_backlog.csv`
 
 ---
 
@@ -30,6 +30,6 @@ This folder contains archived documents that have been superseded by updated ver
 
 | Document | Location |
 |----------|----------|
-| Backlog (Markdown) | `/docs/backlog/landright_backlog.md` |
-| Backlog (CSV for Jira) | `/docs/backlog/landright_backlog.csv` |
+| Backlog (Markdown) | `/docs/backlog/landgrant_backlog.md` |
+| Backlog (CSV for Jira) | `/docs/backlog/landgrant_backlog.csv` |
 | Coverage Verification | `/docs/backlog/coverage_verification.md` |

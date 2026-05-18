@@ -120,6 +120,6 @@
 
 ### Files Generated
 
-1. `/docs/backlog/landright_backlog.md` - Full Markdown backlog with acceptance criteria
-2. `/docs/backlog/landright_backlog.csv` - Jira-importable CSV format
+1. `/docs/backlog/landgrant_backlog.md` - Full Markdown backlog with acceptance criteria
+2. `/docs/backlog/landgrant_backlog.csv` - Jira-importable CSV format
 3. `/docs/backlog/coverage_verification.md` - This verification document

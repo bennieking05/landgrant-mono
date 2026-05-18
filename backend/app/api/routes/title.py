@@ -3,6 +3,7 @@
 Agreement Reference: Section 3.2(e) - Title & curative tracking
 (title document metadata, curative items and status)
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -79,7 +80,10 @@ async def upload_instrument(
             version="1.0.0",
             sha256=sha,
             storage_path=str(out_path),
-            metadata_json={"filename": file.filename, "content_type": file.content_type},
+            metadata_json={
+                "filename": file.filename,
+                "content_type": file.content_type,
+            },
             created_by=getattr(user, "id", None),
         )
     )
@@ -105,6 +109,7 @@ async def upload_instrument(
 
 class CurativeItemCreate(BaseModel):
     """Create a new curative item."""
+
     parcel_id: str
     item_type: str  # missing_heir, unreleased_lien, variance, boundary_dispute, etc.
     description: str
@@ -117,6 +122,7 @@ class CurativeItemCreate(BaseModel):
 
 class CurativeItemUpdate(BaseModel):
     """Update a curative item."""
+
     status: Optional[str] = None
     severity: Optional[str] = None
     description: Optional[str] = None
@@ -141,12 +147,12 @@ def create_curative_item(
 ):
     """Create a new curative item for a parcel."""
     authorize(persona, "title", Action.WRITE)
-    
+
     # Validate severity
     valid_severities = ("low", "medium", "high", "critical")
     if payload.severity not in valid_severities:
         raise HTTPException(status_code=422, detail="invalid_severity")
-    
+
     # Parse due date if provided
     due_date = None
     if payload.due_date:
@@ -154,7 +160,7 @@ def create_curative_item(
             due_date = datetime.fromisoformat(payload.due_date.replace("Z", ""))
         except Exception as exc:
             raise HTTPException(status_code=422, detail="invalid_due_date") from exc
-    
+
     item_id = str(uuid4())
     item = models.CurativeItem(
         id=item_id,
@@ -171,7 +177,7 @@ def create_curative_item(
         created_by=getattr(user, "id", None),
     )
     db.add(item)
-    
+
     # Audit
     db.add(
         models.AuditEvent(
@@ -186,14 +192,16 @@ def create_curative_item(
                 "item_type": payload.item_type,
                 "severity": payload.severity,
             },
-            hash=sha256_hex({
-                "item_id": item_id,
-                "parcel_id": payload.parcel_id,
-            }),
+            hash=sha256_hex(
+                {
+                    "item_id": item_id,
+                    "parcel_id": payload.parcel_id,
+                }
+            ),
         )
     )
     db.commit()
-    
+
     return {"item_id": item_id, "status": "open"}
 
 
@@ -206,17 +214,19 @@ def list_curative_items(
 ):
     """List curative items for a parcel."""
     authorize(persona, "title", Action.READ)
-    
-    query = db.query(models.CurativeItem).filter(models.CurativeItem.parcel_id == parcel_id)
-    
+
+    query = db.query(models.CurativeItem).filter(
+        models.CurativeItem.parcel_id == parcel_id
+    )
+
     if status:
         try:
             query = query.filter(models.CurativeItem.status == CurativeStatus(status))
         except ValueError:
             raise HTTPException(status_code=422, detail="invalid_status")
-    
+
     items = query.order_by(models.CurativeItem.created_at.desc()).all()
-    
+
     return {
         "parcel_id": parcel_id,
         "count": len(items),
@@ -230,8 +240,12 @@ def list_curative_items(
                 "responsible_party": c.responsible_party,
                 "responsible_user_id": c.responsible_user_id,
                 "due_date": c.due_date.isoformat() + "Z" if c.due_date else None,
-                "identified_date": c.identified_date.isoformat() + "Z" if c.identified_date else None,
-                "resolved_date": c.resolved_date.isoformat() + "Z" if c.resolved_date else None,
+                "identified_date": (
+                    c.identified_date.isoformat() + "Z" if c.identified_date else None
+                ),
+                "resolved_date": (
+                    c.resolved_date.isoformat() + "Z" if c.resolved_date else None
+                ),
                 "title_instrument_id": c.title_instrument_id,
                 "resolution_notes": c.resolution_notes,
             }
@@ -248,11 +262,13 @@ def get_curative_item(
 ):
     """Get a specific curative item by ID."""
     authorize(persona, "title", Action.READ)
-    
-    item = db.query(models.CurativeItem).filter(models.CurativeItem.id == item_id).first()
+
+    item = (
+        db.query(models.CurativeItem).filter(models.CurativeItem.id == item_id).first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="item_not_found")
-    
+
     return {
         "id": item.id,
         "parcel_id": item.parcel_id,
@@ -263,8 +279,12 @@ def get_curative_item(
         "responsible_party": item.responsible_party,
         "responsible_user_id": item.responsible_user_id,
         "due_date": item.due_date.isoformat() + "Z" if item.due_date else None,
-        "identified_date": item.identified_date.isoformat() + "Z" if item.identified_date else None,
-        "resolved_date": item.resolved_date.isoformat() + "Z" if item.resolved_date else None,
+        "identified_date": (
+            item.identified_date.isoformat() + "Z" if item.identified_date else None
+        ),
+        "resolved_date": (
+            item.resolved_date.isoformat() + "Z" if item.resolved_date else None
+        ),
         "title_instrument_id": item.title_instrument_id,
         "resolution_notes": item.resolution_notes,
         "resolution_document_id": item.resolution_document_id,
@@ -284,63 +304,68 @@ def update_curative_item(
 ):
     """Update a curative item."""
     authorize(persona, "title", Action.WRITE)
-    
-    item = db.query(models.CurativeItem).filter(models.CurativeItem.id == item_id).first()
+
+    item = (
+        db.query(models.CurativeItem).filter(models.CurativeItem.id == item_id).first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="item_not_found")
-    
+
     changes = {}
-    
+
     if payload.status is not None:
         try:
             old_status = item.status
             new_status = CurativeStatus(payload.status)
             item.status = new_status
-            changes["status"] = {"from": old_status.value if old_status else None, "to": payload.status}
-            
+            changes["status"] = {
+                "from": old_status.value if old_status else None,
+                "to": payload.status,
+            }
+
             # Set resolved_date if transitioning to resolved/waived
             if payload.status in ("resolved", "waived") and not item.resolved_date:
                 item.resolved_date = datetime.utcnow()
                 changes["resolved_date"] = item.resolved_date.isoformat()
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="invalid_status") from exc
-    
+
     if payload.severity is not None:
         valid_severities = ("low", "medium", "high", "critical")
         if payload.severity not in valid_severities:
             raise HTTPException(status_code=422, detail="invalid_severity")
         item.severity = payload.severity
         changes["severity"] = payload.severity
-    
+
     if payload.description is not None:
         item.description = payload.description
         changes["description"] = payload.description
-    
+
     if payload.responsible_party is not None:
         item.responsible_party = payload.responsible_party
         changes["responsible_party"] = payload.responsible_party
-    
+
     if payload.responsible_user_id is not None:
         item.responsible_user_id = payload.responsible_user_id
         changes["responsible_user_id"] = payload.responsible_user_id
-    
+
     if payload.due_date is not None:
         try:
             item.due_date = datetime.fromisoformat(payload.due_date.replace("Z", ""))
             changes["due_date"] = payload.due_date
         except Exception as exc:
             raise HTTPException(status_code=422, detail="invalid_due_date") from exc
-    
+
     if payload.resolution_notes is not None:
         item.resolution_notes = payload.resolution_notes
         changes["resolution_notes"] = payload.resolution_notes
-    
+
     if payload.resolution_document_id is not None:
         item.resolution_document_id = payload.resolution_document_id
         changes["resolution_document_id"] = payload.resolution_document_id
-    
+
     item.updated_at = datetime.utcnow()
-    
+
     if changes:
         db.add(
             models.AuditEvent(
@@ -349,13 +374,17 @@ def update_curative_item(
                 actor_persona=persona,
                 action="curative.update",
                 resource="title",
-                payload={"item_id": item_id, "parcel_id": item.parcel_id, "changes": changes},
+                payload={
+                    "item_id": item_id,
+                    "parcel_id": item.parcel_id,
+                    "changes": changes,
+                },
                 hash=sha256_hex({"item_id": item_id, "changes": changes}),
             )
         )
-    
+
     db.commit()
-    
+
     return {"item_id": item_id, "updated": True, "changes": changes}
 
 
@@ -368,42 +397,45 @@ def get_curative_analytics(
 ):
     """Get curative items analytics - counts and types summary."""
     authorize(persona, "title", Action.READ)
-    
+
     query = db.query(models.CurativeItem)
-    
+
     if parcel_id:
         query = query.filter(models.CurativeItem.parcel_id == parcel_id)
     elif project_id:
         # Join through parcel to filter by project
         query = query.join(models.Parcel).filter(models.Parcel.project_id == project_id)
-    
+
     items = query.all()
-    
+
     # Count by status
     status_counts = {}
     for item in items:
         status = item.status.value if item.status else "unknown"
         status_counts[status] = status_counts.get(status, 0) + 1
-    
+
     # Count by type
     type_counts = {}
     for item in items:
         item_type = item.item_type or "unknown"
         type_counts[item_type] = type_counts.get(item_type, 0) + 1
-    
+
     # Count by severity
     severity_counts = {}
     for item in items:
         severity = item.severity or "unknown"
         severity_counts[severity] = severity_counts.get(severity, 0) + 1
-    
+
     # Count overdue items
     now = datetime.utcnow()
     overdue_count = sum(
-        1 for item in items
-        if item.due_date and item.due_date < now and item.status in (CurativeStatus.OPEN, CurativeStatus.IN_PROGRESS)
+        1
+        for item in items
+        if item.due_date
+        and item.due_date < now
+        and item.status in (CurativeStatus.OPEN, CurativeStatus.IN_PROGRESS)
     )
-    
+
     return {
         "project_id": project_id,
         "parcel_id": parcel_id,
@@ -413,4 +445,3 @@ def get_curative_analytics(
         "severity_breakdown": severity_counts,
         "overdue_count": overdue_count,
     }
-

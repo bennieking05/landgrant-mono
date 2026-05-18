@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useCallback, useEffect } from "react";
 import { getCase, getAppraisal, listOffers, type CaseDetails, type AppraisalResponse, type OffersResponse } from "@/lib/api";
 
@@ -104,7 +102,7 @@ export function SettlementPredictor({
           }
         }
       } catch (e) {
-        console.log("Could not load case data:", e);
+        if (import.meta.env.DEV) console.debug("Could not load case data:", e);
       }
 
       try {
@@ -115,7 +113,7 @@ export function SettlementPredictor({
           fieldsUpdated++;
         }
       } catch (e) {
-        console.log("Could not load appraisal data:", e);
+        if (import.meta.env.DEV) console.debug("Could not load appraisal data:", e);
       }
 
       try {
@@ -135,7 +133,7 @@ export function SettlementPredictor({
           }
         }
       } catch (e) {
-        console.log("Could not load offers data:", e);
+        if (import.meta.env.DEV) console.debug("Could not load offers data:", e);
       }
 
       // Apply updates

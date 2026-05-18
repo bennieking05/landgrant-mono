@@ -1,4 +1,4 @@
-"""Celery tasks package for LandRight AI agents.
+"""Celery tasks package for LandGrant AI agents.
 
 This package contains background tasks organized by agent/feature:
 

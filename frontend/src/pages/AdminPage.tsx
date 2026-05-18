@@ -11,8 +11,9 @@ import {
   SearchResult,
   HealthStatus,
 } from "@/lib/api";
+import { AIDecisionDashboard } from "@/components/AIDecisionDashboard";
 
-type TabType = "cases" | "projects" | "health";
+type TabType = "cases" | "projects" | "health" | "ai_decisions";
 
 export function AdminPage() {
   const [activeTab, setActiveTab] = useState<TabType>("cases");
@@ -280,6 +281,16 @@ export function AdminPage() {
           >
             System Health
           </button>
+          <button
+            onClick={() => setActiveTab("ai_decisions")}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "ai_decisions"
+                ? "border-brand text-brand"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            AI Decisions
+          </button>
         </nav>
       </div>
 
@@ -509,6 +520,9 @@ export function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* AI Decisions Tab */}
+      {activeTab === "ai_decisions" && <AIDecisionDashboard />}
     </section>
   );
 }

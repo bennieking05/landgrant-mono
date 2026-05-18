@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { getRepositoryCompleteness, initiateCase, type RepositoryCompletenessResponse } from "@/lib/api";
 
