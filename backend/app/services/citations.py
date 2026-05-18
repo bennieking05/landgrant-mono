@@ -694,9 +694,7 @@ def enforce_citation_gate(
         for cit in cits:
             if not cit.get("source_id") or not cit.get("snippet_hash"):
                 bad = True
-                issues.append(
-                    f"claim[{idx}]: citation missing source_id/snippet_hash"
-                )
+                issues.append(f"claim[{idx}]: citation missing source_id/snippet_hash")
                 break
             if authority_required and not cit.get("authority_level"):
                 bad = True
@@ -736,13 +734,10 @@ def populate_qa_citation_counters(
 
     if isinstance(gate_or_check, CitationGateResult):
         qa_report.citations_validated = gate_or_check.claims_with_citations
-        qa_report.citations_invalid = (
-            len(gate_or_check.missing_citation_indices)
-            + len(gate_or_check.invalid_citation_indices)
+        qa_report.citations_invalid = len(gate_or_check.missing_citation_indices) + len(
+            gate_or_check.invalid_citation_indices
         )
-        qa_report.citation_issues = [
-            {"message": msg} for msg in gate_or_check.issues
-        ]
+        qa_report.citation_issues = [{"message": msg} for msg in gate_or_check.issues]
         return
 
     if isinstance(gate_or_check, dict):

@@ -351,7 +351,7 @@ async def trigger_training(
     jurisdiction: Optional[str] = Query(default=None),
     force: bool = Query(default=False),
     persona: Persona = Depends(get_current_persona),
-    db = Depends(get_db),
+    db=Depends(get_db),
 ) -> dict[str, Any]:
     """Run the ML training loop (Phase 2.2).
 

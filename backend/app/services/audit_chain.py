@@ -27,7 +27,9 @@ def _canonical(payload: Any) -> bytes:
     return json.dumps(payload or {}, sort_keys=True, default=str).encode("utf-8")
 
 
-def _compute_hash(prev_hash: Optional[str], payload: Any, resource: str, action: str) -> str:
+def _compute_hash(
+    prev_hash: Optional[str], payload: Any, resource: str, action: str
+) -> str:
     h = hashlib.sha256()
     h.update((prev_hash or "").encode("utf-8"))
     h.update(b"|")

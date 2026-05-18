@@ -160,9 +160,7 @@ def get_chroma_collection():
                 persist_dir = Path(settings.rag_persist_directory)
                 persist_dir.mkdir(parents=True, exist_ok=True)
                 _chroma_client = chromadb.PersistentClient(path=str(persist_dir))
-                logger.info(
-                    "Using Chroma PersistentClient at %s", persist_dir
-                )
+                logger.info("Using Chroma PersistentClient at %s", persist_dir)
 
             _collection = _chroma_client.get_or_create_collection(
                 name=settings.rag_collection_name, metadata={"hnsw:space": "cosine"}

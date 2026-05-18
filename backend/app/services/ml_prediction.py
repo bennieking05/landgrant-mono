@@ -300,11 +300,11 @@ async def prepare_training_dataset(
     Returns:
         Dataset configuration for Vertex AI
     """
-    threshold = min_records if min_records is not None else _ml_config.min_training_samples
+    threshold = (
+        min_records if min_records is not None else _ml_config.min_training_samples
+    )
     if len(records) < threshold:
-        raise ValueError(
-            f"Insufficient training data: {len(records)} < {threshold}"
-        )
+        raise ValueError(f"Insufficient training data: {len(records)} < {threshold}")
 
     # Convert to training format
     training_data = []
@@ -719,19 +719,14 @@ async def calculate_model_accuracy(
             "rmse": 0.0,
         }
 
-    errors = [
-        float(r.actual_settlement) - float(r.predicted_settlement) for r in rows
-    ]
+    errors = [float(r.actual_settlement) - float(r.predicted_settlement) for r in rows]
     abs_errors = [abs(e) for e in errors]
     mae = sum(abs_errors) / len(rows)
-    mape = (
-        sum(
-            abs(e) / float(r.actual_settlement)
-            for e, r in zip(errors, rows)
-            if r.actual_settlement and float(r.actual_settlement) != 0
-        )
-        / max(1, len([r for r in rows if r.actual_settlement]))
-    )
+    mape = sum(
+        abs(e) / float(r.actual_settlement)
+        for e, r in zip(errors, rows)
+        if r.actual_settlement and float(r.actual_settlement) != 0
+    ) / max(1, len([r for r in rows if r.actual_settlement]))
     rmse = (sum(e * e for e in errors) / len(rows)) ** 0.5
 
     return {

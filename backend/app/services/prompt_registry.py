@@ -70,9 +70,7 @@ def get_active_prompt(db: Session, name: str) -> Optional[PromptRecord]:
     return _row_to_record(row) if row else None
 
 
-def get_prompt_version(
-    db: Session, name: str, version: str
-) -> Optional[PromptRecord]:
+def get_prompt_version(db: Session, name: str, version: str) -> Optional[PromptRecord]:
     row = (
         db.query(models.PromptTemplate)
         .filter(models.PromptTemplate.name == name)

@@ -291,7 +291,9 @@ async def call_gemini(
                     }
                 )
             except Exception as telemetry_exc:  # pragma: no cover - defensive
-                logger.debug("call_gemini: telemetry capture skipped: %s", telemetry_exc)
+                logger.debug(
+                    "call_gemini: telemetry capture skipped: %s", telemetry_exc
+                )
 
         if response.candidates and len(response.candidates) > 0:
             text = response.candidates[0].content.parts[0].text

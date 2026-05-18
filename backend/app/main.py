@@ -55,8 +55,7 @@ configure_tracing()
 _prod_problems = settings.validate_prod_secrets()
 if _prod_problems:
     raise RuntimeError(
-        "Refusing to start with insecure configuration: "
-        + "; ".join(_prod_problems)
+        "Refusing to start with insecure configuration: " + "; ".join(_prod_problems)
     )
 
 

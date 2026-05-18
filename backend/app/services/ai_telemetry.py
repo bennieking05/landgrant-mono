@@ -223,7 +223,9 @@ class AIEvent:
             "retrieval_query": self.retrieval_query,
             "tool_calls": self.tool_calls,
             "citation_ids": self.citation_ids,
-            "confidence": float(self.confidence) if self.confidence is not None else None,
+            "confidence": (
+                float(self.confidence) if self.confidence is not None else None
+            ),
             "success": self.success,
             "error_message": self.error_message,
             "ai_decision_id": self.ai_decision_id,
@@ -657,8 +659,14 @@ def log_ai_call(action: str, template_id: Optional[str] = None):
                     AIEventInput(
                         action=action,
                         model=kwargs.get("model", "gemini-1.5-pro"),
-                        inputs=inputs if isinstance(inputs, dict) else {"args": repr(inputs)},
-                        outputs=outputs if isinstance(outputs, dict) else {"value": outputs},
+                        inputs=(
+                            inputs
+                            if isinstance(inputs, dict)
+                            else {"args": repr(inputs)}
+                        ),
+                        outputs=(
+                            outputs if isinstance(outputs, dict) else {"value": outputs}
+                        ),
                         prompt_template_id=template_id,
                         latency_ms=latency_ms,
                         success=error is None,
@@ -744,11 +752,11 @@ class AICallContext:
     def set_outputs(self, outputs: dict[str, Any]) -> None:
         self.outputs = outputs
 
-    def set_usage(self, input_tokens: Optional[int], output_tokens: Optional[int]) -> None:
+    def set_usage(
+        self, input_tokens: Optional[int], output_tokens: Optional[int]
+    ) -> None:
         self.metadata["input_tokens"] = input_tokens
         self.metadata["output_tokens"] = output_tokens
 
-    def add_tool_call(
-        self, tool_name: str, args: dict[str, Any], result: Any
-    ) -> None:
+    def add_tool_call(self, tool_name: str, args: dict[str, Any], result: Any) -> None:
         self.tool_calls.append({"tool": tool_name, "args": args, "result": result})

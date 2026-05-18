@@ -218,9 +218,7 @@ class ApprovalService:
         row.updated_at = record.updated_at
         self.db.commit()
 
-    def _find_idempotent(
-        self, request: ApprovalRequest
-    ) -> Optional[ApprovalRecord]:
+    def _find_idempotent(self, request: ApprovalRequest) -> Optional[ApprovalRecord]:
         """Return an existing open approval for the same entity/action/hash.
 
         This collapses retries so a caller who re-submits identical content
@@ -334,9 +332,7 @@ class ApprovalService:
             if project_id:
                 approvals = [a for a in approvals if a.project_id == project_id]
             if reviewer_id:
-                approvals = [
-                    a for a in approvals if a.reviewer_user_id == reviewer_id
-                ]
+                approvals = [a for a in approvals if a.reviewer_user_id == reviewer_id]
             approvals.sort(key=lambda a: a.created_at, reverse=True)
             return approvals[:limit]
 
@@ -404,9 +400,7 @@ class ApprovalService:
         self._commit_record(approval)
         return approval
 
-    def reject(
-        self, approval_id: str, user_id: str, reason: str
-    ) -> ApprovalRecord:
+    def reject(self, approval_id: str, user_id: str, reason: str) -> ApprovalRecord:
         approval = self.get_approval(approval_id)
         if not approval:
             raise ValueError(f"Approval {approval_id} not found")
@@ -434,9 +428,7 @@ class ApprovalService:
         self._commit_record(approval)
         return approval
 
-    def mark_qa_passed(
-        self, approval_id: str, qa_report_id: str
-    ) -> ApprovalRecord:
+    def mark_qa_passed(self, approval_id: str, qa_report_id: str) -> ApprovalRecord:
         approval = self.get_approval(approval_id)
         if not approval:
             raise ValueError(f"Approval {approval_id} not found")
@@ -642,12 +634,16 @@ def requires_approval(
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
-            _assert_approved(kwargs, entity_type, action, entity_id_arg, content_hash_arg, db_arg)
+            _assert_approved(
+                kwargs, entity_type, action, entity_id_arg, content_hash_arg, db_arg
+            )
             return await func(*args, **kwargs)
 
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
-            _assert_approved(kwargs, entity_type, action, entity_id_arg, content_hash_arg, db_arg)
+            _assert_approved(
+                kwargs, entity_type, action, entity_id_arg, content_hash_arg, db_arg
+            )
             return func(*args, **kwargs)
 
         import asyncio

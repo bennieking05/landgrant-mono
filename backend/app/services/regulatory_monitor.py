@@ -162,11 +162,15 @@ async def run_monitor(
     summary: dict[str, Any] = {"jurisdictions": {}, "total_created": 0}
     for jur in jurisdictions:
         items = await fetch_all(jur)
-        result = persist_items(db, items) if db is not None else {
-            "created": 0,
-            "skipped": len(items),
-            "note": "db session not provided",
-        }
+        result = (
+            persist_items(db, items)
+            if db is not None
+            else {
+                "created": 0,
+                "skipped": len(items),
+                "note": "db session not provided",
+            }
+        )
         summary["jurisdictions"][jur] = {
             "items_fetched": len(items),
             **result,

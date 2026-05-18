@@ -92,10 +92,7 @@ def principal_from_token(authorization: Optional[str]) -> Optional[JWTPrincipal]
         )
 
     user_id = (
-        claims.get("sub")
-        or claims.get("user_id")
-        or claims.get("uid")
-        or "jwt-user"
+        claims.get("sub") or claims.get("user_id") or claims.get("uid") or "jwt-user"
     )
     return JWTPrincipal(
         user_id=str(user_id),
