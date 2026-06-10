@@ -13,7 +13,7 @@ export function CounselQueue() {
   const fetchData = useCallback(() => {
     setLoading(true);
     setError(null);
-    apiGet<{ items: Approval[] }>("/workflows/approvals", "in_house_counsel")
+    apiGet<{ items: Approval[] }>("/workflows/approvals")
       .then((d) => setItems(d.items))
       .catch((e) => {
         setItems(null);

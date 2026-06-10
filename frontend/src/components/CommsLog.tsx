@@ -20,7 +20,7 @@ export function CommsLog({ parcelId }: { parcelId: string }) {
   const fetchData = useCallback(() => {
     setLoading(true);
     setError(null);
-    apiGet<{ items: CommsItem[] }>(`/communications?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent")
+    apiGet<{ items: CommsItem[] }>(`/communications?parcel_id=${encodeURIComponent(parcelId)}`)
       .then((d) => setItems(d.items))
       .catch((e) => {
         setItems(null);

@@ -18,7 +18,6 @@ export function BinderStatus({ projectId }: { projectId: string }) {
     try {
       const res = await apiGet<{ sections: BinderSection[] }>(
         `/binder/status?project_id=${encodeURIComponent(projectId)}`,
-        "in_house_counsel",
       );
       setSections(res.sections);
     } catch (e) {
@@ -37,7 +36,7 @@ export function BinderStatus({ projectId }: { projectId: string }) {
     setExporting(true);
     setExportStatus(null);
     try {
-      const data = await apiPostJson<{ bundle_id: string; storage_path: string }>("/workflows/binder/export", {}, "in_house_counsel");
+      const data = await apiPostJson<{ bundle_id: string; storage_path: string }>("/workflows/binder/export", {});
       setExportStatus(`Bundle ${data.bundle_id} exported successfully`);
     } catch (err) {
       setExportStatus(`Export failed: ${String(err)}`);

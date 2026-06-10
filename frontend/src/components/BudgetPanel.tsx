@@ -18,7 +18,7 @@ export function BudgetPanel({ projectId }: { projectId: string }) {
   const fetchData = useCallback(() => {
     setLoading(true);
     setError(null);
-    apiGet<BudgetSummary>(`/budgets/summary?project_id=${encodeURIComponent(projectId)}`, "in_house_counsel")
+    apiGet<BudgetSummary>(`/budgets/summary?project_id=${encodeURIComponent(projectId)}`)
       .then((d) => setData(d))
       .catch((e) => {
         setData(null);

@@ -13,7 +13,7 @@ export function PacketChecklist({ parcelId }: { parcelId: string }) {
   const fetchData = useCallback(() => {
     setLoading(true);
     setError(null);
-    apiGet<{ items: ChecklistItem[] }>(`/packet/checklist?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent")
+    apiGet<{ items: ChecklistItem[] }>(`/packet/checklist?parcel_id=${encodeURIComponent(parcelId)}`)
       .then((d) => setItems(d.items))
       .catch((e) => {
         setItems(null);

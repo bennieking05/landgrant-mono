@@ -21,7 +21,7 @@ export function UploadPanel({ parcelId }: { parcelId: string }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiGet<{ items: UploadItem[] }>(`/portal/uploads?parcel_id=${encodeURIComponent(parcelId)}`, "landowner");
+      const res = await apiGet<{ items: UploadItem[] }>(`/portal/uploads?parcel_id=${encodeURIComponent(parcelId)}`);
       setItems(res.items);
     } catch (e) {
       setError(String(e));
@@ -44,7 +44,7 @@ export function UploadPanel({ parcelId }: { parcelId: string }) {
         const form = new FormData();
         form.set("parcel_id", parcelId);
         form.set("file", file);
-        await apiPostForm("/portal/uploads", form, "landowner");
+        await apiPostForm("/portal/uploads", form);
       }
       setUploadStatus("Upload complete");
       await refresh();

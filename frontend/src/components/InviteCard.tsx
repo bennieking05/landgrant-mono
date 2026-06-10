@@ -18,7 +18,6 @@ export function InviteCard({ projectId, parcelId }: { projectId: string; parcelI
       }>(
         "/portal/invites",
         { email, project_id: projectId, parcel_id: parcelId },
-        "landowner",
       );
       setStatus(`Invite ${res.status} (${res.invite_id}), expires ${res.expires_at}${res.invite_link ? `, link: ${res.invite_link}` : ""}`);
     } catch (e) {

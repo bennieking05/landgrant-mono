@@ -14,7 +14,7 @@ export function RuleResults({ parcelId }: { parcelId: string }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiGet<{ items: RuleItem[] }>(`/rules/results?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent");
+      const data = await apiGet<{ items: RuleItem[] }>(`/rules/results?parcel_id=${encodeURIComponent(parcelId)}`);
       setResults(data.items);
     } catch (e) {
       setResults(null);

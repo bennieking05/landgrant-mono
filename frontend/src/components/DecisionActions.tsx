@@ -7,7 +7,7 @@ export function DecisionActions({ parcelId }: { parcelId: string }) {
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    apiGet<{ options: string[] }>("/portal/decision/options", "landowner")
+    apiGet<{ options: string[] }>("/portal/decision/options")
       .then((d) => setActions(d.options))
       .catch((e) => setStatus(`Failed to load options: ${String(e)}`));
   }, []);
@@ -19,7 +19,6 @@ export function DecisionActions({ parcelId }: { parcelId: string }) {
       const res = await apiPostJson<{ routed_to: string; decision_id: string }>(
         "/portal/decision",
         { parcel_id: parcelId, selection: action },
-        "landowner",
       );
       setStatus(`Decision routed to ${res.routed_to} (${res.decision_id})`);
     } catch (e) {
