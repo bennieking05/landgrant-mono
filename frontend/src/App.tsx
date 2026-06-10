@@ -13,10 +13,21 @@ import { AdminPage } from "@/pages/AdminPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
 function ProtectedShell() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, me } = useAuth();
   const location = useLocation();
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+  // Wait for /auth/me before rendering persona-gated routes; otherwise the
+  // persona defaults to ``land_agent`` and PersonaRoute can wrongly redirect a
+  // deep-linked/refreshed page (e.g. /intake, /admin) before the real persona
+  // resolves.
+  if (!me) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-slate-500">
+        Loading…
+      </div>
+    );
   }
   return (
     <AppContextProvider>

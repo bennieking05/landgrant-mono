@@ -88,6 +88,11 @@ export function AuthProvider({ children }: Props) {
       }
       const body = (await res.json()) as MeResponse;
       setMe(body);
+    } catch {
+      // Network/backend failure: drop the token so the app falls back to the
+      // login screen instead of hanging on the auth-loading gate.
+      persistToken(null);
+      setMe(null);
     } finally {
       setLoading(false);
     }

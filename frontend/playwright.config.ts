@@ -45,10 +45,21 @@ export default defineConfig({
       use: { ...devices["Pixel 5"] },
     },
   ],
-  /* Start local dev server before running tests (optional) */
-  // webServer: {
-  //   command: "npm run dev",
-  //   url: "http://localhost:3050",
-  //   reuseExistingServer: !process.env.CI,
-  // },
+  /* Boot the backend (8050) and frontend (3050) before tests. A reachable
+   * Postgres (see docker-compose) is still required for backend auth. */
+  webServer: [
+    {
+      command: "python3 -m uvicorn app.main:app --port 8050",
+      cwd: path.resolve(__dirname, "..", "backend"),
+      url: "http://localhost:8050/health/live",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: "npm run dev",
+      url: "http://localhost:3050",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+  ],
 });

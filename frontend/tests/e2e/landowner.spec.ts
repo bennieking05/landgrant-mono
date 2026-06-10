@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import path from "path";
 
 /**
@@ -9,14 +9,38 @@ import path from "path";
  * Prerequisites:
  *   - Backend running on port 8050
  *   - Frontend running on port 3050
+ *
+ * The whole SPA is behind the auth guard (see App.tsx), so the smoke test
+ * signs in with a seeded account that may open /intake (platform_admin) and
+ * injects the JWT before the app boots.
  */
 
 const ARTIFACTS_DIR = path.resolve(__dirname, "..", "..", "..", "artifacts", "e2e");
 const PROJECT_ID = "PRJ-001";
 const PARCEL_ID = "PARCEL-001";
+const API_BASE = process.env.VITE_API_BASE ?? "http://localhost:8050";
+const TOKEN_KEY = "landgrant.jwt";
+// Seeded dev user with /intake access (see backend _bootstrap_dev_db).
+const TEST_EMAIL = "admin@landgrant.local";
+const TEST_PASSWORD = "devpass123";
+
+async function authenticate(page: Page, request: APIRequestContext): Promise<void> {
+  const res = await request.post(`${API_BASE}/auth/login`, {
+    data: { email: TEST_EMAIL, password: TEST_PASSWORD },
+  });
+  expect(res.ok(), "login should succeed").toBeTruthy();
+  const { access_token: token } = (await res.json()) as { access_token: string };
+  await page.addInitScript(
+    ([key, value]) => {
+      window.sessionStorage.setItem(key, value);
+    },
+    [TOKEN_KEY, token] as const,
+  );
+}
 
 test.describe("Landowner Portal Flow", () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, request }) => {
+    await authenticate(page, request);
     // Navigate to intake page with project/parcel context
     await page.goto(`/intake?projectId=${PROJECT_ID}&parcelId=${PARCEL_ID}`);
   });
