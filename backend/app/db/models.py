@@ -58,7 +58,8 @@ class Persona(str, PyEnum):
     FIRM_ADMIN = (
         "firm_admin"  # Law firm admin - sees rolled-up cases for their projects
     )
-    ADMIN = "admin"  # Platform admin - sees all cases across all firms
+    PLATFORM_ADMIN = "platform_admin"  # Cross-tenant platform operations (/admin)
+    ADMIN = "admin"  # Legacy alias; new JWTs should use platform_admin
 
 
 class Firm(Base):
@@ -66,7 +67,7 @@ class Firm(Base):
 
     Phase 3.1: every tenant-scoped entity ultimately references a ``Firm``
     so a single deployment can host multiple practices without bleeding
-    data.  ``ADMIN`` persona users have ``firm_id = NULL`` and may read
+    data.  ``PLATFORM_ADMIN`` users may have ``firm_id = NULL`` and may read
     across firms when explicitly allowed.
     """
 
@@ -277,7 +278,23 @@ class User(Base):
     email = Column(String, nullable=False, unique=True)
     persona = Column(Enum(Persona), nullable=False)
     full_name = Column(String)
+    password_hash = Column(String(255), nullable=True)
     metadata_json = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ParcelAccessGrant(Base):
+    """Row-level parcel visibility for landowner portal and outside counsel."""
+
+    __tablename__ = "parcel_access_grants"
+
+    id = Column(String, primary_key=True)
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
+    grantee_email = Column(String, nullable=True, index=True)
+    # ``landowner`` or ``outside_counsel`` — matches :class:`Persona` values.
+    scope_persona = Column(String(64), nullable=False)
+    firm_id = Column(String, ForeignKey("firms.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

@@ -131,46 +131,59 @@ def test_principal_from_jwt_rejects_malformed_bearer(monkeypatch):
         principal_from_token("Basic xyz")
 
 
-def test_get_current_persona_requires_token_in_prod(monkeypatch):
-    from app.api import deps
+def test_get_current_principal_requires_middleware_principal():
+    from starlette.requests import Request
     from fastapi import HTTPException
 
-    prod_settings = Settings(
-        environment="prod",
-        jwt_secret="x" * 40,
-        session_secret="y" * 40,
-        encryption_key="z" * 40,
-        allow_persona_header=False,
+    from app.api.deps import get_current_principal
+
+    req = Request(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "method": "GET",
+            "path": "/test",
+            "headers": [],
+            "scheme": "http",
+            "server": ("127.0.0.1", 8050),
+            "client": ("127.0.0.1", 12345),
+        }
     )
-    monkeypatch.setattr(deps, "_settings", prod_settings)
     with pytest.raises(HTTPException) as exc:
-        deps.get_current_persona(x_persona="land_agent", authorization=None)
+        get_current_principal(req)
     assert exc.value.status_code == 401
 
 
-def test_get_current_persona_accepts_header_in_dev(monkeypatch):
-    from app.api import deps
+def test_get_current_principal_reads_request_state():
+    from starlette.requests import Request
 
-    dev_settings = Settings(environment="dev", allow_persona_header=True)
-    monkeypatch.setattr(deps, "_settings", dev_settings)
-    persona = deps.get_current_persona(x_persona="land_agent", authorization=None)
-    assert persona == Persona.LAND_AGENT
+    from app.api.deps import get_current_principal
+    from app.security.jwt_auth import JWTPrincipal
 
-
-def test_get_current_persona_prefers_jwt(monkeypatch):
-    from app.api import deps
-
-    dev_settings = Settings(environment="dev", allow_persona_header=True)
-    monkeypatch.setattr(deps, "_settings", dev_settings)
-    monkeypatch.setattr(
-        "app.security.jwt_auth.get_settings", lambda: dev_settings
+    req = Request(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "method": "GET",
+            "path": "/test",
+            "headers": [],
+            "scheme": "http",
+            "server": ("127.0.0.1", 8050),
+            "client": ("127.0.0.1", 12345),
+        }
     )
-    token = _issue_token(dev_settings, persona=Persona.IN_HOUSE_COUNSEL)
-    persona = deps.get_current_persona(
-        x_persona="land_agent", authorization=f"Bearer {token}"
-    )
-    # JWT persona wins over header.
-    assert persona == Persona.IN_HOUSE_COUNSEL
+    req.state.principal = JWTPrincipal(user_id="u1", persona=Persona.LAND_AGENT)
+    assert get_current_principal(req).persona == Persona.LAND_AGENT
+
+
+def test_admin_jwt_claim_maps_to_platform_admin(monkeypatch):
+    from app.security.jwt_auth import principal_from_token
+
+    settings = Settings(environment="dev")
+    monkeypatch.setattr("app.security.jwt_auth.get_settings", lambda: settings)
+    token = _issue_token(settings, persona=Persona.ADMIN)
+    principal = principal_from_token(f"Bearer {token}")
+    assert principal.persona == Persona.PLATFORM_ADMIN
 
 
 def test_rate_limit_middleware_returns_429_when_configured(monkeypatch):

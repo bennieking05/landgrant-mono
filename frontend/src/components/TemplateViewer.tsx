@@ -6,8 +6,10 @@ import {
   type TemplateMetadata,
   type TemplateRenderResponse,
 } from "@/lib/api";
+import { useAppContext } from "@/context";
 
 export function TemplateViewer() {
+  const { projectId } = useAppContext();
   const [templates, setTemplates] = useState<TemplateMetadata[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -87,12 +89,16 @@ export function TemplateViewer() {
 
   async function handleDeriveDeadlines() {
     if (!renderResult?.deadline_anchors || !selected?.jurisdiction) return;
+    if (!projectId) {
+      setError("Select a project before deriving deadlines");
+      return;
+    }
 
     setDerivingDeadlines(true);
     setError(null);
     try {
       await deriveDeadlines({
-        project_id: "PRJ-001", // Default project
+        project_id: projectId,
         jurisdiction: selected.jurisdiction,
         anchor_events: renderResult.deadline_anchors,
         persist: true,

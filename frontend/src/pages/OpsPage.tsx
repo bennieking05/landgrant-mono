@@ -56,7 +56,6 @@ const PROBES: Probe[] = [
 
 export function OpsPage() {
   const { projectId, parcelId } = useAppContext();
-  const effectiveParcelId = parcelId ?? "PARCEL-001";
 
   const [statuses, setStatuses] = useState<Record<string, { state: ProbeState; detail?: string }>>(
     () => Object.fromEntries(PROBES.map((p) => [p.id, { state: "loading" as const }])),
@@ -116,7 +115,13 @@ export function OpsPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <RoutePlanPanel projectId={projectId} />
-        <NotificationsPanel projectId={projectId} parcelId={effectiveParcelId} />
+        {parcelId ? (
+          <NotificationsPanel projectId={projectId} parcelId={parcelId} />
+        ) : (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
+            Select a parcel before sending parcel-specific notifications.
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm" data-testid="integration-status">

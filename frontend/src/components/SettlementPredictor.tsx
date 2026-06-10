@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { getCase, getAppraisal, listOffers, type CaseDetails, type AppraisalResponse, type OffersResponse } from "@/lib/api";
+import { getCase, getAppraisal, listOffers, getApiAuth, type CaseDetails, type AppraisalResponse, type OffersResponse } from "@/lib/api";
 
 type Props = {
   parcelId?: string;
@@ -164,12 +164,16 @@ export function SettlementPredictor({
     setError(null);
 
     try {
+      const { token } = getApiAuth();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
       const response = await fetch(`${API_BASE}/analytics/predict-settlement`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Persona": "in_house_counsel",
-        },
+        headers,
         body: JSON.stringify(formData),
       });
 

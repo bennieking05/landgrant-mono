@@ -272,7 +272,7 @@ export function DeadlineManager({ projectId }: Props) {
               <label className="block text-xs text-slate-600 mb-1">Parcel ID (optional)</label>
               <input
                 type="text"
-                placeholder="e.g., PARCEL-001"
+                placeholder="Parcel ID"
                 value={deriveParcelId}
                 onChange={(e) => setDeriveParcelId(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"

@@ -1,17 +1,14 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8050";
 
 // ---------------------------------------------------------------------------
-// Shared auth state (Phase 4.1).  We used to hard-code ``X-Persona`` at every
-// call site; now the AppContext seeds this with the current session so every
-// request carries the right persona + Bearer token.
+// Shared auth state: ``setApiAuth`` stores the JWT; all requests send
+// ``Authorization: Bearer`` when a token is present.
 // ---------------------------------------------------------------------------
 type ApiAuth = {
-  persona?: string;
   token?: string;
 };
 
 let _auth: ApiAuth = {
-  persona: "admin",
   token: (import.meta.env.VITE_AUTH_TOKEN as string | undefined) ?? undefined,
 };
 
@@ -23,11 +20,9 @@ export function getApiAuth(): ApiAuth {
   return { ..._auth };
 }
 
-async function apiFetch(path: string, init: RequestInit, persona?: string) {
-  const effectivePersona = persona ?? _auth.persona ?? "admin";
+async function apiFetch(path: string, init: RequestInit) {
   const headers: Record<string, string> = {
     ...((init.headers as Record<string, string>) ?? {}),
-    "X-Persona": effectivePersona,
   };
   if (_auth.token) {
     headers["Authorization"] = `Bearer ${_auth.token}`;
@@ -62,12 +57,12 @@ async function apiFetch(path: string, init: RequestInit, persona?: string) {
   return res;
 }
 
-export async function apiGet<T>(path: string, persona?: string): Promise<T> {
-  const res = await apiFetch(path, { method: "GET" }, persona);
+export async function apiGet<T>(path: string): Promise<T> {
+  const res = await apiFetch(path, { method: "GET" });
   return res.json() as Promise<T>;
 }
 
-export async function apiPostJson<T>(path: string, body: unknown, persona?: string): Promise<T> {
+export async function apiPostJson<T>(path: string, body: unknown): Promise<T> {
   const res = await apiFetch(
     path,
     {
@@ -75,19 +70,17 @@ export async function apiPostJson<T>(path: string, body: unknown, persona?: stri
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     },
-    persona,
   );
   return res.json() as Promise<T>;
 }
 
-export async function apiPostForm<T>(path: string, form: FormData, persona?: string): Promise<T> {
+export async function apiPostForm<T>(path: string, form: FormData): Promise<T> {
   const res = await apiFetch(
     path,
     {
       method: "POST",
       body: form,
     },
-    persona,
   );
   return res.json() as Promise<T>;
 }
@@ -244,59 +237,59 @@ export type StatusUpdateResponse = { status_change_id: string; status: string };
 // ============================================================================
 
 // --- Health ---
-export const healthLive = () => apiGet<HealthLiveStatus>("/health/live", "admin");
-export const healthInvite = () => apiGet<InviteProbeResponse>("/health/invite", "admin");
-export const healthEsign = () => apiGet<EsignProbeResponse>("/health/esign", "admin");
+export const healthLive = () => apiGet<HealthLiveStatus>("/health/live");
+export const healthInvite = () => apiGet<InviteProbeResponse>("/health/invite");
+export const healthEsign = () => apiGet<EsignProbeResponse>("/health/esign");
 
 // --- Cases ---
-export const createCase = (payload: CaseCreatePayload) => apiPostJson<CaseResponse>("/cases", payload, "land_agent");
-export const getCase = (parcelId: string) => apiGet<CaseDetails>(`/cases/${encodeURIComponent(parcelId)}`, "land_agent");
+export const createCase = (payload: CaseCreatePayload) => apiPostJson<CaseResponse>("/cases", payload);
+export const getCase = (parcelId: string) => apiGet<CaseDetails>(`/cases/${encodeURIComponent(parcelId)}`);
 
 // --- Templates ---
-export const listTemplates = () => apiGet<TemplateMetadata[]>("/templates", "in_house_counsel");
-export const renderTemplate = (payload: TemplateRenderPayload) => apiPostJson<TemplateRenderResponse>("/templates/render", payload, "in_house_counsel");
+export const listTemplates = () => apiGet<TemplateMetadata[]>("/templates");
+export const renderTemplate = (payload: TemplateRenderPayload) => apiPostJson<TemplateRenderResponse>("/templates/render", payload);
 
 // --- AI ---
-export const generateDraft = (payload: AIDraftPayload) => apiPostJson<AIDraftResponse>("/ai/drafts", payload, "in_house_counsel");
+export const generateDraft = (payload: AIDraftPayload) => apiPostJson<AIDraftResponse>("/ai/drafts", payload);
 
 // --- Workflows ---
-export const createTask = (payload: TaskCreatePayload) => apiPostJson<TaskResponse>("/workflows/tasks", payload, "in_house_counsel");
-export const listApprovals = () => apiGet<ApprovalsResponse>("/workflows/approvals", "in_house_counsel");
-export const exportBinder = () => apiPostJson<BinderExportResponse>("/workflows/binder/export", {}, "in_house_counsel");
+export const createTask = (payload: TaskCreatePayload) => apiPostJson<TaskResponse>("/workflows/tasks", payload);
+export const listApprovals = () => apiGet<ApprovalsResponse>("/workflows/approvals");
+export const exportBinder = () => apiPostJson<BinderExportResponse>("/workflows/binder/export", {});
 
 // --- Integrations ---
-export const docketWebhook = (payload: Record<string, unknown>) => apiPostJson<DocketWebhookResponse>("/integrations/dockets", payload, "admin");
+export const docketWebhook = (payload: Record<string, unknown>) => apiPostJson<DocketWebhookResponse>("/integrations/dockets", payload);
 
 // --- Portal ---
-export const sendInvite = (payload: InvitePayload) => apiPostJson<InviteResponse>("/portal/invites", payload, "landowner");
-export const verifyInvite = (payload: VerifyPayload) => apiPostJson<VerifyResponse>("/portal/verify", payload, "landowner");
-export const getDecisionOptions = () => apiGet<DecisionOptionsResponse>("/portal/decision/options", "landowner");
-export const submitDecision = (payload: DecisionPayload) => apiPostJson<DecisionResponse>("/portal/decision", payload, "landowner");
-export const listUploads = (parcelId: string) => apiGet<UploadsResponse>(`/portal/uploads?parcel_id=${encodeURIComponent(parcelId)}`, "landowner");
+export const sendInvite = (payload: InvitePayload) => apiPostJson<InviteResponse>("/portal/invites", payload);
+export const verifyInvite = (payload: VerifyPayload) => apiPostJson<VerifyResponse>("/portal/verify", payload);
+export const getDecisionOptions = () => apiGet<DecisionOptionsResponse>("/portal/decision/options");
+export const submitDecision = (payload: DecisionPayload) => apiPostJson<DecisionResponse>("/portal/decision", payload);
+export const listUploads = (parcelId: string) => apiGet<UploadsResponse>(`/portal/uploads?parcel_id=${encodeURIComponent(parcelId)}`);
 export const uploadFile = (parcelId: string, file: File) => {
   const form = new FormData();
   form.set("parcel_id", parcelId);
   form.set("file", file);
-  return apiPostForm<UploadItem>("/portal/uploads", form, "landowner");
+  return apiPostForm<UploadItem>("/portal/uploads", form);
 };
 
 // --- Communications ---
-export const listCommunications = (parcelId: string) => apiGet<CommsResponse>(`/communications?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent");
+export const listCommunications = (parcelId: string) => apiGet<CommsResponse>(`/communications?parcel_id=${encodeURIComponent(parcelId)}`);
 
 // --- Packet ---
-export const getPacketChecklist = (parcelId: string) => apiGet<PacketChecklistResponse>(`/packet/checklist?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent");
+export const getPacketChecklist = (parcelId: string) => apiGet<PacketChecklistResponse>(`/packet/checklist?parcel_id=${encodeURIComponent(parcelId)}`);
 
 // --- Rules ---
-export const listRuleResults = (parcelId: string) => apiGet<RuleResultsResponse>(`/rules/results?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent");
+export const listRuleResults = (parcelId: string) => apiGet<RuleResultsResponse>(`/rules/results?parcel_id=${encodeURIComponent(parcelId)}`);
 
 // --- Budgets ---
-export const getBudgetSummary = (projectId: string) => apiGet<BudgetSummary>(`/budgets/summary?project_id=${encodeURIComponent(projectId)}`, "in_house_counsel");
+export const getBudgetSummary = (projectId: string) => apiGet<BudgetSummary>(`/budgets/summary?project_id=${encodeURIComponent(projectId)}`);
 
 // --- Binder ---
-export const getBinderStatus = (projectId: string) => apiGet<BinderStatusResponse>(`/binder/status?project_id=${encodeURIComponent(projectId)}`, "in_house_counsel");
+export const getBinderStatus = (projectId: string) => apiGet<BinderStatusResponse>(`/binder/status?project_id=${encodeURIComponent(projectId)}`);
 
 // --- Notifications ---
-export const previewNotification = (payload: NotificationPreviewPayload) => apiPostJson<NotificationPreviewResponse>("/notifications/preview", payload, "in_house_counsel");
+export const previewNotification = (payload: NotificationPreviewPayload) => apiPostJson<NotificationPreviewResponse>("/notifications/preview", payload);
 
 // --- Parcels ---
 export const listParcels = (params?: { project_id?: string; stage?: string; min_risk?: number; deadline_before?: string; limit?: number; offset?: number }) => {
@@ -308,35 +301,35 @@ export const listParcels = (params?: { project_id?: string; stage?: string; min_
   if (params?.limit !== undefined) query.set("limit", String(params.limit));
   if (params?.offset !== undefined) query.set("offset", String(params.offset));
   const qs = query.toString();
-  return apiGet<ParcelsResponse>(`/parcels${qs ? `?${qs}` : ""}`, "land_agent");
+  return apiGet<ParcelsResponse>(`/parcels${qs ? `?${qs}` : ""}`);
 };
 
 // --- Deadlines ---
-export const listDeadlines = (projectId: string) => apiGet<DeadlinesResponse>(`/deadlines?project_id=${encodeURIComponent(projectId)}`, "in_house_counsel");
-export const createDeadline = (payload: DeadlineCreatePayload) => apiPostJson<DeadlineCreateResponse>("/deadlines", payload, "in_house_counsel");
-export const getDeadlinesIcal = (projectId: string) => apiGet<DeadlineIcalResponse>(`/deadlines/ical?project_id=${encodeURIComponent(projectId)}`, "in_house_counsel");
-export const deriveDeadlines = (payload: DeadlineDerivePayload) => apiPostJson<DeadlineDeriveResponse>("/deadlines/derive", payload, "in_house_counsel");
+export const listDeadlines = (projectId: string) => apiGet<DeadlinesResponse>(`/deadlines?project_id=${encodeURIComponent(projectId)}`);
+export const createDeadline = (payload: DeadlineCreatePayload) => apiPostJson<DeadlineCreateResponse>("/deadlines", payload);
+export const getDeadlinesIcal = (projectId: string) => apiGet<DeadlineIcalResponse>(`/deadlines/ical?project_id=${encodeURIComponent(projectId)}`);
+export const deriveDeadlines = (payload: DeadlineDerivePayload) => apiPostJson<DeadlineDeriveResponse>("/deadlines/derive", payload);
 
 // --- Title ---
-export const listTitleInstruments = (parcelId: string) => apiGet<TitleInstrumentsResponse>(`/title/instruments?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent");
+export const listTitleInstruments = (parcelId: string) => apiGet<TitleInstrumentsResponse>(`/title/instruments?parcel_id=${encodeURIComponent(parcelId)}`);
 export const uploadTitleInstrument = (parcelId: string, file: File) => {
   const form = new FormData();
   form.set("parcel_id", parcelId);
   form.set("file", file);
-  return apiPostForm<TitleUploadResponse>("/title/instruments", form, "land_agent");
+  return apiPostForm<TitleUploadResponse>("/title/instruments", form);
 };
 
 // --- Appraisals ---
-export const getAppraisal = (parcelId: string) => apiGet<AppraisalResponse>(`/appraisals?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent");
-export const upsertAppraisal = (payload: AppraisalUpsertPayload) => apiPostJson<AppraisalUpsertResponse>("/appraisals", payload, "land_agent");
+export const getAppraisal = (parcelId: string) => apiGet<AppraisalResponse>(`/appraisals?parcel_id=${encodeURIComponent(parcelId)}`);
+export const upsertAppraisal = (payload: AppraisalUpsertPayload) => apiPostJson<AppraisalUpsertResponse>("/appraisals", payload);
 
 // --- Ops ---
-export const getRoutePlan = (projectId: string) => apiGet<RoutePlanResponse>(`/ops/routes/plan?project_id=${encodeURIComponent(projectId)}`, "land_agent");
+export const getRoutePlan = (projectId: string) => apiGet<RoutePlanResponse>(`/ops/routes/plan?project_id=${encodeURIComponent(projectId)}`);
 
 // --- Outside ---
-export const getRepositoryCompleteness = (projectId: string) => apiGet<RepositoryCompletenessResponse>(`/outside/repository/completeness?project_id=${encodeURIComponent(projectId)}`, "outside_counsel");
-export const initiateCase = (payload: CaseInitiatePayload) => apiPostJson<CaseInitiateResponse>("/outside/case/initiate", payload, "outside_counsel");
-export const updateStatus = (payload: StatusUpdatePayload) => apiPostJson<StatusUpdateResponse>("/outside/status", payload, "outside_counsel");
+export const getRepositoryCompleteness = (projectId: string) => apiGet<RepositoryCompletenessResponse>(`/outside/repository/completeness?project_id=${encodeURIComponent(projectId)}`);
+export const initiateCase = (payload: CaseInitiatePayload) => apiPostJson<CaseInitiateResponse>("/outside/case/initiate", payload);
+export const updateStatus = (payload: StatusUpdatePayload) => apiPostJson<StatusUpdateResponse>("/outside/status", payload);
 
 // ============================================================================
 // AI AGENTS
@@ -433,7 +426,7 @@ export type EscalationResolveResponse = {
 };
 
 // --- Agents ---
-export const runAgent = (payload: AgentRunPayload) => apiPostJson<AgentRunResponse>("/agents/run", payload, "in_house_counsel");
+export const runAgent = (payload: AgentRunPayload) => apiPostJson<AgentRunResponse>("/agents/run", payload);
 export const listAIDecisions = (params?: { project_id?: string; parcel_id?: string; agent_type?: string; pending_review?: boolean; limit?: number }) => {
   const query = new URLSearchParams();
   if (params?.project_id) query.set("project_id", params.project_id);
@@ -442,20 +435,20 @@ export const listAIDecisions = (params?: { project_id?: string; parcel_id?: stri
   if (params?.pending_review !== undefined) query.set("pending_review", String(params.pending_review));
   if (params?.limit !== undefined) query.set("limit", String(params.limit));
   const qs = query.toString();
-  return apiGet<AIDecisionItem[]>(`/agents/decisions${qs ? `?${qs}` : ""}`, "in_house_counsel");
+  return apiGet<AIDecisionItem[]>(`/agents/decisions${qs ? `?${qs}` : ""}`);
 };
-export const getAIDecision = (decisionId: string) => apiGet<AIDecisionDetail>(`/agents/decisions/${encodeURIComponent(decisionId)}`, "in_house_counsel");
+export const getAIDecision = (decisionId: string) => apiGet<AIDecisionDetail>(`/agents/decisions/${encodeURIComponent(decisionId)}`);
 export const listEscalations = (params?: { status?: string; priority?: string; limit?: number }) => {
   const query = new URLSearchParams();
   if (params?.status) query.set("status", params.status);
   if (params?.priority) query.set("priority", params.priority);
   if (params?.limit !== undefined) query.set("limit", String(params.limit));
   const qs = query.toString();
-  return apiGet<EscalationItem[]>(`/agents/escalations${qs ? `?${qs}` : ""}`, "in_house_counsel");
+  return apiGet<EscalationItem[]>(`/agents/escalations${qs ? `?${qs}` : ""}`);
 };
-export const getEscalation = (escalationId: string) => apiGet<EscalationDetail>(`/agents/escalations/${encodeURIComponent(escalationId)}`, "in_house_counsel");
+export const getEscalation = (escalationId: string) => apiGet<EscalationDetail>(`/agents/escalations/${encodeURIComponent(escalationId)}`);
 export const resolveEscalation = (escalationId: string, payload: EscalationResolvePayload) => 
-  apiPostJson<EscalationResolveResponse>(`/agents/escalations/${encodeURIComponent(escalationId)}/resolve`, payload, "in_house_counsel");
+  apiPostJson<EscalationResolveResponse>(`/agents/escalations/${encodeURIComponent(escalationId)}/resolve`, payload);
 
 // ============================================================================
 // ROE (Right-of-Entry) Management
@@ -516,23 +509,23 @@ export type ExpiringROEsResponse = {
   items: Array<{ id: string; parcel_id: string; project_id: string; expiry_date?: string; days_until_expiry?: number; status?: string; expiry_warning_sent: boolean }>;
 };
 
-export const listROEs = (parcelId: string) => apiGet<ROEsResponse>(`/roe?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent");
-export const createROE = (payload: ROECreatePayload) => apiPostJson<ROECreateResponse>("/roe", payload, "land_agent");
+export const listROEs = (parcelId: string) => apiGet<ROEsResponse>(`/roe?parcel_id=${encodeURIComponent(parcelId)}`);
+export const createROE = (payload: ROECreatePayload) => apiPostJson<ROECreateResponse>("/roe", payload);
 export const updateROE = (roeId: string, payload: ROEUpdatePayload) => {
   return apiFetch(`/roe/${encodeURIComponent(roeId)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  }, "land_agent").then(res => res.json() as Promise<ROEUpdateResponse>);
+  }).then(res => res.json() as Promise<ROEUpdateResponse>);
 };
 export const createROEFieldEvent = (roeId: string, payload: ROEFieldEventPayload) => 
-  apiPostJson<ROEFieldEventResponse>(`/roe/${encodeURIComponent(roeId)}/field-events`, payload, "land_agent");
+  apiPostJson<ROEFieldEventResponse>(`/roe/${encodeURIComponent(roeId)}/field-events`, payload);
 export const listExpiringROEs = (params?: { project_id?: string; days_threshold?: number }) => {
   const query = new URLSearchParams();
   if (params?.project_id) query.set("project_id", params.project_id);
   if (params?.days_threshold !== undefined) query.set("days_threshold", String(params.days_threshold));
   const qs = query.toString();
-  return apiGet<ExpiringROEsResponse>(`/roe/expiring${qs ? `?${qs}` : ""}`, "land_agent");
+  return apiGet<ExpiringROEsResponse>(`/roe/expiring${qs ? `?${qs}` : ""}`);
 };
 
 // ============================================================================
@@ -600,11 +593,11 @@ export type PaymentLedgerResponse = {
   payment_date?: string;
 };
 
-export const listOffers = (parcelId: string) => apiGet<OffersResponse>(`/offers?parcel_id=${encodeURIComponent(parcelId)}`, "land_agent");
-export const createOffer = (payload: OfferCreatePayload) => apiPostJson<OfferCreateResponse>("/offers", payload, "land_agent");
+export const listOffers = (parcelId: string) => apiGet<OffersResponse>(`/offers?parcel_id=${encodeURIComponent(parcelId)}`);
+export const createOffer = (payload: OfferCreatePayload) => apiPostJson<OfferCreateResponse>("/offers", payload);
 export const createCounterOffer = (offerId: string, payload: CounterOfferPayload) => 
-  apiPostJson<CounterOfferResponse>(`/offers/${encodeURIComponent(offerId)}/counter`, payload, "land_agent");
-export const getPaymentLedger = (parcelId: string) => apiGet<PaymentLedgerResponse>(`/offers/payment-ledger/${encodeURIComponent(parcelId)}`, "land_agent");
+  apiPostJson<CounterOfferResponse>(`/offers/${encodeURIComponent(offerId)}/counter`, payload);
+export const getPaymentLedger = (parcelId: string) => apiGet<PaymentLedgerResponse>(`/offers/payment-ledger/${encodeURIComponent(parcelId)}`);
 
 // ============================================================================
 // Litigation Cases
@@ -684,18 +677,18 @@ export const listLitigationCases = (params?: { project_id?: string; parcel_id?: 
   if (params?.parcel_id) query.set("parcel_id", params.parcel_id);
   if (params?.status) query.set("status", params.status);
   const qs = query.toString();
-  return apiGet<LitigationCasesResponse>(`/litigation${qs ? `?${qs}` : ""}`, "in_house_counsel");
+  return apiGet<LitigationCasesResponse>(`/litigation${qs ? `?${qs}` : ""}`);
 };
-export const createLitigationCase = (payload: LitigationCaseCreatePayload) => apiPostJson<LitigationCaseCreateResponse>("/litigation", payload, "in_house_counsel");
-export const getLitigationCase = (caseId: string) => apiGet<LitigationCaseDetail>(`/litigation/${encodeURIComponent(caseId)}`, "in_house_counsel");
+export const createLitigationCase = (payload: LitigationCaseCreatePayload) => apiPostJson<LitigationCaseCreateResponse>("/litigation", payload);
+export const getLitigationCase = (caseId: string) => apiGet<LitigationCaseDetail>(`/litigation/${encodeURIComponent(caseId)}`);
 export const updateLitigationCase = (caseId: string, payload: LitigationCaseUpdatePayload) => {
   return apiFetch(`/litigation/${encodeURIComponent(caseId)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  }, "in_house_counsel").then(res => res.json() as Promise<LitigationCaseUpdateResponse>);
+  }).then(res => res.json() as Promise<LitigationCaseUpdateResponse>);
 };
-export const getLitigationHistory = (caseId: string) => apiGet<LitigationHistoryResponse>(`/litigation/${encodeURIComponent(caseId)}/history`, "in_house_counsel");
+export const getLitigationHistory = (caseId: string) => apiGet<LitigationHistoryResponse>(`/litigation/${encodeURIComponent(caseId)}/history`);
 
 // ============================================================================
 // Curative Items
@@ -754,22 +747,22 @@ export const listCurativeItems = (parcelId: string, status?: string) => {
   const query = new URLSearchParams();
   query.set("parcel_id", parcelId);
   if (status) query.set("status", status);
-  return apiGet<CurativeItemsResponse>(`/title/curative?${query.toString()}`, "land_agent");
+  return apiGet<CurativeItemsResponse>(`/title/curative?${query.toString()}`);
 };
-export const createCurativeItem = (payload: CurativeItemCreatePayload) => apiPostJson<CurativeItemCreateResponse>("/title/curative", payload, "land_agent");
+export const createCurativeItem = (payload: CurativeItemCreatePayload) => apiPostJson<CurativeItemCreateResponse>("/title/curative", payload);
 export const updateCurativeItem = (itemId: string, payload: CurativeItemUpdatePayload) => {
   return apiFetch(`/title/curative/${encodeURIComponent(itemId)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  }, "land_agent").then(res => res.json() as Promise<CurativeItemUpdateResponse>);
+  }).then(res => res.json() as Promise<CurativeItemUpdateResponse>);
 };
 export const getCurativeAnalytics = (params?: { project_id?: string; parcel_id?: string }) => {
   const query = new URLSearchParams();
   if (params?.project_id) query.set("project_id", params.project_id);
   if (params?.parcel_id) query.set("parcel_id", params.parcel_id);
   const qs = query.toString();
-  return apiGet<CurativeAnalyticsResponse>(`/title/curative/analytics/summary${qs ? `?${qs}` : ""}`, "land_agent");
+  return apiGet<CurativeAnalyticsResponse>(`/title/curative/analytics/summary${qs ? `?${qs}` : ""}`);
 };
 
 // ============================================================================
@@ -902,7 +895,7 @@ export type PlatformHealthResponse = {
 };
 
 // Firm Admin API Functions
-export const getFirmDashboard = () => apiGet<FirmMetrics>("/admin/firm/dashboard", "firm_admin");
+export const getFirmDashboard = () => apiGet<FirmMetrics>("/admin/firm/dashboard");
 
 export const getFirmCases = (params?: { status?: string; litigation_status?: string; search?: string; limit?: number; offset?: number }) => {
   const query = new URLSearchParams();
@@ -912,7 +905,7 @@ export const getFirmCases = (params?: { status?: string; litigation_status?: str
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
   const qs = query.toString();
-  return apiGet<FirmCasesResponse>(`/admin/firm/cases${qs ? `?${qs}` : ""}`, "firm_admin");
+  return apiGet<FirmCasesResponse>(`/admin/firm/cases${qs ? `?${qs}` : ""}`);
 };
 
 export const getFirmActivity = (days?: number, limit?: number) => {
@@ -920,11 +913,11 @@ export const getFirmActivity = (days?: number, limit?: number) => {
   if (days) query.set("days", days.toString());
   if (limit) query.set("limit", limit.toString());
   const qs = query.toString();
-  return apiGet<FirmActivityResponse>(`/admin/firm/activity${qs ? `?${qs}` : ""}`, "firm_admin");
+  return apiGet<FirmActivityResponse>(`/admin/firm/activity${qs ? `?${qs}` : ""}`);
 };
 
 // Platform Admin API Functions
-export const getPlatformDashboard = () => apiGet<PlatformMetrics>("/admin/platform/dashboard", "admin");
+export const getPlatformDashboard = () => apiGet<PlatformMetrics>("/admin/platform/dashboard");
 
 export const getPlatformCases = (params?: {
   project_id?: string;
@@ -948,7 +941,7 @@ export const getPlatformCases = (params?: {
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
   const qs = query.toString();
-  return apiGet<GlobalCasesResponse>(`/admin/platform/cases${qs ? `?${qs}` : ""}`, "admin");
+  return apiGet<GlobalCasesResponse>(`/admin/platform/cases${qs ? `?${qs}` : ""}`);
 };
 
 export const getPlatformProjects = (params?: { jurisdiction?: string; stage?: string; search?: string; limit?: number; offset?: number }) => {
@@ -959,17 +952,17 @@ export const getPlatformProjects = (params?: { jurisdiction?: string; stage?: st
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
   const qs = query.toString();
-  return apiGet<ProjectsOverviewResponse>(`/admin/platform/projects${qs ? `?${qs}` : ""}`, "admin");
+  return apiGet<ProjectsOverviewResponse>(`/admin/platform/projects${qs ? `?${qs}` : ""}`);
 };
 
 export const globalSearch = (q: string, limit?: number) => {
   const query = new URLSearchParams();
   query.set("q", q);
   if (limit) query.set("limit", limit.toString());
-  return apiGet<GlobalSearchResponse>(`/admin/platform/search?${query.toString()}`, "admin");
+  return apiGet<GlobalSearchResponse>(`/admin/platform/search?${query.toString()}`);
 };
 
-export const getPlatformHealth = () => apiGet<PlatformHealthResponse>("/admin/platform/health", "admin");
+export const getPlatformHealth = () => apiGet<PlatformHealthResponse>("/admin/platform/health");
 
 // ============================================================================
 // AI Copilot
@@ -1008,11 +1001,11 @@ export type ConversationHistory = {
 
 // Non-streaming copilot request
 export const askCopilot = (payload: CopilotRequest) => 
-  apiPostJson<CopilotResponse>("/copilot/ask", { ...payload, stream: false }, "in_house_counsel");
+  apiPostJson<CopilotResponse>("/copilot/ask", { ...payload, stream: false });
 
 // Get conversation history
 export const getCopilotConversation = (conversationId: string) => 
-  apiGet<ConversationHistory>(`/copilot/conversations/${encodeURIComponent(conversationId)}`, "in_house_counsel");
+  apiGet<ConversationHistory>(`/copilot/conversations/${encodeURIComponent(conversationId)}`);
 
 // List all conversations
 export type ConversationListItem = {
@@ -1029,12 +1022,12 @@ export const listCopilotConversations = (limit?: number) => {
   const query = new URLSearchParams();
   if (limit) query.set("limit", limit.toString());
   const qs = query.toString();
-  return apiGet<ConversationListResponse>(`/copilot/conversations${qs ? `?${qs}` : ""}`, "in_house_counsel");
+  return apiGet<ConversationListResponse>(`/copilot/conversations${qs ? `?${qs}` : ""}`);
 };
 
 // Clear conversation
 export const clearCopilotConversation = (conversationId: string) =>
-  apiFetch(`/copilot/conversations/${encodeURIComponent(conversationId)}`, { method: "DELETE" }, "in_house_counsel");
+  apiFetch(`/copilot/conversations/${encodeURIComponent(conversationId)}`, { method: "DELETE" });
 
 // Quick actions
 export const copilotDraftResponse = (parcelId: string, responseType: string, jurisdiction?: string, notes?: string) => {
@@ -1043,7 +1036,7 @@ export const copilotDraftResponse = (parcelId: string, responseType: string, jur
   query.set("response_type", responseType);
   if (jurisdiction) query.set("jurisdiction", jurisdiction);
   if (notes) query.set("notes", notes);
-  return apiPostJson<CopilotResponse>(`/copilot/draft-response?${query.toString()}`, {}, "in_house_counsel");
+  return apiPostJson<CopilotResponse>(`/copilot/draft-response?${query.toString()}`, {});
 };
 
 export const copilotSummarizeCase = (caseId?: string, parcelId?: string, jurisdiction?: string) => {
@@ -1051,14 +1044,14 @@ export const copilotSummarizeCase = (caseId?: string, parcelId?: string, jurisdi
   if (caseId) query.set("case_id", caseId);
   if (parcelId) query.set("parcel_id", parcelId);
   if (jurisdiction) query.set("jurisdiction", jurisdiction);
-  return apiPostJson<CopilotResponse>(`/copilot/summarize-case?${query.toString()}`, {}, "in_house_counsel");
+  return apiPostJson<CopilotResponse>(`/copilot/summarize-case?${query.toString()}`, {});
 };
 
 export const copilotExplainRequirement = (requirement: string, jurisdiction: string) => {
   const query = new URLSearchParams();
   query.set("requirement", requirement);
   query.set("jurisdiction", jurisdiction);
-  return apiPostJson<CopilotResponse>(`/copilot/explain-requirement?${query.toString()}`, {}, "in_house_counsel");
+  return apiPostJson<CopilotResponse>(`/copilot/explain-requirement?${query.toString()}`, {});
 };
 
 // Streaming helper - returns EventSource URL
@@ -1129,7 +1122,7 @@ export const listTasks = (params?: {
   priority?: string;
   category?: string;
   overdue_only?: boolean;
-}, persona = "land_agent") => {
+}) => {
   const query = new URLSearchParams();
   if (params?.project_id) query.set("project_id", params.project_id);
   if (params?.parcel_id) query.set("parcel_id", params.parcel_id);
@@ -1138,34 +1131,34 @@ export const listTasks = (params?: {
   if (params?.category) query.set("category", params.category);
   if (params?.overdue_only) query.set("overdue_only", "true");
   const qs = query.toString();
-  return apiGet<TaskListResponse>(`/tasks${qs ? `?${qs}` : ""}`, persona);
+  return apiGet<TaskListResponse>(`/tasks${qs ? `?${qs}` : ""}`);
 };
 
-export const getTaskStats = (projectId?: string, persona = "land_agent") => {
+export const getTaskStats = (projectId?: string) => {
   const query = new URLSearchParams();
   if (projectId) query.set("project_id", projectId);
   const qs = query.toString();
-  return apiGet<TaskStatsResponse>(`/tasks/stats/summary${qs ? `?${qs}` : ""}`, persona);
+  return apiGet<TaskStatsResponse>(`/tasks/stats/summary${qs ? `?${qs}` : ""}`);
 };
 
-export const createTaskV2 = (payload: TaskCreatePayloadV2, persona = "land_agent") =>
-  apiPostJson<TaskItem>("/tasks", payload, persona);
+export const createTaskV2 = (payload: TaskCreatePayloadV2) =>
+  apiPostJson<TaskItem>("/tasks", payload);
 
-export const updateTask = (taskId: string, payload: Record<string, unknown>, persona = "land_agent") =>
+export const updateTask = (taskId: string, payload: Record<string, unknown>) =>
   apiFetch(`/tasks/${encodeURIComponent(taskId)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  }, persona).then(res => res.json());
+  }).then((res) => res.json());
 
-export const completeTask = (taskId: string, persona = "land_agent") =>
-  apiPostJson(`/tasks/${encodeURIComponent(taskId)}/complete`, {}, persona);
+export const completeTask = (taskId: string) =>
+  apiPostJson(`/tasks/${encodeURIComponent(taskId)}/complete`, {});
 
-export const suggestTaskAssignee = (taskId: string, persona = "land_agent") =>
-  apiGet<AssignmentSuggestion[]>(`/tasks/${encodeURIComponent(taskId)}/suggest-assignee`, persona);
+export const suggestTaskAssignee = (taskId: string) =>
+  apiGet<AssignmentSuggestion[]>(`/tasks/${encodeURIComponent(taskId)}/suggest-assignee`);
 
-export const assignTask = (taskId: string, userId: string, persona = "land_agent") =>
-  apiPostJson(`/tasks/${encodeURIComponent(taskId)}/assign?user_id=${encodeURIComponent(userId)}`, {}, persona);
+export const assignTask = (taskId: string, userId: string) =>
+  apiPostJson(`/tasks/${encodeURIComponent(taskId)}/assign?user_id=${encodeURIComponent(userId)}`, {});
 
-export const autoAssignTask = (taskId: string, persona = "land_agent") =>
-  apiPostJson(`/tasks/${encodeURIComponent(taskId)}/auto-assign`, {}, persona);
+export const autoAssignTask = (taskId: string) =>
+  apiPostJson(`/tasks/${encodeURIComponent(taskId)}/auto-assign`, {});

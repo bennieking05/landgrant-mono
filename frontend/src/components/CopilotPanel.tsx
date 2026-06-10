@@ -97,10 +97,9 @@ export function CopilotPanel({
     try {
       abortControllerRef.current = new AbortController();
       
-      const { persona, token } = getApiAuth();
+      const { token } = getApiAuth();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "X-Persona": persona ?? "in_house_counsel",
       };
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;

@@ -8,14 +8,14 @@ import { personaNavMap } from "./personaNav";
 // they shouldn't).
 
 describe("personaNavMap", () => {
-  it("grants admin access to every gated page", () => {
+  it("grants platform_admin access to every gated page", () => {
     const allOther = new Set<string>();
     for (const [persona, paths] of Object.entries(personaNavMap)) {
-      if (persona === "admin") continue;
+      if (persona === "platform_admin") continue;
       for (const p of paths) allOther.add(p);
     }
     for (const p of allOther) {
-      expect(personaNavMap.admin).toContain(p);
+      expect(personaNavMap.platform_admin).toContain(p);
     }
   });
 

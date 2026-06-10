@@ -24,6 +24,7 @@ from app.api.deps import get_current_persona, get_current_user, get_db
 from app.core.config import get_settings
 from app.db import models
 from app.db.models import Persona
+from app.security.jwt_auth import create_access_token
 from app.security.rbac import Action, authorize
 from app.services.hashing import sha256_hex
 from app.services.notifications import preview_or_send
@@ -41,6 +42,54 @@ def _portal_session_cookie_kwargs(max_age: int) -> dict[str, Any]:
         "samesite": "lax" if relaxed else "strict",
         "max_age": max_age,
     }
+
+
+def _ensure_landowner_parcel_grant(db: Session, invite: models.PortalInvite) -> None:
+    if not invite.parcel_id:
+        return
+    email_norm = invite.email.strip().lower()
+    exists = (
+        db.query(models.ParcelAccessGrant)
+        .filter(
+            models.ParcelAccessGrant.parcel_id == invite.parcel_id,
+            models.ParcelAccessGrant.grantee_email == email_norm,
+            models.ParcelAccessGrant.scope_persona == Persona.LANDOWNER.value,
+        )
+        .first()
+    )
+    if exists:
+        return
+    firm_id = None
+    if invite.project_id:
+        proj = db.get(models.Project, invite.project_id)
+        if proj is not None:
+            firm_id = proj.firm_id
+    db.add(
+        models.ParcelAccessGrant(
+            id=str(uuid4()),
+            parcel_id=invite.parcel_id,
+            grantee_email=email_norm,
+            scope_persona=Persona.LANDOWNER.value,
+            firm_id=firm_id,
+        )
+    )
+
+
+def _landowner_access_token(
+    invite: models.PortalInvite, session_id: str, db: Session
+) -> str:
+    firm_id = None
+    if invite.project_id:
+        proj = db.get(models.Project, invite.project_id)
+        if proj is not None:
+            firm_id = proj.firm_id
+    return create_access_token(
+        user_id=f"portal:{session_id}",
+        email=invite.email,
+        firm_id=firm_id,
+        persona=Persona.LANDOWNER,
+        expires_in_seconds=60 * 60 * 12,
+    )
 
 
 # Simple in-memory stores for dev stubs. These are reset on process restart.
@@ -76,7 +125,7 @@ def send_invite(
     token = str(uuid4())
     expires_at = datetime.utcnow() + timedelta(hours=24)
 
-    # Persist invite (best-effort; do not block if DB is unavailable).
+    invite_link = f"http://localhost:3050/intake?token={token}"
     try:
         invite = models.PortalInvite(
             id=invite_id,
@@ -111,7 +160,6 @@ def send_invite(
             )
         )
 
-        invite_link = f"http://localhost:3050/intake?token={token}"
         if payload.project_id and payload.parcel_id:
             preview_or_send(
                 db,
@@ -129,9 +177,9 @@ def send_invite(
                 user_id=getattr(user, "id", None),
             )
         db.commit()
-    except Exception:
+    except Exception as exc:
         db.rollback()
-        invite_link = f"http://localhost:3050/intake?token={token}"
+        raise HTTPException(status_code=500, detail="portal_invite_create_failed") from exc
 
     return {
         "invite_id": invite_id,
@@ -236,6 +284,7 @@ def verify_invite(
             # Refresh session expiry
             active_session.expires_at = datetime.utcnow() + _SESSION_DURATION
             active_session.last_activity_at = datetime.utcnow()
+            _ensure_landowner_parcel_grant(db, invite)
             db.commit()
 
             # Set session cookie
@@ -252,6 +301,9 @@ def verify_invite(
                 "session_expires_at": active_session.expires_at.isoformat() + "Z",
                 "parcel_id": invite.parcel_id,
                 "project_id": invite.project_id,
+                "access_token": _landowner_access_token(
+                    invite, active_session.id, db
+                ),
             }
 
     # Mark invite as verified
@@ -299,6 +351,7 @@ def verify_invite(
         )
     )
 
+    _ensure_landowner_parcel_grant(db, invite)
     db.commit()
 
     # Set session cookie
@@ -315,6 +368,7 @@ def verify_invite(
         "session_expires_at": session_expires.isoformat() + "Z",
         "parcel_id": invite.parcel_id,
         "project_id": invite.project_id,
+        "access_token": _landowner_access_token(invite, session_id, db),
     }
 
 
@@ -548,6 +602,10 @@ def submit_decision(
 ):
     authorize(persona, "decision", Action.EXECUTE)
     decision_id = str(uuid4())
+    parcel = db.get(models.Parcel, payload.parcel_id)
+    if parcel is None:
+        raise HTTPException(status_code=404, detail="parcel_not_found")
+
     record = {
         "decision_id": decision_id,
         "parcel_id": payload.parcel_id,
@@ -558,11 +616,7 @@ def submit_decision(
         ),
         "created_at": datetime.utcnow().isoformat() + "Z",
     }
-    _decision_by_parcel[payload.parcel_id] = record
-    # Persist task + audit (best-effort).
     try:
-        parcel = db.get(models.Parcel, payload.parcel_id)
-        project_id = parcel.project_id if parcel else "PRJ-001"
         assignee_persona = (
             Persona.LAND_AGENT
             if payload.selection == "Counter"
@@ -571,7 +625,7 @@ def submit_decision(
         db.add(
             models.Task(
                 id=str(uuid4()),
-                project_id=project_id,
+                project_id=parcel.project_id,
                 parcel_id=payload.parcel_id,
                 title=f"Landowner decision: {payload.selection}",
                 persona=assignee_persona,
@@ -590,15 +644,43 @@ def submit_decision(
             )
         )
         db.commit()
-    except Exception:
+    except Exception as exc:
         db.rollback()
+        raise HTTPException(status_code=500, detail="portal_decision_submit_failed") from exc
+    _decision_by_parcel[payload.parcel_id] = record
     return record
 
 
 @router.get("/uploads")
-def list_uploads(parcel_id: str, persona: Persona = Depends(get_current_persona)):
+def list_uploads(
+    parcel_id: str,
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
     authorize(persona, "portal", Action.READ)
-    return {"items": _uploads_by_parcel.get(parcel_id, [])}
+    documents = (
+        db.query(models.Document)
+        .filter(
+            models.Document.doc_type == "upload",
+            models.Document.metadata_json["parcel_id"].as_string() == parcel_id,
+        )
+        .order_by(models.Document.created_at.desc())
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id": doc.id,
+                "parcel_id": parcel_id,
+                "filename": (doc.metadata_json or {}).get("filename"),
+                "content_type": (doc.metadata_json or {}).get("content_type"),
+                "size_bytes": (doc.metadata_json or {}).get("size_bytes", 0),
+                "uploaded_at": doc.created_at.isoformat() + "Z",
+                "sha256": doc.sha256,
+            }
+            for doc in documents
+        ]
+    }
 
 
 @router.post("/uploads")
@@ -634,12 +716,16 @@ async def upload_file(
         "storage_path": str(out_path),
         "virus_scan": "skipped_local",
     }
-    _uploads_by_parcel.setdefault(parcel_id, []).append(item)
 
-    # Persist as Document + audit + comms entry (best-effort)
+    parcel = db.get(models.Parcel, parcel_id)
+    if parcel is None:
+        try:
+            out_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise HTTPException(status_code=404, detail="parcel_not_found")
+
     try:
-        parcel = db.get(models.Parcel, parcel_id)
-        project_id = parcel.project_id if parcel else "PRJ-001"
         doc = models.Document(
             id=upload_id,
             doc_type="upload",
@@ -649,6 +735,8 @@ async def upload_file(
             metadata_json={
                 "filename": file.filename,
                 "content_type": file.content_type,
+                "size_bytes": len(content),
+                "parcel_id": parcel_id,
                 "virus_scan": "skipped_local",
             },
             created_by=getattr(user, "id", None),
@@ -658,7 +746,7 @@ async def upload_file(
             models.Communication(
                 id=str(uuid4()),
                 parcel_id=parcel_id,
-                project_id=project_id,
+                project_id=parcel.project_id,
                 channel="portal",
                 direction="inbound",
                 content=f"Upload received: {file.filename}",
@@ -681,8 +769,14 @@ async def upload_file(
             )
         )
         db.commit()
-    except Exception:
+    except Exception as exc:
         db.rollback()
+        try:
+            out_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="portal_upload_failed") from exc
+    _uploads_by_parcel.setdefault(parcel_id, []).append(item)
     return item
 
 

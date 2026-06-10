@@ -12,7 +12,6 @@ import {
   type TaskStatsResponse,
   type AssignmentSuggestion,
 } from '@/lib/api';
-import { useAppContext } from '@/context';
 
 interface TaskManagerProps {
   projectId?: string;
@@ -50,8 +49,6 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   projectId,
   parcelId,
 }) => {
-  const { persona } = useAppContext();
-
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [stats, setStats] = useState<TaskStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,7 +83,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         priority: priorityFilter || undefined,
         category: categoryFilter || undefined,
         overdue_only: showOverdueOnly || undefined,
-      }, persona);
+      });
       setTasks(data.tasks);
       setError(null);
     } catch (err) {
@@ -94,16 +91,16 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [projectId, parcelId, statusFilter, priorityFilter, categoryFilter, showOverdueOnly, persona]);
+  }, [projectId, parcelId, statusFilter, priorityFilter, categoryFilter, showOverdueOnly]);
 
   const loadStats = useCallback(async () => {
     try {
-      const data = await getTaskStats(projectId, persona);
+      const data = await getTaskStats(projectId);
       setStats(data);
     } catch (err) {
       console.error('Failed to load stats:', err);
     }
-  }, [projectId, persona]);
+  }, [projectId]);
 
   useEffect(() => {
     loadTasks();
@@ -112,9 +109,13 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!projectId) {
+      setError('Select a project before creating a task');
+      return;
+    }
     try {
       await createTaskV2({
-        project_id: projectId || 'PRJ-001',
+        project_id: projectId,
         parcel_id: parcelId,
         title: newTask.title,
         description: newTask.description || undefined,
@@ -122,7 +123,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
         priority: newTask.priority || undefined,
         due_at: newTask.due_at ? new Date(newTask.due_at).toISOString() : null,
         auto_assign: newTask.auto_assign,
-      }, persona);
+      });
 
       setShowCreateModal(false);
       setNewTask({ title: '', description: '', category: 'general', priority: '', due_at: '', auto_assign: true });
@@ -135,7 +136,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
-      await updateTask(taskId, { status: newStatus }, persona);
+      await updateTask(taskId, { status: newStatus });
       loadTasks();
       loadStats();
     } catch (err) {
@@ -145,7 +146,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
   const handleCompleteTask = async (taskId: string) => {
     try {
-      await completeTask(taskId, persona);
+      await completeTask(taskId);
       loadTasks();
       loadStats();
     } catch (err) {
@@ -156,7 +157,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const handleShowAssign = async (task: TaskItem) => {
     setSelectedTask(task);
     try {
-      const data = await suggestTaskAssignee(task.id, persona);
+      const data = await suggestTaskAssignee(task.id);
       setSuggestions(data);
       setShowAssignModal(true);
     } catch (err) {
@@ -166,7 +167,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
   const handleAssignTask = async (taskId: string, targetUserId: string) => {
     try {
-      await assignTask(taskId, targetUserId, persona);
+      await assignTask(taskId, targetUserId);
       setShowAssignModal(false);
       loadTasks();
     } catch (err) {
@@ -176,7 +177,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
 
   const handleAutoAssign = async (taskId: string) => {
     try {
-      await autoAssignTask(taskId, persona);
+      await autoAssignTask(taskId);
       setShowAssignModal(false);
       loadTasks();
     } catch (err) {

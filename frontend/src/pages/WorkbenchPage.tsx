@@ -17,7 +17,6 @@ type WorkbenchTab = "parcels" | "pipeline" | "tasks";
 
 export function WorkbenchPage() {
   const { projectId, parcelId, setParcelId } = useAppContext();
-  const effectiveParcelId = parcelId ?? "PARCEL-001";
   const [showCopilot, setShowCopilot] = useState(false);
   const [tab, setTab] = useState<WorkbenchTab>("parcels");
 
@@ -71,6 +70,12 @@ export function WorkbenchPage() {
           {tabBtn("tasks", "Tasks")}
         </div>
 
+        {!parcelId && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Select or create a parcel to view parcel-specific workbench tools.
+          </div>
+        )}
+
         {tab === "parcels" && (
           <>
             <div className="grid gap-4 lg:grid-cols-2">
@@ -82,33 +87,35 @@ export function WorkbenchPage() {
                 }
               >
                 <ParcelMap
-                  selectedParcelId={effectiveParcelId}
+                  selectedParcelId={parcelId ?? undefined}
                   onParcelClick={setParcelId}
                   showFilters={true}
                 />
               </Suspense>
               <ParcelList projectId={projectId} onSelectParcel={setParcelId} />
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <CommsLog parcelId={effectiveParcelId} />
-              <PacketChecklist parcelId={effectiveParcelId} />
-              <RuleResults parcelId={effectiveParcelId} />
-            </div>
+            {parcelId && (
+              <div className="grid gap-4 md:grid-cols-3">
+                <CommsLog parcelId={parcelId} />
+                <PacketChecklist parcelId={parcelId} />
+                <RuleResults parcelId={parcelId} />
+              </div>
+            )}
           </>
         )}
 
-        {tab === "pipeline" && (
+        {tab === "pipeline" && parcelId && (
           <>
             <div className="grid gap-4 lg:grid-cols-3">
-              <TitlePanel parcelId={effectiveParcelId} />
-              <AppraisalPanel parcelId={effectiveParcelId} />
-              <ROEPanel parcelId={effectiveParcelId} projectId={projectId} />
+              <TitlePanel parcelId={parcelId} />
+              <AppraisalPanel parcelId={parcelId} />
+              <ROEPanel parcelId={parcelId} projectId={projectId} />
             </div>
-            <NegotiationPanel parcelId={effectiveParcelId} projectId={projectId} />
+            <NegotiationPanel parcelId={parcelId} projectId={projectId} />
           </>
         )}
 
-        {tab === "tasks" && <TaskManager projectId={projectId} parcelId={effectiveParcelId} />}
+        {tab === "tasks" && <TaskManager projectId={projectId} parcelId={parcelId ?? undefined} />}
       </section>
 
       {/* Copilot Panel */}
@@ -116,7 +123,7 @@ export function WorkbenchPage() {
         <div className="fixed right-0 top-0 h-screen w-96 shadow-xl z-50">
           <CopilotPanel
             caseId={projectId}
-            parcelId={effectiveParcelId}
+            parcelId={parcelId ?? undefined}
             jurisdiction="TX"
             isOpen={showCopilot}
             onClose={() => setShowCopilot(false)}

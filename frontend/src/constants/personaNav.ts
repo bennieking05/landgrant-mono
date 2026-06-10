@@ -7,5 +7,13 @@ export const personaNavMap: Record<Persona, string[]> = {
   in_house_counsel: ["/", "/workbench", "/counsel", "/ops"],
   outside_counsel: ["/", "/counsel"],
   firm_admin: ["/", "/firm-admin"],
-  admin: ["/", "/intake", "/workbench", "/counsel", "/ops", "/firm-admin", "/admin"],
+  platform_admin: [
+    "/",
+    "/intake",
+    "/workbench",
+    "/counsel",
+    "/ops",
+    "/firm-admin",
+    "/admin",
+  ],
 };

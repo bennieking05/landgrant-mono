@@ -3,44 +3,77 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db.models import Persona
 from app.main import app
 
+from tests.jwt_helpers import auth_headers
 
 client = TestClient(app)
 
 
+def _h(
+    persona: Persona,
+    *,
+    user_id: str = "u-test",
+    firm_id: str | None = "firm_default",
+    email: str | None = None,
+) -> dict[str, str]:
+    return auth_headers(
+        persona=persona, user_id=user_id, firm_id=firm_id, email=email
+    )
+
+
 @pytest.mark.parametrize(
-    "path,method,persona,expected_status",
+    "path,method,persona,expected_status,token_kwargs",
     [
-        ("/health/live", "GET", "landowner", 200),
-        ("/health/invite", "GET", "landowner", 200),
-        ("/health/esign", "GET", "landowner", 200),
-        ("/templates", "GET", "in_house_counsel", 200),
-        ("/templates", "GET", "outside_counsel", 403),
-        ("/workflows/approvals", "GET", "in_house_counsel", 200),
-        ("/workflows/approvals", "GET", "land_agent", 403),
-        ("/workflows/binder/export", "POST", "in_house_counsel", 500),
-        ("/workflows/binder/export", "POST", "land_agent", 403),
-        ("/communications?parcel_id=PARCEL-001", "GET", "land_agent", 200),
-        ("/communications?parcel_id=PARCEL-001", "GET", "landowner", 403),
-        ("/portal/decision/options", "GET", "landowner", 200),
-        ("/portal/decision/options", "GET", "land_agent", 200),
-        ("/rag/health", "GET", "in_house_counsel", 200),
-        ("/rag/health", "GET", "landowner", 403),
-        ("/copilot/conversations", "GET", "in_house_counsel", 200),
-        ("/copilot/conversations", "GET", "landowner", 403),
-        ("/analytics/property-types", "GET", "land_agent", 200),
-        ("/analytics/property-types", "GET", "landowner", 403),
-        ("/predictions/health", "GET", "in_house_counsel", 200),
-        ("/predictions/health", "GET", "landowner", 403),
-        ("/rules/results?parcel_id=PARCEL-001", "GET", "land_agent", 200),
-        ("/rules/summary/common", "GET", "in_house_counsel", 200),
+        ("/health/live", "GET", None, 200, {}),
+        ("/health/invite", "GET", Persona.IN_HOUSE_COUNSEL, 200, {}),
+        ("/health/esign", "GET", Persona.IN_HOUSE_COUNSEL, 200, {}),
+        ("/health/invite", "GET", Persona.LANDOWNER, 403, {"email": "owner@example.com"}),
+        ("/health/esign", "GET", Persona.LANDOWNER, 403, {"email": "owner@example.com"}),
+        ("/templates", "GET", Persona.IN_HOUSE_COUNSEL, 200, {}),
+        ("/templates", "GET", Persona.OUTSIDE_COUNSEL, 403, {}),
+        ("/workflows/approvals", "GET", Persona.IN_HOUSE_COUNSEL, 200, {}),
+        ("/workflows/approvals", "GET", Persona.LAND_AGENT, 403, {}),
+        ("/workflows/binder/export", "POST", Persona.IN_HOUSE_COUNSEL, 500, {}),
+        ("/workflows/binder/export", "POST", Persona.LAND_AGENT, 403, {}),
+        ("/communications?parcel_id=PARCEL-001", "GET", Persona.LAND_AGENT, 200, {}),
+        (
+            "/communications?parcel_id=PARCEL-002",
+            "GET",
+            Persona.LANDOWNER,
+            403,
+            {"email": "owner@example.com"},
+        ),
+        (
+            "/communications?parcel_id=PARCEL-001",
+            "GET",
+            Persona.LANDOWNER,
+            200,
+            {"email": "owner@example.com"},
+        ),
+        ("/portal/decision/options", "GET", Persona.LANDOWNER, 200, {"email": "x@y.com"}),
+        ("/portal/decision/options", "GET", Persona.LAND_AGENT, 200, {}),
+        ("/rag/health", "GET", Persona.IN_HOUSE_COUNSEL, 200, {}),
+        ("/rag/health", "GET", Persona.LANDOWNER, 403, {"email": "owner@example.com"}),
+        ("/copilot/conversations", "GET", Persona.IN_HOUSE_COUNSEL, 200, {}),
+        ("/copilot/conversations", "GET", Persona.LANDOWNER, 403, {"email": "owner@example.com"}),
+        ("/analytics/property-types", "GET", Persona.LAND_AGENT, 200, {}),
+        ("/analytics/property-types", "GET", Persona.LANDOWNER, 403, {"email": "owner@example.com"}),
+        ("/predictions/health", "GET", Persona.IN_HOUSE_COUNSEL, 200, {}),
+        ("/predictions/health", "GET", Persona.LANDOWNER, 403, {"email": "owner@example.com"}),
+        ("/rules/results?parcel_id=PARCEL-001", "GET", Persona.LAND_AGENT, 200, {}),
+        ("/rules/summary/common", "GET", Persona.IN_HOUSE_COUNSEL, 200, {}),
     ],
 )
 def test_endpoints_rbac(
-    path: str, method: str, persona: str, expected_status: int
+    path: str,
+    method: str,
+    persona: Persona | None,
+    expected_status: int,
+    token_kwargs: dict,
 ) -> None:
-    headers = {"X-Persona": persona}
+    headers = _h(persona, **token_kwargs) if persona is not None else {}
     if method == "GET":
         res = client.get(path, headers=headers)
     elif method == "POST":
@@ -53,13 +86,15 @@ def test_endpoints_rbac(
     assert res.status_code == expected_status
 
 
-def test_invalid_persona_header_rejected() -> None:
-    # Choose an endpoint that depends on get_current_persona, otherwise X-Persona is ignored.
-    res = client.get("/templates", headers={"X-Persona": "not_a_persona"})
+def test_missing_bearer_rejected() -> None:
+    res = client.get("/templates")
     assert res.status_code == 401
 
 
 def test_portal_invite_requires_payload() -> None:
-    # This ensures request validation is active.
-    res = client.post("/portal/invites", headers={"X-Persona": "landowner"}, json={})
+    res = client.post(
+        "/portal/invites",
+        headers=_h(Persona.LAND_AGENT, user_id="AGENT-001"),
+        json={},
+    )
     assert res.status_code == 422

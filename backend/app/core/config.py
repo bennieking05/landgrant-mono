@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import Optional
+from urllib.parse import quote_plus
 
 # Sentinel values shipped for local development; if we ever see them outside
 # of ``environment == "dev"`` we abort startup so we never leak a well-known
@@ -26,6 +27,8 @@ class Settings(BaseSettings):
     database_name: str = "landgrant"
     database_user: str = "landgrant"
     database_password: str = "landgrant"
+    alembic_auto: bool = False
+    database_required: bool = False
 
     # Redis
     redis_url: str = ""
@@ -52,9 +55,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     # Seconds of clock drift we tolerate when validating JWT ``exp``/``nbf``.
     jwt_leeway_seconds: int = 30
-    # Allow the legacy ``X-Persona`` header in dev.  In prod we force the
-    # persona to come out of the signed JWT.
-    allow_persona_header: bool = True
+    # Deprecated: persona is always derived from the JWT (see ``deps.py``).
+    allow_persona_header: bool = False
 
     # Session & Encryption
     session_secret: str = "dev-session-secret"
@@ -119,8 +121,10 @@ class Settings(BaseSettings):
         """Build database URL from components or use explicit URL."""
         if self.database_url:
             return self.database_url
+        user = quote_plus(self.database_user)
+        password = quote_plus(self.database_password)
         return (
-            f"postgresql+psycopg://{self.database_user}:{self.database_password}"
+            f"postgresql+psycopg://{user}:{password}"
             f"@{self.database_host}:{self.database_port}/{self.database_name}"
         )
 

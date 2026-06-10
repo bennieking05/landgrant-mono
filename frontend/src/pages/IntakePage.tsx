@@ -73,7 +73,6 @@ function StepIndicator({ currentStep, onStepClick }: { currentStep: number; onSt
 
 export function IntakePage() {
   const { projectId, parcelId } = useAppContext();
-  const effectiveParcelId = parcelId ?? "PARCEL-001";
   const [currentStep, setCurrentStep] = useState(0);
   const [agentToolsOpen, setAgentToolsOpen] = useState(false);
 
@@ -102,18 +101,36 @@ export function IntakePage() {
       {/* Step content */}
       <div className="min-h-[280px] sm:min-h-[320px]">
         {currentStep === 0 && (
-          <InviteCard projectId={projectId} parcelId={effectiveParcelId} />
+          parcelId ? (
+            <InviteCard projectId={projectId} parcelId={parcelId} />
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
+              Select or create a parcel before sending a portal invite.
+            </div>
+          )
         )}
         {currentStep === 1 && (
           <Suspense fallback={<div className="h-96 flex items-center justify-center bg-slate-100 rounded-xl"><div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>}>
-            <ParcelMap selectedParcelId={effectiveParcelId} showFilters={false} />
+            <ParcelMap selectedParcelId={parcelId ?? undefined} showFilters={false} />
           </Suspense>
         )}
         {currentStep === 2 && (
-          <UploadPanel parcelId={effectiveParcelId} />
+          parcelId ? (
+            <UploadPanel parcelId={parcelId} />
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
+              Select a parcel before uploading documents.
+            </div>
+          )
         )}
         {currentStep === 3 && (
-          <DecisionActions parcelId={effectiveParcelId} />
+          parcelId ? (
+            <DecisionActions parcelId={parcelId} />
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
+              Select a parcel before submitting a decision.
+            </div>
+          )
         )}
       </div>
 
@@ -178,7 +195,7 @@ export function IntakePage() {
         {agentToolsOpen && (
           <div className="grid gap-4 border-t border-slate-200 p-5 lg:grid-cols-2">
             <IntakeForm initialProjectId={projectId} />
-            <AIDraftPanel jurisdiction="TX" parcelId={effectiveParcelId} />
+            <AIDraftPanel jurisdiction="TX" parcelId={parcelId ?? undefined} />
           </div>
         )}
       </div>

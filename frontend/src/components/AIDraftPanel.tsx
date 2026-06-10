@@ -16,6 +16,10 @@ export function AIDraftPanel({ jurisdiction = "TX", parcelId }: Props) {
   const [disputeLevel, setDisputeLevel] = useState<"LOW" | "MEDIUM" | "HIGH">("LOW");
 
   async function handleGenerate() {
+    if (!parcelId) {
+      setError("Select a parcel before generating a draft");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -24,7 +28,7 @@ export function AIDraftPanel({ jurisdiction = "TX", parcelId }: Props) {
         payload: {
           "parcel.assessed_value": Number(assessedValue) || 0,
           "case.dispute_level": disputeLevel,
-          "parcel.id": parcelId ?? "PARCEL-001",
+          "parcel.id": parcelId,
         },
       });
       setResult(res);
@@ -60,7 +64,7 @@ export function AIDraftPanel({ jurisdiction = "TX", parcelId }: Props) {
           <label className="block text-sm font-medium text-slate-700 mb-1">Parcel ID</label>
           <input
             type="text"
-            value={parcelId ?? "PARCEL-001"}
+            value={parcelId ?? ""}
             disabled
             className="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-500"
           />
@@ -93,7 +97,7 @@ export function AIDraftPanel({ jurisdiction = "TX", parcelId }: Props) {
 
       <button
         onClick={handleGenerate}
-        disabled={loading}
+        disabled={loading || !parcelId}
         className="w-full rounded-md bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
         {loading ? "Generating..." : "Generate Draft"}

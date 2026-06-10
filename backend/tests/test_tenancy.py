@@ -8,9 +8,11 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db import models
 from app.db.session import Base
+from app.security.jwt_auth import JWTPrincipal
 from app.security.tenancy import (
     backfill_firm_ids,
     require_firm,
+    resolve_firm_id,
     scope_to_firm,
 )
 from fastapi import HTTPException
@@ -108,12 +110,8 @@ def test_require_firm_raises_when_missing():
 
 
 # ---------------------------------------------------------------------------
-# get_current_firm_id (JWT firm_id trust boundary)
+# resolve_firm_id (JWT firm_id trust boundary)
 # ---------------------------------------------------------------------------
-
-
-from app.security.jwt_auth import JWTPrincipal
-from app.security.tenancy import get_current_firm_id
 
 
 def test_get_current_firm_id_prefers_jwt_claim():
@@ -122,7 +120,7 @@ def test_get_current_firm_id_prefers_jwt_claim():
     principal = JWTPrincipal(
         user_id="u1", persona=models.Persona.IN_HOUSE_COUNSEL, firm_id="firm_from_token"
     )
-    result = get_current_firm_id(
+    result = resolve_firm_id(
         principal=principal,
         persona=models.Persona.IN_HOUSE_COUNSEL,
         x_firm_id=None,
@@ -137,7 +135,7 @@ def test_get_current_firm_id_rejects_mismatched_header():
         user_id="u1", persona=models.Persona.IN_HOUSE_COUNSEL, firm_id="firm_from_token"
     )
     with pytest.raises(HTTPException) as exc:
-        get_current_firm_id(
+        resolve_firm_id(
             principal=principal,
             persona=models.Persona.IN_HOUSE_COUNSEL,
             x_firm_id="firm_spoof",
@@ -145,10 +143,19 @@ def test_get_current_firm_id_rejects_mismatched_header():
     assert exc.value.status_code == 403
 
 
-def test_get_current_firm_id_admin_bypass():
-    """ADMIN persona returns ``None`` so cross-tenant reads are allowed."""
+def test_get_current_firm_id_platform_admin_bypass():
+    """Platform admin persona returns ``None`` so cross-tenant reads are allowed."""
 
-    result = get_current_firm_id(
+    result = resolve_firm_id(
+        principal=None,
+        persona=models.Persona.PLATFORM_ADMIN,
+        x_firm_id=None,
+    )
+    assert result is None
+
+
+def test_get_current_firm_id_legacy_admin_bypass():
+    result = resolve_firm_id(
         principal=None,
         persona=models.Persona.ADMIN,
         x_firm_id=None,
@@ -156,25 +163,27 @@ def test_get_current_firm_id_admin_bypass():
     assert result is None
 
 
-def test_get_current_firm_id_admin_header_override_allowed():
-    """ADMIN may intentionally scope to a specific firm via the header."""
+def test_get_current_firm_id_platform_admin_header_override_allowed():
+    """Platform admin may carry a firm claim; mismatched dev header is ignored."""
 
     principal = JWTPrincipal(
-        user_id="u1", persona=models.Persona.ADMIN, firm_id="firm_a"
+        user_id="u1",
+        persona=models.Persona.PLATFORM_ADMIN,
+        firm_id="firm_a",
     )
-    result = get_current_firm_id(
+    result = resolve_firm_id(
         principal=principal,
-        persona=models.Persona.ADMIN,
+        persona=models.Persona.PLATFORM_ADMIN,
         x_firm_id="firm_b",
     )
-    assert result == "firm_a"  # JWT claim still wins; admin gets own firm scope
+    assert result == "firm_a"
 
 
 def test_get_current_firm_id_dev_fallback_without_token():
     """Dev env with no JWT falls back to ``DEFAULT_FIRM_ID``."""
 
     # get_settings() defaults to ENVIRONMENT=dev in the test suite.
-    result = get_current_firm_id(
+    result = resolve_firm_id(
         principal=None,
         persona=models.Persona.LAND_AGENT,
         x_firm_id=None,

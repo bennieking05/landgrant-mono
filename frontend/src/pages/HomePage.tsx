@@ -6,25 +6,25 @@ const stages = [
     title: "Landowner Portal",
     description: "Secure invite, document review, uploads, and accept or counter with e-sign.",
     href: "/intake",
-    personas: ["landowner", "admin"] as Persona[],
+    personas: ["landowner", "platform_admin"] as Persona[],
   },
   {
     title: "Agent Workbench",
     description: "Parcel map, comms log, pre-offer packet generation, title, and tasks.",
     href: "/workbench",
-    personas: ["land_agent", "in_house_counsel", "admin"] as Persona[],
+    personas: ["land_agent", "in_house_counsel", "platform_admin"] as Persona[],
   },
   {
     title: "Counsel Controls",
     description: "Template approvals, binder exports, deadlines, litigation, and AI review.",
     href: "/counsel",
-    personas: ["in_house_counsel", "outside_counsel", "admin"] as Persona[],
+    personas: ["in_house_counsel", "outside_counsel", "platform_admin"] as Persona[],
   },
   {
     title: "Operations",
     description: "Route planning, batch notifications, integration status, field coordination.",
     href: "/ops",
-    personas: ["land_agent", "in_house_counsel", "admin"] as Persona[],
+    personas: ["land_agent", "in_house_counsel", "platform_admin"] as Persona[],
   },
 ];
 
@@ -33,13 +33,13 @@ const adminStages = [
     title: "Firm Admin",
     description: "Rolled-up cases across your firm's projects with metrics and activity.",
     href: "/firm-admin",
-    personas: ["firm_admin", "admin"] as Persona[],
+    personas: ["firm_admin", "platform_admin"] as Persona[],
   },
   {
     title: "Platform Admin",
     description: "System-wide dashboard, global search, health, and AI decision metrics.",
     href: "/admin",
-    personas: ["admin"] as Persona[],
+    personas: ["platform_admin"] as Persona[],
   },
 ];
 
@@ -60,7 +60,7 @@ export function HomePage() {
         <p className="text-sm uppercase tracking-wide text-brand">LandGrant MVP</p>
         <h1 className="mt-2 text-4xl font-semibold text-slate-900">Attorney-in-the-loop automation</h1>
         <p className="mt-4 max-w-2xl text-lg text-slate-600">
-          Workspaces below match your current persona. Switch persona in the header to see other journeys.
+          Workspaces below match your signed-in role. Use Logout to switch accounts.
         </p>
         {redirected ? (
           <p className="mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 max-w-xl">

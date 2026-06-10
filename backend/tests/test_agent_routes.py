@@ -10,7 +10,10 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock
 
+from app.db.models import Persona
 from app.main import app
+
+from tests.jwt_helpers import auth_headers
 
 
 @pytest.fixture
@@ -22,7 +25,7 @@ def client():
 @pytest.fixture
 def counsel_headers():
     """Headers for in-house counsel persona."""
-    return {"X-Persona": "in_house_counsel"}
+    return auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001")
 
 
 class TestAgentRoutes:
@@ -143,16 +146,16 @@ class TestAgentAuthorization:
     """Tests for agent authorization."""
 
     def test_unauthorized_without_persona(self, client):
-        """Test that requests without persona are rejected."""
+        """Test that requests without JWT are rejected."""
         response = client.get("/agents/decisions")
-        # Should fail without persona header
-        assert response.status_code in [400, 401, 422]
+        assert response.status_code == 401
 
     def test_unauthorized_wrong_persona(self, client):
         """Test that wrong persona cannot access agents."""
         response = client.get(
             "/agents/decisions",
-            headers={"X-Persona": "landowner"},
+            headers=auth_headers(
+                Persona.LANDOWNER, user_id="portal:x", email="owner@example.com"
+            ),
         )
-        # Landowners shouldn't access agent decisions
-        assert response.status_code in [401, 403, 422]
+        assert response.status_code == 403

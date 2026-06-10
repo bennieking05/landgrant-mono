@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createCase } from "@/lib/api";
+import { useAppContext } from "@/context";
 import { useNavigate } from "react-router-dom";
 
 // Common Texas county FIPS codes for smart suggestions
@@ -33,6 +34,7 @@ type Props = {
 
 export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
   const navigate = useNavigate();
+  const { setProjectId: setSelectedProjectId, setParcelId } = useAppContext();
   const [projectId, setProjectId] = useState(initialProjectId);
   const [countyFips, setCountyFips] = useState("48439");
   const [jurisdiction, setJurisdiction] = useState("TX");
@@ -45,6 +47,12 @@ export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
   const [propertyAddress, setPropertyAddress] = useState("");
   const [estimatedValue, setEstimatedValue] = useState<number | "">("");
   const [riskLevel, setRiskLevel] = useState<"low" | "medium" | "high">("medium");
+
+  useEffect(() => {
+    if (initialProjectId && !projectId.trim()) {
+      setProjectId(initialProjectId);
+    }
+  }, [initialProjectId, projectId]);
 
   // Auto-detect jurisdiction from FIPS code
   useEffect(() => {
@@ -82,6 +90,11 @@ export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const selectedProjectId = projectId.trim();
+    if (!selectedProjectId) {
+      setStatus("Create case failed: select a project before creating a parcel case.");
+      return;
+    }
     setStatus("Submitting...");
     
     // Build parties array
@@ -96,7 +109,7 @@ export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
 
     try {
       const response = await createCase({
-        project_id: projectId,
+        project_id: selectedProjectId,
         jurisdiction_code: jurisdiction,
         parcels: [
           {
@@ -110,7 +123,9 @@ export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
       const parcelId = response.parcel_ids?.[0];
       setStatus(`Created parcels: ${response.parcel_ids?.join(", ") ?? "none"}`);
       if (parcelId) {
-        navigate(`/workbench?projectId=${encodeURIComponent(projectId)}&parcelId=${encodeURIComponent(parcelId)}`);
+        setSelectedProjectId(selectedProjectId);
+        setParcelId(parcelId);
+        navigate(`/workbench?projectId=${encodeURIComponent(selectedProjectId)}&parcelId=${encodeURIComponent(parcelId)}`);
       }
     } catch (error) {
       setStatus(`Create case failed: ${String(error)}`);

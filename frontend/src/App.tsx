@@ -1,8 +1,9 @@
-import { Route, Routes } from "react-router-dom";
-import { AppContextProvider } from "@/context";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { AppContextProvider, AuthProvider, useAuth } from "@/context";
 import { AppLayout } from "@/components/AppLayout";
 import { PersonaRoute } from "@/components/PersonaRoute";
 import { HomePage } from "@/pages/HomePage";
+import { LoginPage } from "@/pages/LoginPage";
 import { IntakePage } from "@/pages/IntakePage";
 import { WorkbenchPage } from "@/pages/WorkbenchPage";
 import { CounselPage } from "@/pages/CounselPage";
@@ -11,11 +12,27 @@ import { FirmAdminPage } from "@/pages/FirmAdminPage";
 import { AdminPage } from "@/pages/AdminPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
-export function App() {
+function ProtectedShell() {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
   return (
     <AppContextProvider>
       <AppLayout>
-        <Routes>
+        <Outlet />
+      </AppLayout>
+    </AppContextProvider>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<ProtectedShell />}>
           <Route path="/" element={<HomePage />} />
           <Route
             path="/intake"
@@ -66,11 +83,8 @@ export function App() {
             }
           />
           <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </AppLayout>
-    </AppContextProvider>
+        </Route>
+      </Routes>
+    </AuthProvider>
   );
 }
-
-
-

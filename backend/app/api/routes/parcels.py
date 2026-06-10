@@ -6,9 +6,11 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_persona, get_db
+from app.api.deps import get_current_persona, get_current_principal, get_db
 from app.db import models
 from app.db.models import Persona, ParcelStage
+from app.security.access_scope import filter_parcels_query
+from app.security.jwt_auth import JWTPrincipal
 from app.security.rbac import Action, authorize
 
 
@@ -24,10 +26,12 @@ def list_parcels(
     limit: int = 100,
     offset: int = 0,
     persona: Persona = Depends(get_current_persona),
+    principal: JWTPrincipal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ):
     authorize(persona, "parcel", Action.READ)
     q = db.query(models.Parcel)
+    q = filter_parcels_query(db, principal, q)
     if project_id:
         q = q.filter(models.Parcel.project_id == project_id)
     if stage:

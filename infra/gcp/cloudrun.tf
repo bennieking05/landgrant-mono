@@ -50,6 +50,16 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
+        name  = "ALEMBIC_AUTO"
+        value = "true"
+      }
+
+      env {
+        name  = "DATABASE_REQUIRED"
+        value = "true"
+      }
+
+      env {
         name  = "APP_NAME"
         value = "landgrant-api"
       }
@@ -225,7 +235,7 @@ resource "google_cloud_run_v2_service" "api" {
       # =======================================================================
       startup_probe {
         http_get {
-          path = "/health/live"
+          path = "/readyz"
           port = 8080
         }
         initial_delay_seconds = 5
@@ -236,7 +246,7 @@ resource "google_cloud_run_v2_service" "api" {
 
       liveness_probe {
         http_get {
-          path = "/health/live"
+          path = "/healthz"
           port = 8080
         }
         timeout_seconds   = 3
@@ -355,6 +365,16 @@ resource "google_cloud_run_v2_service" "worker" {
       env {
         name  = "ENVIRONMENT"
         value = var.environment
+      }
+
+      env {
+        name  = "ALEMBIC_AUTO"
+        value = "true"
+      }
+
+      env {
+        name  = "DATABASE_REQUIRED"
+        value = "true"
       }
 
       env {

@@ -1,0 +1,20 @@
+substitutions:
+  _IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landright/api:manual
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_IMAGE}
+      - -f
+      - backend/Dockerfile
+      - .
+
+images:
+  - ${_IMAGE}
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: "1200s"
