@@ -6,7 +6,7 @@ type Props = {
   parcelId?: string;
 };
 
-export function OutsideCounselPanel({ projectId, parcelId = "PARCEL-001" }: Props) {
+export function OutsideCounselPanel({ projectId, parcelId }: Props) {
   const [completeness, setCompleteness] = useState<RepositoryCompletenessResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,6 +36,10 @@ export function OutsideCounselPanel({ projectId, parcelId = "PARCEL-001" }: Prop
   }, [projectId]);
 
   async function handleInitiate() {
+    if (!parcelId) {
+      setError("Select a parcel before initiating outside counsel case work");
+      return;
+    }
     setInitiating(true);
     setError(null);
     try {
@@ -74,7 +78,7 @@ export function OutsideCounselPanel({ projectId, parcelId = "PARCEL-001" }: Prop
     return labels[key] ?? key.replace(/_/g, " ");
   }
 
-  const isReady = completeness?.percent === 100;
+  const isReady = completeness?.percent === 100 && Boolean(parcelId);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -148,7 +152,7 @@ export function OutsideCounselPanel({ projectId, parcelId = "PARCEL-001" }: Prop
                   : "bg-slate-200 text-slate-500 cursor-not-allowed"
               }`}
             >
-              {isReady ? "Initiate Outside Counsel Case" : "Complete repository to proceed"}
+              {isReady ? "Initiate Outside Counsel Case" : "Complete repository and select a parcel to proceed"}
             </button>
           )}
 
@@ -171,7 +175,7 @@ export function OutsideCounselPanel({ projectId, parcelId = "PARCEL-001" }: Prop
                 <label className="block text-sm font-medium text-slate-700 mb-1">Parcel ID</label>
                 <input
                   type="text"
-                  value={parcelId}
+                  value={parcelId ?? ""}
                   disabled
                   className="w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500"
                 />

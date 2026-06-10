@@ -1,5 +1,5 @@
-import { Link, useLocation } from "react-router-dom";
-import { useAppContext, type Persona } from "@/context";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAppContext, useAuth, type Persona } from "@/context";
 import { personaNavMap } from "@/constants/personaNav";
 import { NotificationBell } from "@/components/NotificationBell";
 import {
@@ -8,9 +8,9 @@ import {
   Briefcase,
   Scale,
   Settings,
-  ChevronDown,
   Building2,
   ShieldCheck,
+  LogOut,
 } from "lucide-react";
 
 const navItems = [
@@ -29,7 +29,7 @@ const personaLabels: Record<Persona, string> = {
   in_house_counsel: "In-House Counsel",
   outside_counsel: "Outside Counsel",
   firm_admin: "Firm Admin",
-  admin: "Admin",
+  platform_admin: "Platform Admin",
 };
 
 type Props = {
@@ -38,6 +38,8 @@ type Props = {
 
 export function AppLayout({ children }: Props) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout, me } = useAuth();
   const {
     projects,
     projectId,
@@ -46,7 +48,6 @@ export function AppLayout({ children }: Props) {
     parcelId,
     setParcelId,
     persona,
-    setPersona,
     loading,
   } = useAppContext();
 
@@ -54,6 +55,8 @@ export function AppLayout({ children }: Props) {
   const filteredNav = navItems.filter((item) => allowedPaths.includes(item.path));
 
   const isHome = location.pathname === "/";
+
+  const isLandownerShell = persona === "landowner";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -93,42 +96,35 @@ export function AppLayout({ children }: Props) {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Persona Selector */}
-              <div className="relative">
-                <select
-                  value={persona}
-                  onChange={(e) => setPersona(e.target.value as Persona)}
-                  className="appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 py-1.5 text-sm font-medium text-slate-700 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                >
-                  {(Object.keys(personaLabels) as Persona[]).map((key) => (
-                    <option key={key} value={key}>
-                      {personaLabels[key]}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <div className="hidden text-right sm:block">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {personaLabels[persona]}
+                </div>
+                <div className="max-w-[14rem] truncate text-sm text-slate-800">
+                  {me?.email ?? me?.sub ?? ""}
+                </div>
               </div>
 
-              {/* Project/Parcel Selector - Hidden on Home page */}
-              {!isHome && (
+              {/* Project/Parcel Selector — internal users only */}
+              {!isHome && !isLandownerShell && (
                 <>
-                  {/* Project Selector */}
                   <div className="relative">
                     <select
                       value={projectId}
                       onChange={(e) => setProjectId(e.target.value)}
                       className="appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 py-1.5 text-sm font-medium text-slate-700 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                     >
+                      {projects.length === 0 && (
+                        <option value="">No projects</option>
+                      )}
                       {projects.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   </div>
 
-                  {/* Parcel Selector */}
                   <div className="relative">
                     <select
                       value={parcelId ?? ""}
@@ -148,12 +144,24 @@ export function AppLayout({ children }: Props) {
                         ))
                       )}
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   </div>
                 </>
               )}
 
               <NotificationBell />
+
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  navigate("/login", { replace: true });
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                title="Sign out"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
             </div>
           </div>
         </div>

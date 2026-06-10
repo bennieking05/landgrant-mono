@@ -4,14 +4,15 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 import {
   getPlatformProjects,
   listParcels,
-  setApiAuth,
   type ParcelItem,
 } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 export type Persona =
   | "landowner"
@@ -19,72 +20,36 @@ export type Persona =
   | "in_house_counsel"
   | "outside_counsel"
   | "firm_admin"
-  | "admin";
+  | "platform_admin";
 
 type Project = {
   id: string;
   name: string;
 };
 
-type AppContextValue = {
-  // Project selection
+export type AppContextValue = {
   projects: Project[];
   projectId: string;
   setProjectId: (id: string) => void;
 
-  // Parcel selection
   parcels: ParcelItem[];
   parcelId: string | null;
   setParcelId: (id: string | null) => void;
 
-  // Persona
   persona: Persona;
-  setPersona: (p: Persona) => void;
 
-  // Loading state
   loading: boolean;
   error: string | null;
   refreshParcels: () => void;
 };
 
-const AppContext = createContext<AppContextValue | null>(null);
+export const AppContext = createContext<AppContextValue | null>(null);
 
-// Dev fallback.  AppContext hydrates ``projects`` from
-// ``GET /admin/platform/projects`` on mount; we only fall back to these
-// sentinel rows when the request fails (e.g. offline dev) so the shell
-// still renders a usable project picker.
-const DEV_FALLBACK_PROJECTS: Project[] = [
-  { id: "PRJ-001", name: "Highway 281 Expansion" },
-  { id: "PRJ-002", name: "Pipeline Corridor Alpha" },
-  { id: "PRJ-003", name: "Utility Easement Beta" },
-];
+const DEV_FALLBACK_PROJECTS: Project[] = [];
 
 type Props = {
   children: ReactNode;
 };
-
-const PERSONA_STORAGE_KEY = "landgrant.persona";
-const VALID_PERSONAS: Persona[] = [
-  "landowner",
-  "land_agent",
-  "in_house_counsel",
-  "outside_counsel",
-  "firm_admin",
-  "admin",
-];
-
-function loadPersistedPersona(): Persona {
-  if (typeof window === "undefined") return "land_agent";
-  try {
-    const saved = window.localStorage.getItem(PERSONA_STORAGE_KEY);
-    if (saved && (VALID_PERSONAS as string[]).includes(saved)) {
-      return saved as Persona;
-    }
-  } catch {
-    // localStorage may be unavailable (e.g. privacy mode); fall through.
-  }
-  return "land_agent";
-}
 
 function readQueryId(key: string): string | null {
   if (typeof window === "undefined") return null;
@@ -97,68 +62,86 @@ function readQueryId(key: string): string | null {
   }
 }
 
+function normalizePersona(raw: string | undefined): Persona {
+  if (!raw) return "land_agent";
+  if (raw === "admin") return "platform_admin";
+  return raw as Persona;
+}
+
 export function AppContextProvider({ children }: Props) {
-  const [projectId, setProjectId] = useState(() => readQueryId("projectId") ?? "PRJ-001");
+  const { me } = useAuth();
+  const persona = useMemo(() => normalizePersona(me?.persona), [me?.persona]);
+
+  const [projectId, setProjectId] = useState(() => readQueryId("projectId") ?? "");
   const [parcelId, setParcelId] = useState<string | null>(() => readQueryId("parcelId"));
-  const [persona, setPersona] = useState<Persona>(loadPersistedPersona);
   const [parcels, setParcels] = useState<ParcelItem[]>([]);
   const [projects, setProjects] = useState<Project[]>(DEV_FALLBACK_PROJECTS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Persist persona so a page refresh or deep-link preserves the active role.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(PERSONA_STORAGE_KEY, persona);
-    } catch {
-      // Storage may be disabled; non-fatal.
-    }
-  }, [persona]);
-
   useEffect(() => {
     let cancelled = false;
-    getPlatformProjects({ limit: 50 })
-      .then((res) => {
-        if (cancelled || !res?.projects?.length) return;
-        setProjects(
-          res.projects.map((p) => ({
+    async function loadProjects() {
+      if (!me) return;
+      try {
+        if (persona === "platform_admin") {
+          const res = await getPlatformProjects({ limit: 50 });
+          if (cancelled || !res?.projects?.length) return;
+          const fetchedProjects = res.projects.map((p) => ({
             id: p.project_id,
             name: p.project_name,
-          })),
-        );
-      })
-      .catch(() => {
-        // Keep the dev fallback if the admin endpoint is unreachable.
-      });
+          }));
+          setProjects(fetchedProjects);
+          setProjectId((current) => (current ? current : fetchedProjects[0]?.id ?? ""));
+          return;
+        }
+        if (persona === "landowner") {
+          setProjects([]);
+          return;
+        }
+        const res = await listParcels({ limit: 300 });
+        if (cancelled) return;
+        const seen = new Map<string, string>();
+        for (const p of res.items) {
+          if (!seen.has(p.project_id)) seen.set(p.project_id, p.project_id);
+        }
+        const inferred = [...seen.keys()].map((id) => ({ id, name: id }));
+        setProjects(inferred);
+        setProjectId((current) => (current ? current : inferred[0]?.id ?? ""));
+      } catch {
+        if (!cancelled) setProjects([]);
+      }
+    }
+    void loadProjects();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [me, persona]);
 
   const refreshParcels = useCallback(async () => {
-    if (!projectId) return;
+    if (!me) return;
+    if (!projectId && persona !== "landowner") return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const res = await listParcels({ project_id: projectId });
+      const res = await listParcels(
+        persona === "landowner" ? { limit: 50 } : { project_id: projectId, limit: 200 },
+      );
       setParcels(res.items);
 
       if (res.items.length > 0) {
-        const currentValid = res.items.some((p) => p.id === parcelId);
-        if (!currentValid) {
-          // Prefer a deep-linked parcel from the URL if it matches the fetched
-          // list; otherwise fall back to the first available parcel so the
-          // shell always has a selection.
+        setParcelId((prev) => {
+          const currentValid = res.items.some((p) => p.id === prev);
+          if (currentValid) return prev;
           const queryParcel = readQueryId("parcelId");
           const deepLinked =
             queryParcel && res.items.some((p) => p.id === queryParcel)
               ? queryParcel
               : res.items[0].id;
-          setParcelId(deepLinked);
-        }
+          return deepLinked;
+        });
       } else {
         setParcelId(null);
       }
@@ -168,31 +151,23 @@ export function AppContextProvider({ children }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, persona, me]);
 
-  // Keep the shared API auth state in sync with the active persona so every
-  // request carries the right X-Persona header (Phase 4.1).
   useEffect(() => {
-    setApiAuth({ persona });
-  }, [persona]);
-
-  // Fetch parcels when project changes
-  useEffect(() => {
-    refreshParcels();
-  }, [projectId]);
+    void refreshParcels();
+  }, [refreshParcels]);
 
   const value: AppContextValue = {
     projects,
     projectId,
     setProjectId: (id: string) => {
       setProjectId(id);
-      setParcelId(null); // Reset parcel when project changes
+      setParcelId(null);
     },
     parcels,
     parcelId,
     setParcelId,
     persona,
-    setPersona,
     loading,
     error,
     refreshParcels,

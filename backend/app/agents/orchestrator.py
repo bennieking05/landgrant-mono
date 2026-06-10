@@ -450,7 +450,9 @@ class AgentOrchestrator:
 
             # For critical escalations, also notify admin/supervisors
             if priority == "critical":
-                admin_query = select(User).where(User.persona == Persona.ADMIN)
+                admin_query = select(User).where(
+                    User.persona.in_((Persona.ADMIN, Persona.PLATFORM_ADMIN))
+                )
                 admin_result = await self.db.execute(admin_query)
                 admins = admin_result.scalars().all()
                 reviewer_ids.extend([a.id for a in admins])

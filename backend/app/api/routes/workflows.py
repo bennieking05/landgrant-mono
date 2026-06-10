@@ -377,6 +377,7 @@ def execute_transition(
         Persona.IN_HOUSE_COUNSEL,
         Persona.OUTSIDE_COUNSEL,
         Persona.ADMIN,
+        Persona.PLATFORM_ADMIN,
     ]:
         raise HTTPException(
             status_code=403, detail="Only counsel can skip guard checks"

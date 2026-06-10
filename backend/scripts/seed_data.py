@@ -15,9 +15,17 @@ def seed() -> None:
 
     db = SessionLocal()
     try:
+        project1_id = f"PRJ-{1:03d}"
+        project2_id = f"PRJ-{2:03d}"
+        parcel1_id = f"PARCEL-{1:03d}"
+        parcel2_id = f"PARCEL-{2:03d}"
+        parcel3_id = f"PARCEL-{3:03d}"
+        parcel4_id = f"PARCEL-{4:03d}"
+        parcel5_id = f"PARCEL-{5:03d}"
+
         # === Projects ===
         project1 = models.Project(
-            id="PRJ-001",
+            id=project1_id,
             name="Utility Corridor Expansion",
             jurisdiction_code="TX",
             stage=ProjectStage.NEGOTIATION,
@@ -25,7 +33,7 @@ def seed() -> None:
             next_deadline_at=datetime.utcnow() + timedelta(days=12),
         )
         project2 = models.Project(
-            id="PRJ-002",
+            id=project2_id,
             name="Highway 281 Widening",
             jurisdiction_code="TX",
             stage=ProjectStage.INTAKE,
@@ -37,7 +45,7 @@ def seed() -> None:
 
         # === Parcels (5 total with varied risk/deadline) ===
         parcel1 = models.Parcel(
-            id="PARCEL-001",
+            id=parcel1_id,
             project_id=project1.id,
             county_fips="48439",
             stage="negotiation",
@@ -45,7 +53,7 @@ def seed() -> None:
             next_deadline_at=datetime.utcnow() + timedelta(days=7),
         )
         parcel2 = models.Parcel(
-            id="PARCEL-002",
+            id=parcel2_id,
             project_id=project1.id,
             county_fips="48439",
             stage="intake",
@@ -53,7 +61,7 @@ def seed() -> None:
             next_deadline_at=datetime.utcnow() + timedelta(days=3),
         )
         parcel3 = models.Parcel(
-            id="PARCEL-003",
+            id=parcel3_id,
             project_id=project1.id,
             county_fips="48439",
             stage="offer_sent",
@@ -61,7 +69,7 @@ def seed() -> None:
             next_deadline_at=datetime.utcnow() + timedelta(days=14),
         )
         parcel4 = models.Parcel(
-            id="PARCEL-004",
+            id=parcel4_id,
             project_id=project1.id,
             county_fips="48453",
             stage="closed",
@@ -69,7 +77,7 @@ def seed() -> None:
             next_deadline_at=None,
         )
         parcel5 = models.Parcel(
-            id="PARCEL-005",
+            id=parcel5_id,
             project_id=project2.id,
             county_fips="48029",
             stage="intake",
@@ -109,11 +117,11 @@ def seed() -> None:
         db.merge(owner3)
 
         # === Parcel-Party relationships ===
-        db.merge(models.ParcelParty(parcel_id="PARCEL-001", party_id="OWNER-001", relationship_type="owner"))
-        db.merge(models.ParcelParty(parcel_id="PARCEL-002", party_id="OWNER-002", relationship_type="owner"))
-        db.merge(models.ParcelParty(parcel_id="PARCEL-003", party_id="OWNER-002", relationship_type="owner"))
-        db.merge(models.ParcelParty(parcel_id="PARCEL-004", party_id="OWNER-003", relationship_type="owner"))
-        db.merge(models.ParcelParty(parcel_id="PARCEL-005", party_id="OWNER-003", relationship_type="owner"))
+        db.merge(models.ParcelParty(parcel_id=parcel1_id, party_id="OWNER-001", relationship_type="owner"))
+        db.merge(models.ParcelParty(parcel_id=parcel2_id, party_id="OWNER-002", relationship_type="owner"))
+        db.merge(models.ParcelParty(parcel_id=parcel3_id, party_id="OWNER-002", relationship_type="owner"))
+        db.merge(models.ParcelParty(parcel_id=parcel4_id, party_id="OWNER-003", relationship_type="owner"))
+        db.merge(models.ParcelParty(parcel_id=parcel5_id, party_id="OWNER-003", relationship_type="owner"))
 
         # === Templates ===
         template = models.Template(
@@ -133,7 +141,7 @@ def seed() -> None:
             doc_type="title_instrument",
             version="1.0.0",
             sha256="abc123def456",
-            storage_path="local_storage/title/PARCEL-001/deed.pdf",
+            storage_path=f"local_storage/title/{parcel1_id}/deed.pdf",
             metadata_json={"filename": "deed.pdf", "content_type": "application/pdf"},
         ))
         db.merge(models.Document(
@@ -141,14 +149,14 @@ def seed() -> None:
             doc_type="title_instrument",
             version="1.0.0",
             sha256="xyz789abc123",
-            storage_path="local_storage/title/PARCEL-001/survey.pdf",
+            storage_path=f"local_storage/title/{parcel1_id}/survey.pdf",
             metadata_json={"filename": "survey.pdf", "content_type": "application/pdf"},
         ))
 
         # === Communications (multiple channels) ===
         db.merge(models.Communication(
             id="COMM-001",
-            parcel_id="PARCEL-001",
+            parcel_id=parcel1_id,
             project_id=project1.id,
             channel="email",
             direction="outbound",
@@ -160,7 +168,7 @@ def seed() -> None:
         ))
         db.merge(models.Communication(
             id="COMM-002",
-            parcel_id="PARCEL-001",
+            parcel_id=parcel1_id,
             project_id=project1.id,
             channel="sms",
             direction="outbound",
@@ -172,7 +180,7 @@ def seed() -> None:
         ))
         db.merge(models.Communication(
             id="COMM-003",
-            parcel_id="PARCEL-001",
+            parcel_id=parcel1_id,
             project_id=project1.id,
             channel="certified_mail",
             direction="outbound",
@@ -184,7 +192,7 @@ def seed() -> None:
         ))
         db.merge(models.Communication(
             id="COMM-004",
-            parcel_id="PARCEL-002",
+            parcel_id=parcel2_id,
             project_id=project1.id,
             channel="email",
             direction="outbound",
@@ -198,7 +206,7 @@ def seed() -> None:
         # === Rule Results ===
         db.merge(models.RuleResult(
             id="RULE-001",
-            parcel_id="PARCEL-001",
+            parcel_id=parcel1_id,
             project_id=project1.id,
             rule_id="valuation_threshold",
             version="1.0.0",
@@ -207,7 +215,7 @@ def seed() -> None:
         ))
         db.merge(models.RuleResult(
             id="RULE-002",
-            parcel_id="PARCEL-001",
+            parcel_id=parcel1_id,
             project_id=project1.id,
             rule_id="good_faith_meeting",
             version="1.0.0",
@@ -216,7 +224,7 @@ def seed() -> None:
         ))
         db.merge(models.RuleResult(
             id="RULE-003",
-            parcel_id="PARCEL-002",
+            parcel_id=parcel2_id,
             project_id=project1.id,
             rule_id="valuation_threshold",
             version="1.0.0",
@@ -227,7 +235,7 @@ def seed() -> None:
         # === Title Instruments ===
         db.merge(models.TitleInstrument(
             id="TITLE-001",
-            parcel_id="PARCEL-001",
+            parcel_id=parcel1_id,
             document_id=doc1_id,
             ocr_payload={"confidence": 0.92, "entities": ["grantor", "grantee", "legal_description"], "source": "azure_form_recognizer"},
             metadata_json={"instrument_type": "warranty_deed", "recorded_date": "2020-03-15"},
@@ -235,7 +243,7 @@ def seed() -> None:
         ))
         db.merge(models.TitleInstrument(
             id="TITLE-002",
-            parcel_id="PARCEL-001",
+            parcel_id=parcel1_id,
             document_id=doc2_id,
             ocr_payload={"confidence": 0.88, "entities": ["surveyor", "boundaries"], "source": "azure_form_recognizer"},
             metadata_json={"instrument_type": "survey", "survey_date": "2019-11-20"},
@@ -245,7 +253,7 @@ def seed() -> None:
         # === Appraisals ===
         db.merge(models.Appraisal(
             id="APPRAISAL-001",
-            parcel_id="PARCEL-001",
+            parcel_id=parcel1_id,
             value=350000,
             summary="Commercial property with highway frontage. Appraised using sales comparison approach with 3 comparable sales in the area.",
             comps=[
@@ -260,7 +268,7 @@ def seed() -> None:
         db.merge(models.Deadline(
             id="DEADLINE-001",
             project_id=project1.id,
-            parcel_id="PARCEL-001",
+            parcel_id=parcel1_id,
             title="Final offer response due",
             due_at=datetime.utcnow() + timedelta(days=7),
             timezone="America/Chicago",
@@ -276,7 +284,7 @@ def seed() -> None:
         db.merge(models.Deadline(
             id="DEADLINE-003",
             project_id=project1.id,
-            parcel_id="PARCEL-002",
+            parcel_id=parcel2_id,
             title="Initial contact deadline",
             due_at=datetime.utcnow() + timedelta(days=3),
             timezone="America/Chicago",

@@ -17,7 +17,6 @@ type CounselTab = "approvals" | "binder" | "litigation" | "tasks";
 
 export function CounselPage() {
   const { projectId, parcelId } = useAppContext();
-  const effectiveParcelId = parcelId ?? "PARCEL-001";
   const [showCopilot, setShowCopilot] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
   const [tab, setTab] = useState<CounselTab>("approvals");
@@ -96,12 +95,12 @@ export function CounselPage() {
             <div className="grid gap-4 lg:grid-cols-2">
               <AIDecisionReview />
               <SettlementPredictor
-                parcelId={effectiveParcelId}
+                parcelId={parcelId ?? undefined}
                 jurisdiction="TX"
                 assessedValue={350000}
               />
             </div>
-            <OutsideCounselPanel projectId={projectId} parcelId={effectiveParcelId} />
+            <OutsideCounselPanel projectId={projectId} parcelId={parcelId ?? undefined} />
           </>
         )}
 
@@ -112,11 +111,11 @@ export function CounselPage() {
           </div>
         )}
 
-        {tab === "litigation" && (
-          <LitigationPanel parcelId={effectiveParcelId} projectId={projectId} />
+        {tab === "litigation" && parcelId && (
+          <LitigationPanel parcelId={parcelId} projectId={projectId} />
         )}
 
-        {tab === "tasks" && <TaskManager projectId={projectId} parcelId={effectiveParcelId} />}
+        {tab === "tasks" && <TaskManager projectId={projectId} parcelId={parcelId ?? undefined} />}
       </section>
 
       {/* Copilot Panel */}
@@ -124,7 +123,7 @@ export function CounselPage() {
         <div className="fixed right-0 top-0 h-screen w-96 shadow-xl z-50">
           <CopilotPanel
             caseId={projectId}
-            parcelId={effectiveParcelId}
+            parcelId={parcelId ?? undefined}
             jurisdiction="TX"
             isOpen={showCopilot}
             onClose={() => setShowCopilot(false)}
@@ -136,7 +135,7 @@ export function CounselPage() {
       <AIAuditDrawer
         open={showAudit}
         onClose={() => setShowAudit(false)}
-        resourceId={effectiveParcelId}
+        resourceId={parcelId ?? projectId}
         title="AI decisions for this parcel"
       />
     </div>

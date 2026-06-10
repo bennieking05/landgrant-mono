@@ -5,8 +5,10 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db.models import Persona
 from app.main import app
 
+from tests.jwt_helpers import auth_headers
 
 client = TestClient(app)
 
@@ -31,7 +33,7 @@ class TestOpsRoutePlanEndpoint:
         """Route plan endpoint returns parcels ordered by risk/deadline."""
         res = client.get(
             "/ops/routes/plan?project_id=PRJ-001",
-            headers={"X-Persona": "land_agent"},
+            headers=auth_headers(Persona.LAND_AGENT, user_id="AGENT-001"),
         )
         assert res.status_code == 200
         data = res.json()
@@ -46,7 +48,7 @@ class TestOpsRoutePlanEndpoint:
         """Route plan CSV has expected format."""
         res = client.get(
             "/ops/routes/plan?project_id=PRJ-001",
-            headers={"X-Persona": "land_agent"},
+            headers=auth_headers(Persona.LAND_AGENT, user_id="AGENT-001"),
         )
         assert res.status_code == 200
         data = res.json()
@@ -56,18 +58,22 @@ class TestOpsRoutePlanEndpoint:
 
     def test_route_plan_requires_land_agent_or_higher(self):
         """Route plan requires appropriate persona."""
-        res = client.get(
+        res = client.get("/ops/routes/plan?project_id=PRJ-001")
+        assert res.status_code == 401
+        res2 = client.get(
             "/ops/routes/plan?project_id=PRJ-001",
-            headers={"X-Persona": "landowner"},
+            headers=auth_headers(
+                Persona.LANDOWNER, user_id="portal:x", email="owner@example.com"
+            ),
         )
-        assert res.status_code == 403
+        assert res2.status_code == 403
 
     @pytest.mark.skipif(not _db_available(), reason="Database not available")
     def test_route_plan_with_counsel_persona(self):
         """In-house counsel can access route plan."""
         res = client.get(
             "/ops/routes/plan?project_id=PRJ-001",
-            headers={"X-Persona": "in_house_counsel"},
+            headers=auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001"),
         )
         assert res.status_code == 200
 
@@ -80,7 +86,7 @@ class TestNotificationsPreviewEndpoint:
         """Notification preview returns rendered body."""
         res = client.post(
             "/notifications/preview",
-            headers={"X-Persona": "in_house_counsel"},
+            headers=auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001"),
             json={
                 "template_id": "portal_invite",
                 "channel": "email",
@@ -104,7 +110,7 @@ class TestNotificationsPreviewEndpoint:
         """Notification preview works for SMS channel."""
         res = client.post(
             "/notifications/preview",
-            headers={"X-Persona": "land_agent"},
+            headers=auth_headers(Persona.LAND_AGENT, user_id="AGENT-001"),
             json={
                 "template_id": "deadline_reminder",
                 "channel": "sms",
@@ -122,7 +128,9 @@ class TestNotificationsPreviewEndpoint:
         """Notification preview requires communication write permission."""
         res = client.post(
             "/notifications/preview",
-            headers={"X-Persona": "landowner"},
+            headers=auth_headers(
+                Persona.LANDOWNER, user_id="portal:x", email="owner@example.com"
+            ),
             json={
                 "template_id": "portal_invite",
                 "channel": "email",

@@ -5,9 +5,10 @@ Phase 3.1: every tenant-scoped API should resolve the caller's firm via
 :func:`scope_to_firm` so even a mis-authorised persona can't enumerate
 data from a sibling firm.
 
-``ADMIN`` persona callers bypass the filter (returns ``None``) so the
-platform team can still run cross-firm operations.  Every other persona
-MUST carry a firm id; requests without one are rejected with 401.
+``PLATFORM_ADMIN`` (and legacy ``ADMIN``) callers bypass the filter
+(returns ``None``) so the platform team can still run cross-firm operations.
+Every other persona MUST carry a firm id; requests without one are rejected
+with 401.
 """
 
 from __future__ import annotations
@@ -15,55 +16,38 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Query, Session
 
 from app.api.deps import get_current_persona
 from app.core.config import get_settings
 from app.db.models import DEFAULT_FIRM_ID, Persona
-from app.security.jwt_auth import JWTPrincipal, principal_from_token
+from app.security.jwt_auth import JWTPrincipal
 
 logger = logging.getLogger(__name__)
 
 
-def _optional_principal(
-    authorization: Optional[str] = Header(default=None, alias="Authorization"),
-) -> Optional[JWTPrincipal]:
-    """Return the JWT principal if one is present, or ``None`` for dev calls.
+def _optional_principal(request: Request) -> Optional[JWTPrincipal]:
+    """Return the JWT principal from middleware state, if any."""
 
-    Distinct from :func:`get_current_principal` which raises 401 when there's
-    no token. We need to allow ``get_current_firm_id`` to fall through to its
-    dev fallback when the caller is using the ``X-Persona`` header path.
-    """
-
-    return principal_from_token(authorization)
+    return getattr(request.state, "principal", None)
 
 
-def get_current_firm_id(
-    principal: Optional[JWTPrincipal] = Depends(_optional_principal),
-    persona: Persona = Depends(get_current_persona),
-    x_firm_id: Optional[str] = Header(default=None, alias="X-Firm-Id"),
+def resolve_firm_id(
+    *,
+    principal: Optional[JWTPrincipal],
+    persona: Persona,
+    x_firm_id: Optional[str],
 ) -> Optional[str]:
-    """Resolve the caller's firm id.
-
-    Lookup order:
-
-    1. ``firm_id`` claim on a validated JWT (authoritative). A mismatched
-       ``X-Firm-Id`` header is rejected with 403 so a compromised browser
-       session cannot spoof a sibling firm.
-    2. Explicit ``X-Firm-Id`` header — only honoured in dev, because in
-       every other environment the header carries no trust boundary.
-    3. ``ADMIN`` persona → ``None`` (cross-tenant read bypass).
-    4. Dev fallback → ``DEFAULT_FIRM_ID`` so local tests work out of the box.
-    """
+    """Pure resolver used by :func:`get_current_firm_id` and unit tests."""
 
     settings = get_settings()
 
-    # (1) JWT claim wins. If the caller also supplied an X-Firm-Id header that
-    # disagrees with the claim, refuse the request — we never want a UI-side
-    # value to override what the token was signed for.
     if principal is not None and principal.firm_id:
-        if x_firm_id and x_firm_id != principal.firm_id and persona != Persona.ADMIN:
+        if x_firm_id and x_firm_id != principal.firm_id and persona not in (
+            Persona.ADMIN,
+            Persona.PLATFORM_ADMIN,
+        ):
             logger.warning(
                 "X-Firm-Id %s overrides JWT firm_id %s - rejecting",
                 x_firm_id,
@@ -75,23 +59,27 @@ def get_current_firm_id(
             )
         return principal.firm_id
 
-    # (2) Dev-only: trust the raw header so the Playwright suite / local tools
-    # can still switch firms without minting JWTs.
     if x_firm_id and settings.environment == "dev":
         return x_firm_id
 
-    # (3) ADMIN persona crosses tenants by design.
-    if persona == Persona.ADMIN:
+    if persona in (Persona.ADMIN, Persona.PLATFORM_ADMIN):
         return None
 
-    # (4) Dev/test convenience: every request gets the default firm scope.
     if settings.environment == "dev":
         return DEFAULT_FIRM_ID
 
-    # In non-dev, require a firm id explicitly. Callers wrap this in
-    # ``require_firm`` to convert ``None`` to a 401, so returning ``None`` is
-    # safe and lets ADMIN still bypass via the explicit check above.
     return None
+
+
+def get_current_firm_id(
+    request: Request,
+    persona: Persona = Depends(get_current_persona),
+    x_firm_id: Optional[str] = Header(default=None, alias="X-Firm-Id"),
+) -> Optional[str]:
+    """Resolve the caller's firm id (see :func:`resolve_firm_id`)."""
+
+    principal = _optional_principal(request)
+    return resolve_firm_id(principal=principal, persona=persona, x_firm_id=x_firm_id)
 
 
 def require_firm(firm_id: Optional[str]) -> str:

@@ -7,11 +7,12 @@ Provides dashboard endpoints for two admin levels:
 """
 
 from datetime import datetime, timedelta
+from time import perf_counter
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_persona, get_current_user
@@ -870,14 +871,15 @@ def get_platform_health(
     Get system health status for all services.
     """
     authorize(persona, "admin_platform", Action.READ)
+    request_start = perf_counter()
 
     health_checks: list[HealthStatus] = []
 
     # Database health
     try:
-        start = datetime.utcnow()
-        db.execute("SELECT 1")
-        latency = int((datetime.utcnow() - start).total_seconds() * 1000)
+        start = perf_counter()
+        db.execute(text("SELECT 1"))
+        latency = max(1, int((perf_counter() - start) * 1000))
         health_checks.append(
             HealthStatus(
                 service="PostgreSQL",
@@ -896,12 +898,12 @@ def get_platform_health(
             )
         )
 
-    # API health (always healthy if we got here)
+    # API health measures handler elapsed time instead of a hard-coded value.
     health_checks.append(
         HealthStatus(
             service="API",
             status="healthy",
-            latency_ms=0,
+            latency_ms=max(1, int((perf_counter() - request_start) * 1000)),
             last_check=datetime.utcnow().isoformat(),
         )
     )

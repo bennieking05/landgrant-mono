@@ -15,14 +15,21 @@ class Action(Enum):
     EXECUTE = "execute"
 
 
+# DEV_KICKOFF matrix — see docs/security.md. ``platform_admin`` owns cross-tenant
+# ``/admin`` and ``admin_platform``; ``firm_admin`` is tenant-scoped.
 PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
     Persona.LANDOWNER: {
         "portal": {Action.READ, Action.WRITE},
+        "communication": {Action.READ},
+        "chat": {Action.READ, Action.WRITE},
+        "offer": {Action.READ, Action.WRITE},
         "decision": {Action.EXECUTE},
-        "esign": {Action.READ},
+        "esign": {Action.READ, Action.WRITE},
+        "parcel": {Action.READ},
+        "case": {Action.READ},
     },
     Persona.LAND_AGENT: {
-        "parcel": {Action.READ, Action.WRITE, Action.UPDATE},
+        "parcel": {Action.READ, Action.WRITE, Action.UPDATE, Action.CREATE},
         "communication": {Action.READ, Action.WRITE},
         "packet": {Action.EXECUTE},
         "title": {Action.READ, Action.WRITE},
@@ -39,6 +46,7 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
         "predictions": {Action.READ},
         "rag": {Action.READ},
         "copilot": {Action.READ, Action.WRITE},
+        "case": {Action.READ, Action.WRITE},
     },
     Persona.IN_HOUSE_COUNSEL: {
         "template": {Action.READ, Action.WRITE, Action.APPROVE, Action.EXECUTE},
@@ -63,15 +71,18 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
         "predictions": {Action.READ},
         "rag": {Action.READ},
         "copilot": {Action.READ, Action.WRITE},
+        "case": {Action.READ, Action.WRITE},
     },
     Persona.OUTSIDE_COUNSEL: {
-        "case": {Action.READ, Action.WRITE},
+        "case": {Action.READ, Action.WRITE, Action.CREATE},
         "deadline": {Action.READ, Action.WRITE},
         "status": {Action.EXECUTE},
         "litigation": {Action.READ, Action.WRITE},
+        "budget": {Action.READ},
         "esign": {Action.READ},
         "task": {Action.READ},
         "rules": {Action.READ},
+        "parcel": {Action.READ},
     },
     Persona.FIRM_ADMIN: {
         "parcel": {Action.READ},
@@ -88,7 +99,7 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
         "audit": {Action.READ},
         "task": {Action.READ},
     },
-    Persona.ADMIN: {
+    Persona.PLATFORM_ADMIN: {
         "rbac": {Action.READ, Action.WRITE},
         "audit": {Action.READ, Action.WRITE},
         "esign": {Action.READ, Action.WRITE},
@@ -111,6 +122,12 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
         "predictions": {Action.READ},
         "rag": {Action.READ, Action.WRITE},
         "copilot": {Action.READ, Action.WRITE},
+    },
+    # Legacy DB-only persona — JWTs normalize ``admin`` to ``platform_admin``.
+    Persona.ADMIN: {
+        "rbac": {Action.READ},
+        "audit": {Action.READ},
+        "parcel": {Action.READ},
     },
 }
 

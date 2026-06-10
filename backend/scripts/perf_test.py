@@ -16,22 +16,48 @@ import time
 from datetime import datetime, timedelta
 from uuid import uuid4
 
+from app.db.models import Persona
+from app.security.jwt_auth import create_access_token
+
+
+def _bearer_headers(
+    *,
+    persona: Persona,
+    user_id: str,
+    email: str | None = None,
+    firm_id: str | None = "firm_default",
+) -> dict[str, str]:
+    """Headers Locust clients must send (``AuthEnforcementMiddleware`` ignores ``X-Persona``)."""
+
+    token = create_access_token(
+        user_id=user_id,
+        persona=persona,
+        email=email,
+        firm_id=firm_id,
+        expires_in_seconds=60 * 60 * 4,
+    )
+    return {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+    }
+
 
 class APIUser(HttpUser):
     """Base user with common authentication and setup."""
-    
+
     wait_time = between(0.5, 2)  # Wait between requests
     host = "http://localhost:8050"
-    
+
     def on_start(self):
-        """Set up user session."""
-        self.project_id = "PRJ-001"
-        self.parcel_id = f"PARCEL-PERF-{random.randint(1, 1000)}"
+        """Set up user session with a JWT (required for all non-exempt API routes)."""
+        self.project_id = f"PRJ-{1:03d}"
+        self.parcel_id = f"PARCEL-{1:03d}"
         self.persona = random.choice(["land_agent", "in_house_counsel"])
-        self.headers = {
-            "X-Persona": self.persona,
-            "Content-Type": "application/json",
-        }
+        persona_enum = Persona(self.persona)
+        self.headers = _bearer_headers(
+            persona=persona_enum,
+            user_id=f"perf-{uuid4().hex[:12]}",
+        )
 
 
 class LandAgentUser(APIUser):
@@ -42,7 +68,10 @@ class LandAgentUser(APIUser):
     def on_start(self):
         super().on_start()
         self.persona = "land_agent"
-        self.headers["X-Persona"] = self.persona
+        self.headers = _bearer_headers(
+            persona=Persona.LAND_AGENT,
+            user_id="AGENT-001",
+        )
 
     @task(10)
     def list_parcels(self):
@@ -129,7 +158,10 @@ class CounselUser(APIUser):
     def on_start(self):
         super().on_start()
         self.persona = "in_house_counsel"
-        self.headers["X-Persona"] = self.persona
+        self.headers = _bearer_headers(
+            persona=Persona.IN_HOUSE_COUNSEL,
+            user_id="COUNSEL-001",
+        )
 
     @task(5)
     def list_litigation(self):
@@ -192,7 +224,17 @@ class PortalUser(APIUser):
     def on_start(self):
         super().on_start()
         self.persona = "landowner"
-        self.headers["X-Persona"] = self.persona
+        # Match seeded parcel grant (owner@example.com → PARCEL-001) so portal reads succeed.
+        self.parcel_id = f"PARCEL-{1:03d}"
+        self.headers = _bearer_headers(
+            persona=Persona.LANDOWNER,
+            user_id="portal:perf",
+            email="owner@example.com",
+        )
+        self._land_agent_headers = _bearer_headers(
+            persona=Persona.LAND_AGENT,
+            user_id="AGENT-001",
+        )
 
     @task(5)
     def get_decision_options(self):
@@ -214,11 +256,10 @@ class PortalUser(APIUser):
 
     @task(2)
     def create_invite(self):
-        """Create portal invite."""
-        self.headers["X-Persona"] = "land_agent"  # Temporarily switch
+        """Create portal invite (requires land_agent JWT, not landowner)."""
         self.client.post(
             "/portal/invites",
-            headers=self.headers,
+            headers=self._land_agent_headers,
             json={
                 "email": f"perf-test-{uuid4().hex[:8]}@example.com",
                 "parcel_id": self.parcel_id,
@@ -226,15 +267,21 @@ class PortalUser(APIUser):
             },
             name="/portal/invites [POST]"
         )
-        self.headers["X-Persona"] = self.persona  # Switch back
 
 
 class HealthCheckUser(HttpUser):
     """Lightweight user for health checks."""
-    
+
     wait_time = between(1, 3)
     weight = 1
     host = "http://localhost:8050"
+
+    def on_start(self):
+        # ``/health/invite`` is authenticated; liveness endpoints stay anonymous.
+        self._invite_headers = _bearer_headers(
+            persona=Persona.IN_HOUSE_COUNSEL,
+            user_id="COUNSEL-001",
+        )
 
     @task
     def health_live(self):
@@ -244,7 +291,7 @@ class HealthCheckUser(HttpUser):
     @task
     def health_invite(self):
         """Check invite flow health."""
-        self.client.get("/health/invite", name="/health/invite")
+        self.client.get("/health/invite", headers=self._invite_headers, name="/health/invite")
 
 
 # Event hooks for custom metrics

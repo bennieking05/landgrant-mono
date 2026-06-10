@@ -10,7 +10,10 @@ from fastapi.testclient import TestClient
 
 from app.db import models
 from app.db.session import SessionLocal
+from app.db.models import Persona
 from app.main import app
+
+from tests.jwt_helpers import auth_headers
 
 
 @pytest.fixture()
@@ -20,7 +23,7 @@ def client():
 
 @pytest.fixture()
 def counsel_headers():
-    return {"X-Persona": "in_house_counsel"}
+    return auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001")
 
 
 @pytest.fixture()

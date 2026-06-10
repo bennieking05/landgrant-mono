@@ -3,8 +3,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from sqlalchemy import text
 
 from app.api.routes import (
+    auth as auth_routes,
     cases,
     templates,
     ai,
@@ -47,6 +49,7 @@ from app.core.config import get_settings
 from app.db.session import Base, SessionLocal, engine
 from app.db import models
 from app.telemetry import configure_tracing, instrument_app
+from app.security.auth_middleware import AuthEnforcementMiddleware
 
 settings = get_settings()
 configure_tracing()
@@ -61,7 +64,11 @@ if _prod_problems:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _bootstrap_dev_db()
+    if settings.environment != "dev" or settings.database_required:
+        _run_migrations_if_enabled()
+        _assert_database_ready()
+    else:
+        _bootstrap_dev_db()
     yield
 
 
@@ -75,8 +82,7 @@ app = FastAPI(
 
 # --- Rate limiting (Phase 3.3) -------------------------------------------------
 # We attach slowapi lazily so test environments without the dependency still
-# import cleanly.  Each request is keyed on client IP + persona header so a
-# single compromised key can't exhaust the shared bucket.
+# import cleanly.  Each request is keyed on client IP + authenticated subject.
 if settings.rate_limit_enabled:
     try:
         from slowapi import Limiter
@@ -85,8 +91,9 @@ if settings.rate_limit_enabled:
         from slowapi.util import get_remote_address
 
         def _rate_key(request: Request) -> str:
-            persona = request.headers.get("X-Persona", "anon")
-            return f"{get_remote_address(request)}::{persona}"
+            principal = getattr(request.state, "principal", None)
+            who = principal.user_id if principal is not None else "anon"
+            return f"{get_remote_address(request)}::{who}"
 
         limiter = Limiter(
             key_func=_rate_key,
@@ -147,6 +154,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(AuthEnforcementMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
@@ -155,6 +163,7 @@ app.add_middleware(
     allow_credentials=True,
 )
 
+app.include_router(auth_routes.router)
 app.include_router(health.router)
 app.include_router(cases.router)
 app.include_router(templates.router)
@@ -204,6 +213,28 @@ app.include_router(tasks.router)
 instrument_app(app)
 
 
+def _assert_database_ready() -> None:
+    """Fail startup/readiness when the system of record is unreachable."""
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+
+
+def _run_migrations_if_enabled() -> None:
+    if not settings.alembic_auto:
+        return
+
+    from alembic import command
+    from alembic.config import Config
+
+    import os
+
+    cfg = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+    cfg.set_main_option(
+        "sqlalchemy.url", settings.effective_database_url.replace("%", "%%")
+    )
+    command.upgrade(cfg, "head")
+
+
 def _bootstrap_dev_db() -> None:
     """Local-dev convenience: create tables and seed demo data.
 
@@ -215,18 +246,9 @@ def _bootstrap_dev_db() -> None:
     if settings.environment != "dev":
         return
 
-    import os
-
-    use_alembic = os.getenv("ALEMBIC_AUTO", "").strip() in ("1", "true", "yes")
-
     try:
-        if use_alembic:
-            from alembic import command
-            from alembic.config import Config
-
-            cfg = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
-            cfg.set_main_option("sqlalchemy.url", settings.effective_database_url)
-            command.upgrade(cfg, "head")
+        if settings.alembic_auto:
+            _run_migrations_if_enabled()
         else:
             Base.metadata.create_all(bind=engine)
     except Exception:
@@ -254,15 +276,23 @@ def _bootstrap_dev_db() -> None:
     db = SessionLocal()
     try:
         try:
-            if db.get(models.Project, "PRJ-001"):
-                return
-
             from datetime import datetime, timedelta
             import uuid
 
+            project1_id = f"PRJ-{1:03d}"
+            project2_id = f"PRJ-{2:03d}"
+            parcel1_id = f"PARCEL-{1:03d}"
+            parcel2_id = f"PARCEL-{2:03d}"
+            parcel3_id = f"PARCEL-{3:03d}"
+            parcel4_id = f"PARCEL-{4:03d}"
+            parcel5_id = f"PARCEL-{5:03d}"
+
+            if db.get(models.Project, project1_id):
+                return
+
             # === Projects ===
             project1 = models.Project(
-                id="PRJ-001",
+                id=project1_id,
                 name="Utility Corridor Expansion",
                 jurisdiction_code="TX",
                 stage=models.ProjectStage.NEGOTIATION,
@@ -270,7 +300,7 @@ def _bootstrap_dev_db() -> None:
                 next_deadline_at=datetime.utcnow() + timedelta(days=12),
             )
             project2 = models.Project(
-                id="PRJ-002",
+                id=project2_id,
                 name="Highway 281 Widening",
                 jurisdiction_code="TX",
                 stage=models.ProjectStage.INTAKE,
@@ -282,7 +312,7 @@ def _bootstrap_dev_db() -> None:
 
             # === Parcels (5 total with varied risk/deadline) ===
             parcel1 = models.Parcel(
-                id="PARCEL-001",
+                id=parcel1_id,
                 project_id=project1.id,
                 county_fips="48439",
                 stage="negotiation",
@@ -290,7 +320,7 @@ def _bootstrap_dev_db() -> None:
                 next_deadline_at=datetime.utcnow() + timedelta(days=7),
             )
             parcel2 = models.Parcel(
-                id="PARCEL-002",
+                id=parcel2_id,
                 project_id=project1.id,
                 county_fips="48439",
                 stage="intake",
@@ -298,7 +328,7 @@ def _bootstrap_dev_db() -> None:
                 next_deadline_at=datetime.utcnow() + timedelta(days=3),
             )
             parcel3 = models.Parcel(
-                id="PARCEL-003",
+                id=parcel3_id,
                 project_id=project1.id,
                 county_fips="48439",
                 stage="offer_sent",
@@ -306,7 +336,7 @@ def _bootstrap_dev_db() -> None:
                 next_deadline_at=datetime.utcnow() + timedelta(days=14),
             )
             parcel4 = models.Parcel(
-                id="PARCEL-004",
+                id=parcel4_id,
                 project_id=project1.id,
                 county_fips="48453",
                 stage="closed",
@@ -314,7 +344,7 @@ def _bootstrap_dev_db() -> None:
                 next_deadline_at=None,
             )
             parcel5 = models.Parcel(
-                id="PARCEL-005",
+                id=parcel5_id,
                 project_id=project2.id,
                 county_fips="48029",
                 stage="intake",
@@ -360,35 +390,35 @@ def _bootstrap_dev_db() -> None:
             # === Parcel-Party relationships ===
             db.add(
                 models.ParcelParty(
-                    parcel_id="PARCEL-001",
+                    parcel_id=parcel1_id,
                     party_id="OWNER-001",
                     relationship_type="owner",
                 )
             )
             db.add(
                 models.ParcelParty(
-                    parcel_id="PARCEL-002",
+                    parcel_id=parcel2_id,
                     party_id="OWNER-002",
                     relationship_type="owner",
                 )
             )
             db.add(
                 models.ParcelParty(
-                    parcel_id="PARCEL-003",
+                    parcel_id=parcel3_id,
                     party_id="OWNER-002",
                     relationship_type="owner",
                 )
             )
             db.add(
                 models.ParcelParty(
-                    parcel_id="PARCEL-004",
+                    parcel_id=parcel4_id,
                     party_id="OWNER-003",
                     relationship_type="owner",
                 )
             )
             db.add(
                 models.ParcelParty(
-                    parcel_id="PARCEL-005",
+                    parcel_id=parcel5_id,
                     party_id="OWNER-003",
                     relationship_type="owner",
                 )
@@ -398,7 +428,7 @@ def _bootstrap_dev_db() -> None:
             db.add(
                 models.Communication(
                     id=str(uuid.uuid4()),
-                    parcel_id="PARCEL-001",
+                    parcel_id=parcel1_id,
                     project_id=project1.id,
                     channel="email",
                     direction="outbound",
@@ -412,7 +442,7 @@ def _bootstrap_dev_db() -> None:
             db.add(
                 models.Communication(
                     id=str(uuid.uuid4()),
-                    parcel_id="PARCEL-001",
+                    parcel_id=parcel1_id,
                     project_id=project1.id,
                     channel="sms",
                     direction="outbound",
@@ -426,7 +456,7 @@ def _bootstrap_dev_db() -> None:
             db.add(
                 models.Communication(
                     id=str(uuid.uuid4()),
-                    parcel_id="PARCEL-001",
+                    parcel_id=parcel1_id,
                     project_id=project1.id,
                     channel="certified_mail",
                     direction="outbound",
@@ -443,7 +473,7 @@ def _bootstrap_dev_db() -> None:
             db.add(
                 models.Communication(
                     id=str(uuid.uuid4()),
-                    parcel_id="PARCEL-002",
+                    parcel_id=parcel2_id,
                     project_id=project1.id,
                     channel="email",
                     direction="outbound",
@@ -459,7 +489,7 @@ def _bootstrap_dev_db() -> None:
             db.add(
                 models.RuleResult(
                     id=str(uuid.uuid4()),
-                    parcel_id="PARCEL-001",
+                    parcel_id=parcel1_id,
                     project_id=project1.id,
                     rule_id="valuation_threshold",
                     version="1.0.0",
@@ -470,7 +500,7 @@ def _bootstrap_dev_db() -> None:
             db.add(
                 models.RuleResult(
                     id=str(uuid.uuid4()),
-                    parcel_id="PARCEL-001",
+                    parcel_id=parcel1_id,
                     project_id=project1.id,
                     rule_id="good_faith_meeting",
                     version="1.0.0",
@@ -481,7 +511,7 @@ def _bootstrap_dev_db() -> None:
             db.add(
                 models.RuleResult(
                     id=str(uuid.uuid4()),
-                    parcel_id="PARCEL-002",
+                    parcel_id=parcel2_id,
                     project_id=project1.id,
                     rule_id="valuation_threshold",
                     version="1.0.0",
@@ -519,7 +549,7 @@ def _bootstrap_dev_db() -> None:
                     doc_type="title_instrument",
                     version="1.0.0",
                     sha256="abc123def456",
-                    storage_path="local_storage/title/PARCEL-001/deed.pdf",
+                    storage_path=f"local_storage/title/{parcel1_id}/deed.pdf",
                     metadata_json={
                         "filename": "deed.pdf",
                         "content_type": "application/pdf",
@@ -532,7 +562,7 @@ def _bootstrap_dev_db() -> None:
                     doc_type="title_instrument",
                     version="1.0.0",
                     sha256="xyz789abc123",
-                    storage_path="local_storage/title/PARCEL-001/survey.pdf",
+                    storage_path=f"local_storage/title/{parcel1_id}/survey.pdf",
                     metadata_json={
                         "filename": "survey.pdf",
                         "content_type": "application/pdf",
@@ -544,7 +574,7 @@ def _bootstrap_dev_db() -> None:
             db.add(
                 models.TitleInstrument(
                     id=str(uuid.uuid4()),
-                    parcel_id="PARCEL-001",
+                    parcel_id=parcel1_id,
                     document_id=doc1_id,
                     ocr_payload={
                         "confidence": 0.92,
@@ -561,7 +591,7 @@ def _bootstrap_dev_db() -> None:
             db.add(
                 models.TitleInstrument(
                     id=str(uuid.uuid4()),
-                    parcel_id="PARCEL-001",
+                    parcel_id=parcel1_id,
                     document_id=doc2_id,
                     ocr_payload={
                         "confidence": 0.88,
@@ -580,7 +610,7 @@ def _bootstrap_dev_db() -> None:
             db.add(
                 models.Appraisal(
                     id=str(uuid.uuid4()),
-                    parcel_id="PARCEL-001",
+                    parcel_id=parcel1_id,
                     value=350000,
                     summary="Commercial property with highway frontage. Appraised using sales comparison approach with 3 comparable sales in the area.",
                     comps=[
@@ -609,7 +639,7 @@ def _bootstrap_dev_db() -> None:
                 models.Deadline(
                     id=str(uuid.uuid4()),
                     project_id=project1.id,
-                    parcel_id="PARCEL-001",
+                    parcel_id=parcel1_id,
                     title="Final offer response due",
                     due_at=datetime.utcnow() + timedelta(days=7),
                     timezone="America/Chicago",
@@ -629,7 +659,7 @@ def _bootstrap_dev_db() -> None:
                 models.Deadline(
                     id=str(uuid.uuid4()),
                     project_id=project1.id,
-                    parcel_id="PARCEL-002",
+                    parcel_id=parcel2_id,
                     title="Initial contact deadline",
                     due_at=datetime.utcnow() + timedelta(days=3),
                     timezone="America/Chicago",
@@ -646,13 +676,20 @@ def _bootstrap_dev_db() -> None:
                 )
             )
 
-            # === Users ===
+            # === Users (password ``devpass123`` for local demos) ===
+            from passlib.context import CryptContext
+
+            _pc = CryptContext(schemes=["bcrypt"], deprecated="auto")
+            _dev_pw = _pc.hash("devpass123")
+
             db.add(
                 models.User(
                     id="COUNSEL-001",
                     email="counsel@example.com",
                     persona=models.Persona.IN_HOUSE_COUNSEL,
                     full_name="Alicia Attorney",
+                    firm_id=models.DEFAULT_FIRM_ID,
+                    password_hash=_dev_pw,
                 )
             )
             db.add(
@@ -661,6 +698,48 @@ def _bootstrap_dev_db() -> None:
                     email="agent@example.com",
                     persona=models.Persona.LAND_AGENT,
                     full_name="Bob Agent",
+                    firm_id=models.DEFAULT_FIRM_ID,
+                    password_hash=_dev_pw,
+                )
+            )
+            db.add(
+                models.User(
+                    id="OUTSIDE-001",
+                    email="outside@example.com",
+                    persona=models.Persona.OUTSIDE_COUNSEL,
+                    full_name="Oscar Outside",
+                    firm_id=models.DEFAULT_FIRM_ID,
+                    password_hash=_dev_pw,
+                )
+            )
+            db.add(
+                models.User(
+                    id="PLATFORM-001",
+                    email="admin@landgrant.local",
+                    persona=models.Persona.PLATFORM_ADMIN,
+                    full_name="Pat Platform",
+                    firm_id=models.DEFAULT_FIRM_ID,
+                    password_hash=_dev_pw,
+                )
+            )
+
+            db.add(
+                models.ParcelAccessGrant(
+                    id=str(uuid.uuid4()),
+                    parcel_id=parcel1_id,
+                    user_id="OUTSIDE-001",
+                    grantee_email="outside@example.com",
+                    scope_persona=models.Persona.OUTSIDE_COUNSEL.value,
+                    firm_id=models.DEFAULT_FIRM_ID,
+                )
+            )
+            db.add(
+                models.ParcelAccessGrant(
+                    id=str(uuid.uuid4()),
+                    parcel_id=parcel1_id,
+                    grantee_email="owner@example.com",
+                    scope_persona=models.Persona.LANDOWNER.value,
+                    firm_id=models.DEFAULT_FIRM_ID,
                 )
             )
 
@@ -676,3 +755,14 @@ def _bootstrap_dev_db() -> None:
 @app.get("/")
 def root():
     return {"app": settings.app_name, "environment": settings.environment}
+
+
+@app.get("/healthz", include_in_schema=False)
+def healthz() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/readyz", include_in_schema=False)
+def readyz() -> dict[str, str]:
+    _assert_database_ready()
+    return {"status": "ready"}

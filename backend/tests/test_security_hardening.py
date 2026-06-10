@@ -20,6 +20,8 @@ from app.main import app
 from app.security.rbac import Action, PERMISSION_MATRIX
 from app.db.models import Persona
 
+from tests.jwt_helpers import auth_headers
+
 client = TestClient(app)
 
 
@@ -133,7 +135,7 @@ class TestRBACMatrixCompleteness:
         ],
     )
     def test_resource_exists_for_admin(self, resource):
-        admin_perms = PERMISSION_MATRIX.get(Persona.ADMIN, {})
+        admin_perms = PERMISSION_MATRIX.get(Persona.PLATFORM_ADMIN, {})
         assert resource in admin_perms, f"Admin missing resource '{resource}'"
 
     def test_task_resource_for_agent(self):
@@ -166,7 +168,7 @@ class TestWebhookIntegrations:
         assert res.status_code == 200
 
     def test_esign_webhook_health(self):
-        res = client.get("/health/esign")
+        res = client.get("/health/esign", headers=auth_headers(Persona.PLATFORM_ADMIN))
         assert res.status_code == 200
 
     def test_docket_webhook_requires_hmac_in_staging(self, monkeypatch):
