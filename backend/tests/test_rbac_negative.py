@@ -7,10 +7,19 @@ These tests ensure the security model is working correctly.
 
 import pytest
 from fastapi.testclient import TestClient
+from app.db.models import Persona
 from app.main import app
+
+from tests.jwt_helpers import auth_headers
 
 
 client = TestClient(app)
+
+_LANDOWNER = auth_headers(Persona.LANDOWNER, email="owner@example.com")
+_LAND_AGENT = auth_headers(Persona.LAND_AGENT, user_id="AGENT-001")
+_OUTSIDE = auth_headers(Persona.OUTSIDE_COUNSEL, user_id="OUTSIDE-001")
+_COUNSEL = auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001")
+_ADMIN = auth_headers(Persona.PLATFORM_ADMIN, user_id="PLATFORM-001")
 
 
 class TestLandownerRestrictions:
@@ -20,7 +29,7 @@ class TestLandownerRestrictions:
         """Landowners should not be able to create ROE agreements."""
         response = client.post(
             "/roe",
-            headers={"X-Persona": "landowner"},
+            headers=_LANDOWNER,
             json={
                 "parcel_id": "PARCEL-001",
                 "project_id": "PRJ-001",
@@ -35,7 +44,7 @@ class TestLandownerRestrictions:
         """Landowners should not be able to create offers."""
         response = client.post(
             "/offers",
-            headers={"X-Persona": "landowner"},
+            headers=_LANDOWNER,
             json={
                 "parcel_id": "PARCEL-001",
                 "project_id": "PRJ-001",
@@ -49,7 +58,7 @@ class TestLandownerRestrictions:
         """Landowners should not be able to create litigation cases."""
         response = client.post(
             "/litigation",
-            headers={"X-Persona": "landowner"},
+            headers=_LANDOWNER,
             json={
                 "parcel_id": "PARCEL-001",
                 "project_id": "PRJ-001",
@@ -62,7 +71,7 @@ class TestLandownerRestrictions:
         """Landowners should not be able to initiate e-signatures."""
         response = client.post(
             "/esign/initiate",
-            headers={"X-Persona": "landowner"},
+            headers=_LANDOWNER,
             json={
                 "document_id": "DOC-001",
                 "parcel_id": "PARCEL-001",
@@ -76,12 +85,14 @@ class TestLandownerRestrictions:
         """Landowners should not be able to send batch communications."""
         response = client.post(
             "/communications/batch",
-            headers={"X-Persona": "landowner"},
+            headers=_LANDOWNER,
             json={
                 "project_id": "PRJ-001",
                 "template_id": "portal_invite",
                 "channel": "email",
-                "recipients": [{"parcel_id": "PARCEL-001", "email": "test@example.com"}],
+                "recipients": [
+                    {"parcel_id": "PARCEL-001", "email": "test@example.com"}
+                ],
             },
         )
         assert response.status_code == 403
@@ -100,7 +111,7 @@ class TestLandAgentRestrictions:
         """Land agents should not be able to create litigation cases."""
         response = client.post(
             "/litigation",
-            headers={"X-Persona": "land_agent"},
+            headers=_LAND_AGENT,
             json={
                 "parcel_id": "PARCEL-001",
                 "project_id": "PRJ-001",
@@ -117,7 +128,7 @@ class TestOutsideCounselRestrictions:
         """Outside counsel should not be able to create ROE agreements."""
         response = client.post(
             "/roe",
-            headers={"X-Persona": "outside_counsel"},
+            headers=_OUTSIDE,
             json={
                 "parcel_id": "PARCEL-001",
                 "project_id": "PRJ-001",
@@ -131,7 +142,7 @@ class TestOutsideCounselRestrictions:
         """Outside counsel should not be able to create offers."""
         response = client.post(
             "/offers",
-            headers={"X-Persona": "outside_counsel"},
+            headers=_OUTSIDE,
             json={
                 "parcel_id": "PARCEL-001",
                 "project_id": "PRJ-001",
@@ -141,23 +152,29 @@ class TestOutsideCounselRestrictions:
         )
         assert response.status_code == 403
 
-    def test_outside_counsel_cannot_read_parcels(self):
-        """Outside counsel should not have general parcel list access."""
-        response = client.get(
-            "/parcels?project_id=PRJ-001",
-            headers={"X-Persona": "outside_counsel"},
+    def test_outside_counsel_parcel_access_is_row_scoped(self):
+        """Outside counsel has no *general* parcel access: an ungranted user
+        sees an empty list rather than the whole project."""
+        ungranted = auth_headers(
+            Persona.OUTSIDE_COUNSEL,
+            user_id="OUTSIDE-NONE",
+            email="nobody@example.com",
         )
-        assert response.status_code == 403
+        response = client.get("/parcels?project_id=PRJ-001", headers=ungranted)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 0
+        assert body["items"] == []
 
 
 class TestInvalidPersona:
     """Test that invalid personas are rejected."""
 
     def test_invalid_persona_rejected(self):
-        """Invalid persona header should be rejected."""
+        """A bogus/garbage bearer token should be rejected."""
         response = client.get(
             "/roe?parcel_id=PARCEL-001",
-            headers={"X-Persona": "invalid_persona"},
+            headers={"Authorization": "Bearer not-a-real-jwt"},
         )
         # Should return 400 (bad request) or 401/403
         assert response.status_code in [400, 401, 403, 422]
@@ -178,7 +195,7 @@ class TestCrossTenantAccess:
         # But the test verifies the pattern is working
         response = client.get(
             "/litigation?project_id=NONEXISTENT-PROJECT",
-            headers={"X-Persona": "in_house_counsel"},
+            headers=_COUNSEL,
         )
         assert response.status_code == 200
         # Should return empty, not another project's data
@@ -194,7 +211,7 @@ class TestEsignSecurity:
         # Landowner can read
         response = client.get(
             "/esign/status/ENV-NONEXISTENT",
-            headers={"X-Persona": "landowner"},
+            headers=_LANDOWNER,
         )
         # Will be 404 (not found) not 403, meaning READ is allowed
         assert response.status_code in [200, 404]
@@ -234,7 +251,7 @@ class TestChatSecurity:
         # Persona without communication write should be denied
         response = client.post(
             "/chat/threads",
-            headers={"X-Persona": "admin"},  # Admin doesn't have communication write
+            headers=_ADMIN,  # platform_admin lacks communication write
             json={
                 "parcel_id": "PARCEL-001",
                 "project_id": "PRJ-001",
@@ -258,13 +275,14 @@ class TestAuditSecurity:
         """Viewing audit events requires portal read permission."""
         response = client.get(
             "/portal/audit/events",
-            headers={"X-Persona": "outside_counsel"},
+            headers=_OUTSIDE,
         )
         # Outside counsel doesn't have portal read
         assert response.status_code == 403
 
 
 # Additional security checks
+
 
 class TestInputValidation:
     """Test input validation and sanitization."""
@@ -273,7 +291,7 @@ class TestInputValidation:
         """SQL injection attempts should be safely handled."""
         response = client.get(
             "/parcels?project_id=' OR '1'='1",
-            headers={"X-Persona": "land_agent"},
+            headers=_LAND_AGENT,
         )
         # Should not error or expose data
         assert response.status_code in [200, 400, 422]
@@ -283,7 +301,7 @@ class TestInputValidation:
         """XSS attempts should be safely stored/escaped."""
         response = client.post(
             "/chat/threads",
-            headers={"X-Persona": "land_agent"},
+            headers=_LAND_AGENT,
             json={
                 "parcel_id": "PARCEL-001",
                 "project_id": "PRJ-001",

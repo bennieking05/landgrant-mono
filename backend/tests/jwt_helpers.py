@@ -12,8 +12,8 @@ from app.db.models import Persona
 
 
 def issue_test_token(
-    *,
     persona: Persona = Persona.LAND_AGENT,
+    *,
     user_id: str = "u-test",
     firm_id: Optional[str] = "firm_default",
     email: Optional[str] = None,
@@ -22,9 +22,7 @@ def issue_test_token(
     settings = get_settings()
     now = int(time.time())
     persona_claim = (
-        Persona.PLATFORM_ADMIN.value
-        if persona == Persona.ADMIN
-        else persona.value
+        Persona.PLATFORM_ADMIN.value if persona == Persona.ADMIN else persona.value
     )
     payload: dict = {
         "iss": settings.jwt_issuer,
@@ -43,8 +41,8 @@ def issue_test_token(
 
 
 def auth_headers(
-    *,
     persona: Persona = Persona.LAND_AGENT,
+    *,
     user_id: str = "u-test",
     firm_id: Optional[str] = "firm_default",
     email: Optional[str] = None,

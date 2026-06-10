@@ -196,16 +196,19 @@ class TestWebhookIntegrations:
 
 
 class TestHealthEndpointsRemainOpen:
-    """Health endpoints must not require authentication."""
+    """Liveness stays open; the ops probes now require authentication."""
+
+    def test_liveness_no_auth_needed(self):
+        res = client.get("/health/live")
+        assert res.status_code == 200
 
     @pytest.mark.parametrize(
         "path",
         [
-            "/health/live",
             "/health/invite",
             "/health/esign",
         ],
     )
-    def test_health_no_auth_needed(self, path):
+    def test_ops_probes_require_auth(self, path):
         res = client.get(path)
-        assert res.status_code == 200
+        assert res.status_code == 401

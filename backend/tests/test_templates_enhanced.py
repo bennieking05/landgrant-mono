@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db.models import Persona
 from app.main import app
+
+from tests.jwt_helpers import auth_headers
 
 
 client = TestClient(app)
@@ -25,7 +28,7 @@ class TestTemplateRenderEndpoint:
         """Rendering TX FOL template returns content."""
         res = client.post(
             "/templates/render",
-            headers={"X-Persona": "in_house_counsel"},
+            headers=auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001"),
             json={
                 "template_id": "fol",
                 "locale": "en-US",
@@ -52,7 +55,7 @@ class TestTemplateRenderEndpoint:
         """Rendering IN offer template returns content with deadline anchors."""
         res = client.post(
             "/templates/render",
-            headers={"X-Persona": "in_house_counsel"},
+            headers=auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001"),
             json={
                 "template_id": "in_offer",
                 "locale": "en-US",
@@ -88,7 +91,7 @@ class TestTemplateRenderEndpoint:
         assert "Bruce Silvers" in data["rendered"]
         assert "02-18-06-251-001" in data["rendered"]
         assert "Ind. Code" in data["rendered"]  # Indiana Code citations
-        
+
         # Check deadline anchors are extracted
         if "deadline_anchors" in data and data["deadline_anchors"]:
             assert "offer_served" in data["deadline_anchors"]
@@ -99,7 +102,7 @@ class TestTemplateRenderEndpoint:
         """Rendering nonexistent template returns 404."""
         res = client.post(
             "/templates/render",
-            headers={"X-Persona": "in_house_counsel"},
+            headers=auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001"),
             json={
                 "template_id": "nonexistent_template",
                 "locale": "en-US",
@@ -112,7 +115,7 @@ class TestTemplateRenderEndpoint:
         """Template render requires EXECUTE permission."""
         res = client.post(
             "/templates/render",
-            headers={"X-Persona": "outside_counsel"},
+            headers=auth_headers(Persona.OUTSIDE_COUNSEL, user_id="OUTSIDE-001"),
             json={
                 "template_id": "fol",
                 "locale": "en-US",
@@ -131,11 +134,11 @@ class TestTemplateListEndpoint:
         """Template list includes TX and IN templates."""
         res = client.get(
             "/templates",
-            headers={"X-Persona": "in_house_counsel"},
+            headers=auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001"),
         )
         assert res.status_code == 200
         data = res.json()
-        
+
         template_ids = [t["id"] for t in data]
         assert "fol" in template_ids  # Texas
         assert "in_offer" in template_ids  # Indiana
@@ -145,11 +148,11 @@ class TestTemplateListEndpoint:
         """Template metadata includes jurisdiction field."""
         res = client.get(
             "/templates",
-            headers={"X-Persona": "in_house_counsel"},
+            headers=auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001"),
         )
         assert res.status_code == 200
         data = res.json()
-        
+
         in_offer = next((t for t in data if t["id"] == "in_offer"), None)
         assert in_offer is not None
         assert in_offer["jurisdiction"] == "IN"

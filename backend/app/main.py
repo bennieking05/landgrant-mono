@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -50,6 +51,8 @@ from app.db.session import Base, SessionLocal, engine
 from app.db import models
 from app.telemetry import configure_tracing, instrument_app
 from app.security.auth_middleware import AuthEnforcementMiddleware
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 configure_tracing()
@@ -289,6 +292,22 @@ def _bootstrap_dev_db() -> None:
 
             if db.get(models.Project, project1_id):
                 return
+
+            # === Default firm (FK target for users / parcel grants) ===
+            # In dev we create tables via ``create_all`` and skip Alembic, so the
+            # default firm seeded by migration 0003 is absent. Insert it (and
+            # flush) before any ``firm_id``-bearing rows or the whole seed
+            # transaction rolls back on an FK violation.
+            if not db.get(models.Firm, models.DEFAULT_FIRM_ID):
+                db.add(
+                    models.Firm(
+                        id=models.DEFAULT_FIRM_ID,
+                        name="Default Firm",
+                        slug=models.DEFAULT_FIRM_ID,
+                        active=True,
+                    )
+                )
+                db.flush()
 
             # === Projects ===
             project1 = models.Project(
@@ -722,6 +741,8 @@ def _bootstrap_dev_db() -> None:
                     password_hash=_dev_pw,
                 )
             )
+            # Persist users before the grants that FK-reference them.
+            db.flush()
 
             db.add(
                 models.ParcelAccessGrant(
@@ -745,7 +766,9 @@ def _bootstrap_dev_db() -> None:
 
             db.commit()
         except Exception:
-            # DB may be unavailable or out of space; do not block API startup.
+            # DB may be unavailable or out of space; do not block API startup,
+            # but log so silent seed failures are diagnosable.
+            logger.exception("dev seed failed; rolling back demo data")
             db.rollback()
             return
     finally:

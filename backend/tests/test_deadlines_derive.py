@@ -5,8 +5,11 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db.models import Persona
 from app.main import app
 from app.services.deadline_rules import derive_deadlines, load_jurisdiction_rules
+
+from tests.jwt_helpers import auth_headers
 
 
 client = TestClient(app)
@@ -41,16 +44,16 @@ class TestDeadlineRulesService:
             jurisdiction="IN",
             anchor_events={"offer_served": "2025-02-06"},
         )
-        
+
         assert result.jurisdiction == "IN"
         assert len(result.errors) == 0
         assert len(result.deadlines) >= 2
-        
+
         # Check for expected deadlines
         deadline_ids = [d.id for d in result.deadlines]
         assert "earliest_complaint_filing" in deadline_ids
         assert "owner_response_window" in deadline_ids
-        
+
         # Verify offset calculation
         for d in result.deadlines:
             if d.id == "earliest_complaint_filing":
@@ -68,10 +71,10 @@ class TestDeadlineRulesService:
                 "appraisers_report_mailed": "2025-05-01",
             },
         )
-        
+
         assert len(result.errors) == 0
         assert len(result.deadlines) >= 4  # At least deadlines from 3 chains
-        
+
         deadline_ids = [d.id for d in result.deadlines]
         assert "defendant_objection_deadline" in deadline_ids
         assert "exceptions_deadline" in deadline_ids
@@ -82,7 +85,7 @@ class TestDeadlineRulesService:
             jurisdiction="IN",
             anchor_events={},
         )
-        
+
         assert len(result.deadlines) == 0
 
     def test_derive_with_invalid_date_adds_error(self):
@@ -91,7 +94,7 @@ class TestDeadlineRulesService:
             jurisdiction="IN",
             anchor_events={"offer_served": "not-a-date"},
         )
-        
+
         assert len(result.errors) > 0
 
 
@@ -99,10 +102,9 @@ class TestDeadlinesDeriveEndpoint:
     """Tests for POST /deadlines/derive API endpoint."""
 
     def test_derive_endpoint_requires_auth(self):
-        """Derive endpoint requires valid persona."""
+        """Derive endpoint requires a valid bearer token."""
         res = client.post(
             "/deadlines/derive",
-            headers={"X-Persona": "invalid"},
             json={
                 "project_id": "PRJ-001",
                 "jurisdiction": "IN",
@@ -115,7 +117,7 @@ class TestDeadlinesDeriveEndpoint:
         """In-house counsel can call derive endpoint."""
         res = client.post(
             "/deadlines/derive",
-            headers={"X-Persona": "in_house_counsel"},
+            headers=auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001"),
             json={
                 "project_id": "PRJ-001",
                 "jurisdiction": "IN",
@@ -133,7 +135,7 @@ class TestDeadlinesDeriveEndpoint:
         """Unknown jurisdiction should return errors."""
         res = client.post(
             "/deadlines/derive",
-            headers={"X-Persona": "in_house_counsel"},
+            headers=auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001"),
             json={
                 "project_id": "PRJ-001",
                 "jurisdiction": "ZZ",
@@ -150,7 +152,7 @@ class TestDeadlinesDeriveEndpoint:
         """Landowner persona cannot call derive endpoint."""
         res = client.post(
             "/deadlines/derive",
-            headers={"X-Persona": "landowner"},
+            headers=auth_headers(Persona.LANDOWNER, email="owner@example.com"),
             json={
                 "project_id": "PRJ-001",
                 "jurisdiction": "IN",

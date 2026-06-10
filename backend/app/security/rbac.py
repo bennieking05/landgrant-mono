@@ -22,9 +22,12 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
         "portal": {Action.READ, Action.WRITE},
         "communication": {Action.READ},
         "chat": {Action.READ, Action.WRITE},
-        "offer": {Action.READ, Action.WRITE},
+        # Landowners may review offers but never author them; the agency/counsel
+        # creates offers and the landowner responds via ``decision`` EXECUTE.
+        "offer": {Action.READ},
         "decision": {Action.EXECUTE},
-        "esign": {Action.READ, Action.WRITE},
+        # Read-only e-sign visibility; initiating envelopes is an internal action.
+        "esign": {Action.READ},
         "parcel": {Action.READ},
         "case": {Action.READ},
     },

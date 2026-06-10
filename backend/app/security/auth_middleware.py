@@ -27,6 +27,9 @@ def _exempt(method: str, path: str, settings: Settings) -> bool:
         return True
     if path == "/portal/logout" and method == "POST":
         return True
+    # Cookie-authenticated landowner session lookup (no bearer token).
+    if path == "/portal/session" and method == "GET":
+        return True
     if path == "/integrations/dockets" and method == "POST":
         return True
     if settings.environment == "dev":
