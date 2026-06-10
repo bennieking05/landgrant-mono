@@ -14,7 +14,12 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_persona, get_current_principal, get_current_user, get_db
+from app.api.deps import (
+    get_current_persona,
+    get_current_principal,
+    get_current_user,
+    get_db,
+)
 from app.db import models
 from app.db.models import Persona
 from app.security.access_scope import require_parcel_scope

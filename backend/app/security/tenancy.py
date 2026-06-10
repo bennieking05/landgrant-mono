@@ -44,9 +44,14 @@ def resolve_firm_id(
     settings = get_settings()
 
     if principal is not None and principal.firm_id:
-        if x_firm_id and x_firm_id != principal.firm_id and persona not in (
-            Persona.ADMIN,
-            Persona.PLATFORM_ADMIN,
+        if (
+            x_firm_id
+            and x_firm_id != principal.firm_id
+            and persona
+            not in (
+                Persona.ADMIN,
+                Persona.PLATFORM_ADMIN,
+            )
         ):
             logger.warning(
                 "X-Firm-Id %s overrides JWT firm_id %s - rejecting",

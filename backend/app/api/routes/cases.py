@@ -95,7 +95,9 @@ def create_case(
         db.commit()
     except Exception as exc:
         db.rollback()
-        logger.exception("Failed to create parcel case for project %s", payload.project_id)
+        logger.exception(
+            "Failed to create parcel case for project %s", payload.project_id
+        )
         raise HTTPException(status_code=500, detail="case_create_failed") from exc
 
     return CaseResponse(project_id=payload.project_id, parcel_ids=parcel_ids)

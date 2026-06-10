@@ -179,7 +179,9 @@ def send_invite(
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=500, detail="portal_invite_create_failed") from exc
+        raise HTTPException(
+            status_code=500, detail="portal_invite_create_failed"
+        ) from exc
 
     return {
         "invite_id": invite_id,
@@ -301,9 +303,7 @@ def verify_invite(
                 "session_expires_at": active_session.expires_at.isoformat() + "Z",
                 "parcel_id": invite.parcel_id,
                 "project_id": invite.project_id,
-                "access_token": _landowner_access_token(
-                    invite, active_session.id, db
-                ),
+                "access_token": _landowner_access_token(invite, active_session.id, db),
             }
 
     # Mark invite as verified
@@ -646,7 +646,9 @@ def submit_decision(
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=500, detail="portal_decision_submit_failed") from exc
+        raise HTTPException(
+            status_code=500, detail="portal_decision_submit_failed"
+        ) from exc
     _decision_by_parcel[payload.parcel_id] = record
     return record
 

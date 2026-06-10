@@ -136,9 +136,7 @@ def create_access_token(
     settings = get_settings()
     now = int(time.time())
     persona_claim = (
-        Persona.PLATFORM_ADMIN.value
-        if persona == Persona.ADMIN
-        else persona.value
+        Persona.PLATFORM_ADMIN.value if persona == Persona.ADMIN else persona.value
     )
     payload: dict[str, Any] = {
         "iss": settings.jwt_issuer,
@@ -158,6 +156,4 @@ def create_access_token(
     if permissions:
         payload["permissions"] = permissions
 
-    return jwt.encode(
-        payload, settings.jwt_secret, algorithm=settings.jwt_algorithm
-    )
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)

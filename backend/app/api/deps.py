@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.db.models import Persona, User
 from app.security.jwt_auth import JWTPrincipal
+
+
 def get_db() -> Generator:
     db = SessionLocal()
     try:
