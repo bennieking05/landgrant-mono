@@ -31,7 +31,7 @@ export type UseAsyncResourceResult<T> = {
   reload: () => void;
 };
 
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 10_000;
 
 class AsyncTimeoutError extends Error {
   constructor() {

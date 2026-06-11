@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
-import { AppContextProvider, AuthProvider, useAuth } from "@/context";
+import { AppContextProvider, AuthProvider, useAppContext, useAuth } from "@/context";
 import { AppLayout } from "@/components/AppLayout";
+import { PortalLayout } from "@/components/PortalLayout";
 import { PersonaRoute } from "@/components/PersonaRoute";
 import { HomePage } from "@/pages/HomePage";
 import { LoginPage } from "@/pages/LoginPage";
 import { IntakePage } from "@/pages/IntakePage";
+import { PortalPage } from "@/pages/PortalPage";
 import { WorkbenchPage } from "@/pages/WorkbenchPage";
 import { CounselPage } from "@/pages/CounselPage";
 import { OpsPage } from "@/pages/OpsPage";
 import { FirmAdminPage } from "@/pages/FirmAdminPage";
 import { AdminPage } from "@/pages/AdminPage";
+import { ParcelDetailPage } from "@/pages/ParcelDetailPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
 function ProtectedShell() {
@@ -68,11 +71,29 @@ function ProtectedShell() {
   }
   return (
     <AppContextProvider>
-      <AppLayout>
+      <ShellChrome>
         <Outlet />
-      </AppLayout>
+      </ShellChrome>
     </AppContextProvider>
   );
+}
+
+/**
+ * Picks the chrome based on persona: landowners get the calm, mobile-first
+ * consumer portal; everyone else gets the enterprise sidebar shell.
+ */
+function ShellChrome({ children }: { children: React.ReactNode }) {
+  const { persona } = useAppContext();
+  if (persona === "landowner") {
+    return <PortalLayout>{children}</PortalLayout>;
+  }
+  return <AppLayout>{children}</AppLayout>;
+}
+
+/** Landowners see the consumer portal flow; staff visiting /portal see intake. */
+function PortalEntry() {
+  const { persona } = useAppContext();
+  return persona === "landowner" ? <PortalPage /> : <IntakePage />;
 }
 
 export function App() {
@@ -82,11 +103,12 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedShell />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/parcels/:parcelId" element={<ParcelDetailPage />} />
           <Route
             path="/portal"
             element={
               <PersonaRoute path="/portal">
-                <IntakePage />
+                <PortalEntry />
               </PersonaRoute>
             }
           />

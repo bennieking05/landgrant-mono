@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAppContext } from "@/context";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { CounselQueue } from "@/components/CounselQueue";
 import { BudgetPanel } from "@/components/BudgetPanel";
 import { BinderStatus } from "@/components/BinderStatus";
@@ -18,6 +19,7 @@ type CounselTab = "approvals" | "binder" | "litigation" | "tasks";
 
 export function CounselPage() {
   const { projectId, parcelId } = useAppContext();
+  useDocumentTitle("Counsel");
   const [showCopilot, setShowCopilot] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
   const [tab, setTab] = useState<CounselTab>("approvals");

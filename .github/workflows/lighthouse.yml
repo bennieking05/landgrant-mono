@@ -1,0 +1,40 @@
+name: lighthouse
+
+# Front-end performance + accessibility budget (UX-11). Runs on PRs that touch
+# the frontend and on pushes to main. Budgets live in frontend/lighthouserc.json.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/lighthouse.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/lighthouse.yml"
+
+jobs:
+  lighthouse:
+    name: Lighthouse budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        run: cd frontend && npm ci
+
+      - name: Build frontend
+        run: cd frontend && npm run build
+
+      - name: Run Lighthouse CI
+        run: cd frontend && npx --yes @lhci/cli@0.14.x autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}

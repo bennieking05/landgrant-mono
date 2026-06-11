@@ -12,10 +12,12 @@ import {
   HealthStatus,
 } from "@/lib/api";
 import { AIDecisionDashboard } from "@/components/AIDecisionDashboard";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 type TabType = "cases" | "projects" | "health" | "ai_decisions";
 
 export function AdminPage() {
+  useDocumentTitle("Platform admin");
   const [activeTab, setActiveTab] = useState<TabType>("cases");
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
   const [cases, setCases] = useState<GlobalCaseItem[]>([]);

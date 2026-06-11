@@ -1,7 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function NotFoundPage() {
   const location = useLocation();
+  useDocumentTitle("Page not found");
 
   return (
     <div

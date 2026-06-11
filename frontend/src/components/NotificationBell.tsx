@@ -177,7 +177,7 @@ export function NotificationBell({ userId = "anonymous", onNotificationClick }: 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-slate-900">Notifications</h3>
               {unreadCount > 0 && (

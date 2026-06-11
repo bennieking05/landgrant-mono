@@ -1,18 +1,77 @@
 {
   "app": {
-    "title": "LandGrant",
+    "title": "LandGrantIQ",
     "language": "Language",
     "english": "English",
     "spanish": "Spanish"
   },
   "nav": {
     "home": "Home",
-    "portal": "Portal",
+    "dashboard": "Dashboard",
+    "portal": "My parcel",
     "intake": "Intake",
     "workbench": "Workbench",
     "counsel": "Counsel",
     "ops": "Operations",
     "firmAdmin": "Firm Admin",
     "admin": "Admin"
+  },
+  "portal": {
+    "help": "Need help?",
+    "helpBody": "Call us at (800) 555-0142 or email help@landgrantiq.com. We're here Monday to Friday, 8am to 6pm.",
+    "disclaimer": "This portal gives you information about your property. It is not legal advice. You have the right to talk to your own lawyer at any time.",
+    "steps": {
+      "welcome": "Welcome",
+      "property": "Your property",
+      "documents": "Documents",
+      "offer": "The offer",
+      "decision": "Your decision"
+    },
+    "welcome": {
+      "title": "Welcome to your property portal",
+      "body": "A company wants to use part of your land for a public project. This portal explains what is happening, shows you the offer, and lets you respond. Take your time. Nothing happens until you decide.",
+      "reassure": "Your attorney reviews every step. You are not alone in this.",
+      "cta": "Get started"
+    },
+    "property": {
+      "title": "Your property",
+      "intro": "Here is the property we are talking about.",
+      "parcel": "Parcel",
+      "county": "County",
+      "owner": "Owner on file",
+      "none": "We could not find a property linked to your account yet. Please contact us and we will help."
+    },
+    "documents": {
+      "title": "Documents to review",
+      "intro": "These are the documents shared with you. Each one has a short, plain-language summary written for you.",
+      "summaryLabel": "Plain-language summary",
+      "open": "Open document",
+      "none": "No documents have been shared yet. We will let you know when there are documents to review."
+    },
+    "offer": {
+      "title": "The offer",
+      "intro": "This is what the company is offering for the use of your land.",
+      "amount": "Offer amount",
+      "summaryLabel": "What this means",
+      "none": "There is no offer to review yet. We will notify you when one is ready."
+    },
+    "decision": {
+      "title": "Your decision",
+      "intro": "Choose what you would like to do. You can ask questions before deciding anything is final. Your attorney reviews your choice.",
+      "accept": "Accept the offer",
+      "acceptHint": "You agree to the offer as written.",
+      "question": "Ask a question",
+      "questionHint": "Talk to your agent or attorney before deciding.",
+      "decline": "Decline the offer",
+      "declineHint": "You do not accept the offer right now.",
+      "submitting": "Sending your response...",
+      "confirmTitle": "Thank you. We received your response.",
+      "confirmBody": "Your confirmation number is below. Keep it for your records. A member of our team will follow up with you.",
+      "reference": "Confirmation number",
+      "whatNext": "What happens next: your response goes to your agent and attorney for review. We will contact you with the next steps.",
+      "error": "We could not send your response. Please try again, or call us for help."
+    },
+    "back": "Back",
+    "next": "Continue"
   }
 }

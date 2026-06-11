@@ -1,18 +1,77 @@
 {
   "app": {
-    "title": "LandGrant",
+    "title": "LandGrantIQ",
     "language": "Idioma",
     "english": "Inglés",
     "spanish": "Español"
   },
   "nav": {
     "home": "Inicio",
-    "portal": "Portal",
+    "dashboard": "Panel",
+    "portal": "Mi parcela",
     "intake": "Admisión",
     "workbench": "Banco de trabajo",
     "counsel": "Asesoría",
     "ops": "Operaciones",
     "firmAdmin": "Admin de firma",
     "admin": "Admin"
+  },
+  "portal": {
+    "help": "¿Necesita ayuda?",
+    "helpBody": "Llámenos al (800) 555-0142 o escriba a help@landgrantiq.com. Atendemos de lunes a viernes, de 8am a 6pm.",
+    "disclaimer": "Este portal le da información sobre su propiedad. No es asesoría legal. Usted tiene derecho a hablar con su propio abogado en cualquier momento.",
+    "steps": {
+      "welcome": "Bienvenida",
+      "property": "Su propiedad",
+      "documents": "Documentos",
+      "offer": "La oferta",
+      "decision": "Su decisión"
+    },
+    "welcome": {
+      "title": "Bienvenido a su portal de propiedad",
+      "body": "Una empresa desea usar parte de su terreno para un proyecto público. Este portal le explica qué está pasando, le muestra la oferta y le permite responder. Tómese su tiempo. Nada sucede hasta que usted decida.",
+      "reassure": "Su abogado revisa cada paso. Usted no está solo en esto.",
+      "cta": "Comenzar"
+    },
+    "property": {
+      "title": "Su propiedad",
+      "intro": "Esta es la propiedad de la que hablamos.",
+      "parcel": "Parcela",
+      "county": "Condado",
+      "owner": "Propietario registrado",
+      "none": "Todavía no encontramos una propiedad vinculada a su cuenta. Comuníquese con nosotros y le ayudaremos."
+    },
+    "documents": {
+      "title": "Documentos para revisar",
+      "intro": "Estos son los documentos compartidos con usted. Cada uno tiene un resumen breve y sencillo escrito para usted.",
+      "summaryLabel": "Resumen sencillo",
+      "open": "Abrir documento",
+      "none": "Aún no se han compartido documentos. Le avisaremos cuando haya documentos para revisar."
+    },
+    "offer": {
+      "title": "La oferta",
+      "intro": "Esto es lo que la empresa ofrece por el uso de su terreno.",
+      "amount": "Monto de la oferta",
+      "summaryLabel": "Qué significa esto",
+      "none": "Todavía no hay una oferta para revisar. Le avisaremos cuando esté lista."
+    },
+    "decision": {
+      "title": "Su decisión",
+      "intro": "Elija lo que desea hacer. Puede hacer preguntas antes de que algo sea definitivo. Su abogado revisa su elección.",
+      "accept": "Aceptar la oferta",
+      "acceptHint": "Usted acepta la oferta tal como está escrita.",
+      "question": "Hacer una pregunta",
+      "questionHint": "Hable con su agente o abogado antes de decidir.",
+      "decline": "Rechazar la oferta",
+      "declineHint": "Usted no acepta la oferta por ahora.",
+      "submitting": "Enviando su respuesta...",
+      "confirmTitle": "Gracias. Recibimos su respuesta.",
+      "confirmBody": "Su número de confirmación aparece abajo. Guárdelo para sus registros. Un miembro de nuestro equipo se comunicará con usted.",
+      "reference": "Número de confirmación",
+      "whatNext": "Qué sigue: su respuesta se envía a su agente y abogado para su revisión. Nos comunicaremos con usted sobre los próximos pasos.",
+      "error": "No pudimos enviar su respuesta. Inténtelo de nuevo o llámenos para ayudarle."
+    },
+    "back": "Atrás",
+    "next": "Continuar"
   }
 }

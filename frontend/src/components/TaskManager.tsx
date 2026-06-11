@@ -12,6 +12,7 @@ import {
   type TaskStatsResponse,
   type AssignmentSuggestion,
 } from '@/lib/api';
+import { useOptimisticAction } from '@/hooks/useOptimisticAction';
 
 interface TaskManagerProps {
   projectId?: string;
@@ -53,6 +54,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   const [stats, setStats] = useState<TaskStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const optimistic = useOptimisticAction<TaskItem[]>();
 
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
@@ -135,23 +137,39 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
   };
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
-    try {
-      await updateTask(taskId, { status: newStatus });
-      loadTasks();
-      loadStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update task');
-    }
+    setError(null);
+    await optimistic.run({
+      current: tasks,
+      optimistic: tasks.map((t) =>
+        t.id === taskId ? { ...t, status: newStatus } : t,
+      ),
+      apply: setTasks,
+      commit: () => updateTask(taskId, { status: newStatus }),
+      onSuccess: () => {
+        loadTasks();
+        loadStats();
+      },
+      onError: (err) =>
+        setError(err instanceof Error ? err.message : 'Failed to update task'),
+    });
   };
 
   const handleCompleteTask = async (taskId: string) => {
-    try {
-      await completeTask(taskId);
-      loadTasks();
-      loadStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to complete task');
-    }
+    setError(null);
+    await optimistic.run({
+      current: tasks,
+      optimistic: tasks.map((t) =>
+        t.id === taskId ? { ...t, status: 'completed' } : t,
+      ),
+      apply: setTasks,
+      commit: () => completeTask(taskId),
+      onSuccess: () => {
+        loadTasks();
+        loadStats();
+      },
+      onError: (err) =>
+        setError(err instanceof Error ? err.message : 'Failed to complete task'),
+    });
   };
 
   const handleShowAssign = async (task: TaskItem) => {

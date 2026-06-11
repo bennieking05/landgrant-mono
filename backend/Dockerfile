@@ -36,6 +36,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code (from project root context)
 COPY backend/app/ ./app/
+COPY backend/scripts/ ./scripts/
 
 # Copy Alembic configuration and migrations so container can run schema upgrades
 COPY backend/alembic.ini ./alembic.ini
@@ -66,7 +67,7 @@ EXPOSE ${PORT}
 # Run with gunicorn for production
 CMD exec gunicorn app.main:app \
     --bind 0.0.0.0:${PORT} \
-    --workers 2 \
+    --workers ${WEB_CONCURRENCY:-1} \
     --worker-class uvicorn.workers.UvicornWorker \
     --timeout 120 \
     --keep-alive 5 \

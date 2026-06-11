@@ -245,7 +245,17 @@ export type NotificationPreviewPayload = { template_id: string; channel: string;
 export type NotificationPreviewResponse = { notification_id: string; channel: string; to: string; subject?: string; body: string; mode: string; created_at: string; communication_id?: string; audit_event_id?: string };
 
 // Parcels
-export type ParcelItem = { id: string; project_id: string; stage: string; risk_score: number; next_deadline_at?: string; geom?: unknown };
+export type ParcelItem = {
+  id: string;
+  project_id: string;
+  county_fips?: string;
+  owner?: string | null;
+  stage: string;
+  risk_score: number;
+  next_deadline_at?: string;
+  updated_at?: string;
+  geom?: unknown;
+};
 export type ParcelsResponse = { total: number; items: ParcelItem[] };
 
 // Deadlines
@@ -390,12 +400,23 @@ export const getBinderStatus = (projectId: string) => apiGet<BinderStatusRespons
 export const previewNotification = (payload: NotificationPreviewPayload) => apiPostJson<NotificationPreviewResponse>("/notifications/preview", payload);
 
 // --- Parcels ---
-export const listParcels = (params?: { project_id?: string; stage?: string; min_risk?: number; deadline_before?: string; limit?: number; offset?: number }) => {
+export const listParcels = (params?: {
+  project_id?: string;
+  stage?: string;
+  min_risk?: number;
+  deadline_before?: string;
+  q?: string;
+  sort?: string;
+  limit?: number;
+  offset?: number;
+}) => {
   const query = new URLSearchParams();
   if (params?.project_id) query.set("project_id", params.project_id);
   if (params?.stage) query.set("stage", params.stage);
   if (params?.min_risk !== undefined) query.set("min_risk", String(params.min_risk));
   if (params?.deadline_before) query.set("deadline_before", params.deadline_before);
+  if (params?.q) query.set("q", params.q);
+  if (params?.sort) query.set("sort", params.sort);
   if (params?.limit !== undefined) query.set("limit", String(params.limit));
   if (params?.offset !== undefined) query.set("offset", String(params.offset));
   const qs = query.toString();

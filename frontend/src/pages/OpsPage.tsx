@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAppContext } from "@/context";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { RoutePlanPanel } from "@/components/RoutePlanPanel";
 import { NotificationsPanel } from "@/components/NotificationsPanel";
 import { healthEsign, healthInvite, healthLive } from "@/lib/api";
@@ -56,6 +57,7 @@ const PROBES: Probe[] = [
 
 export function OpsPage() {
   const { projectId, parcelId } = useAppContext();
+  useDocumentTitle("Operations");
 
   const [statuses, setStatuses] = useState<Record<string, { state: ProbeState; detail?: string }>>(
     () => Object.fromEntries(PROBES.map((p) => [p.id, { state: "loading" as const }])),

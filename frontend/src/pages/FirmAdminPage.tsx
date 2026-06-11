@@ -7,8 +7,10 @@ import {
   FirmCaseItem,
   FirmActivityItem,
 } from "@/lib/api";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function FirmAdminPage() {
+  useDocumentTitle("Firm admin");
   const [metrics, setMetrics] = useState<FirmMetrics | null>(null);
   const [cases, setCases] = useState<FirmCaseItem[]>([]);
   const [activities, setActivities] = useState<FirmActivityItem[]>([]);

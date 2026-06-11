@@ -1,5 +1,6 @@
 import { useState, lazy, Suspense } from "react";
 import { useAppContext } from "@/context";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 const ParcelMap = lazy(() => import("@/components/ParcelMap").then(m => ({ default: m.ParcelMap })));
 import { CommsLog } from "@/components/CommsLog";
@@ -18,7 +19,8 @@ import { IntakeForm } from "@/components/IntakeForm";
 type WorkbenchTab = "parcels" | "pipeline" | "tasks";
 
 export function WorkbenchPage() {
-  const { projectId, parcelId, setParcelId } = useAppContext();
+  const { projectId, parcelId, setParcelId, parcels } = useAppContext();
+  useDocumentTitle("Workbench", projectId || undefined);
   const [showCopilot, setShowCopilot] = useState(false);
   const [tab, setTab] = useState<WorkbenchTab>("parcels");
 
@@ -106,6 +108,7 @@ export function WorkbenchPage() {
                 }
               >
                 <ParcelMap
+                  parcelData={parcels}
                   selectedParcelId={parcelId ?? undefined}
                   onParcelClick={setParcelId}
                   showFilters={true}

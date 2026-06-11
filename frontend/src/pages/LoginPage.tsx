@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function LoginPage() {
+  useDocumentTitle("Sign in");
   const { isAuthenticated, login } = useAuth();
   const location = useLocation();
   const [email, setEmail] = useState("");

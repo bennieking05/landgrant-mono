@@ -48,6 +48,16 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Keep the latest callback in a ref so `connect` stays referentially stable.
+  // Otherwise an inline `onNotification` (recreated every render) would change
+  // `connect` on every render, and the auto-connect effect would tear down and
+  // reopen the socket continuously - a fetch/connect loop that never lets the
+  // page reach network-idle (most visible at mobile widths).
+  const onNotificationRef = useRef(onNotification);
+  useEffect(() => {
+    onNotificationRef.current = onNotification;
+  }, [onNotification]);
+
   // Calculate unread count
   useEffect(() => {
     setUnreadCount(notifications.filter((n) => !n.read).length);
@@ -97,7 +107,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             case "system": {
               const notification = data as unknown as Notification;
               setNotifications((prev) => [notification, ...prev.slice(0, 99)]);
-              onNotification?.(notification);
+              onNotificationRef.current?.(notification);
               break;
             }
             
@@ -140,7 +150,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       console.error("Failed to create WebSocket:", e);
       setStatus("error");
     }
-  }, [userId, reconnectInterval, maxReconnectAttempts, onNotification]);
+  }, [userId, reconnectInterval, maxReconnectAttempts]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {

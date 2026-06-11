@@ -1,10 +1,151 @@
+/* Fonts (self-hosted via @fontsource) */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@import "./styles/tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-slate-50 text-slate-900;
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  /* Tabular numerals for data-dense UI (grids, KPIs). */
+  table,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Visible, token-colored focus ring on every interactive element (UX-9). */
+  :where(a, button, input, select, textarea, [tabindex], [role="button"], [role="tab"], [role="menuitem"]):focus-visible {
+    outline: 2px solid var(--navy-600);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Identifiers (parcel numbers, cause numbers, hashes). */
+  .font-id {
+    @apply font-mono;
+    font-feature-settings: "tnum" 1;
+  }
 }
 
+@layer utilities {
+  /* Respect reduced motion globally (UX-11). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
 
+/* ---------------------------------------------------------------------------
+ * Print / PDF stylesheet (UX-10): legal-document output for offers and the
+ * Good-Faith Binder. Hide app chrome, set letterhead margins, force readable
+ * black-on-white, and control pagination.
+ * ------------------------------------------------------------------------- */
+@media print {
+  @page {
+    size: Letter;
+    margin: 0.75in 0.75in 0.9in 0.75in;
+  }
 
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+    line-height: 1.45;
+  }
+
+  /* Always hide explicit screen-only controls. */
+  .no-print {
+    display: none !important;
+  }
+
+  /*
+   * When a printable document overlay is mounted it adds `printing-document` to
+   * <body>. We then hide the entire app and show only the overlay, so legal
+   * output (offers, Good-Faith Binder) prints clean without app chrome.
+   */
+  body.printing-document * {
+    visibility: hidden;
+  }
+  body.printing-document .print-portal,
+  body.printing-document .print-portal * {
+    visibility: visible;
+  }
+  body.printing-document .print-portal .no-print {
+    display: none !important;
+  }
+  body.printing-document .print-portal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* The printable document fills the page; drop screen shadows/rounding. */
+  .print-document {
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    background: #fff !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  /* Pagination helpers. */
+  .print-page-break {
+    break-before: page;
+    page-break-before: always;
+  }
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  tr,
+  img,
+  figure {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Show link targets in print where useful. */
+  .print-show-url a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #444;
+  }
+
+  /* Repeating letterhead/footer hooks on a running document. */
+  .print-running-header {
+    position: running(docHeader);
+  }
+}

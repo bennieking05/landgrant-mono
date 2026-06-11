@@ -1,0 +1,68 @@
+/**
+ * LandGrantIQ design tokens as CSS custom properties (UX-1).
+ * Mirror of tailwind.config.ts for consumers that cannot use Tailwind classes
+ * (Recharts, canvas/map layers, print stylesheets). Keep the two in sync.
+ */
+:root {
+  /* Navy / brand */
+  --navy-50: #eff4fb;
+  --navy-100: #dbe6f5;
+  --navy-200: #bcd0ec;
+  --navy-300: #8fb0dd;
+  --navy-400: #5b86c7;
+  --navy-500: #3a66b0;
+  --navy-600: #1f4b99;
+  --navy-700: #1a3e7e;
+  --navy-800: #16315f;
+  --navy-900: #14294a;
+  --navy-950: #0f1b30;
+
+  --brand: var(--navy-600);
+  --brand-dark: var(--navy-800);
+
+  /* Copper accent */
+  --accent: #b26a2c;
+  --accent-400: #d98b45;
+
+  /* Neutrals (slate) */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --border-subtle: #e2e8f0;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --surface-raised: #ffffff;
+
+  /* Semantic */
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #b42318;
+  --info: #175cd3;
+
+  /* Stage ramp (categorical) */
+  --stage-intake: #64748b;
+  --stage-appraisal: #1570ef;
+  --stage-offer-pending: #b54708;
+  --stage-offer-sent: #b26a2c;
+  --stage-negotiation: #7839ee;
+  --stage-closing: #099268;
+  --stage-litigation: #d92d20;
+  --stage-closed: #98a2b3;
+
+  /* Risk */
+  --risk-low: #15803d;
+  --risk-medium: #b45309;
+  --risk-high: #b42318;
+
+  /* Shape & elevation */
+  --radius-control: 6px;
+  --radius-card: 12px;
+  --radius-modal: 16px;
+  --shadow-card: 0 1px 2px 0 rgb(16 27 48 / 0.06), 0 1px 3px 0 rgb(16 27 48 / 0.08);
+  --shadow-overlay: 0 12px 32px -8px rgb(16 27 48 / 0.24), 0 4px 12px -4px rgb(16 27 48 / 0.12);
+
+  /* Motion */
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}

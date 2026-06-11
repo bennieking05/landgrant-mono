@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiGet, exportBinder } from "@/lib/api";
 import { LoadingSpinner, ErrorMessage, EmptyState } from "@/components/ui";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Printer } from "lucide-react";
+import { BinderDocument } from "@/components/BinderDocument";
 
 type BinderSection = { name: string; status: string; detail?: string };
 
@@ -17,6 +18,7 @@ export function BinderStatus({ projectId, parcelId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [showDocument, setShowDocument] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -66,15 +68,35 @@ export function BinderStatus({ projectId, parcelId }: Props) {
             <p className="mt-1 text-xs text-slate-500">Completeness: {completenessPct}%</p>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={handleExportBinder}
-          disabled={exporting}
-          className="rounded-md border border-brand px-3 py-1 text-sm text-brand hover:bg-brand/5 disabled:opacity-50"
-        >
-          {exporting ? "Exporting..." : "Export"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowDocument(true)}
+            disabled={!sections || sections.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <Printer className="h-4 w-4" /> Preview / Print
+          </button>
+          <button
+            type="button"
+            onClick={handleExportBinder}
+            disabled={exporting}
+            className="rounded-md border border-brand px-3 py-1 text-sm text-brand hover:bg-brand/5 disabled:opacity-50"
+          >
+            {exporting ? "Exporting..." : "Export"}
+          </button>
+        </div>
       </div>
+
+      {showDocument && sections ? (
+        <BinderDocument
+          projectId={projectId}
+          parcelId={parcelId}
+          sections={sections}
+          completenessPct={completenessPct}
+          onClose={() => setShowDocument(false)}
+        />
+      ) : null}
 
       {loading && (
         <div className="mt-4">

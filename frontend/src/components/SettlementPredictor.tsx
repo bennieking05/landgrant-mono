@@ -236,9 +236,9 @@ export function SettlementPredictor({
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+      <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-brand flex items-center justify-center">
             <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
@@ -277,7 +277,7 @@ export function SettlementPredictor({
             <select
               value={formData.jurisdiction}
               onChange={(e) => setFormData({ ...formData, jurisdiction: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
             >
               <option value="TX">Texas</option>
               <option value="CA">California</option>
@@ -295,7 +295,7 @@ export function SettlementPredictor({
               type="number"
               value={formData.assessed_value}
               onChange={(e) => setFormData({ ...formData, assessed_value: Number(e.target.value) })}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
             />
           </div>
 
@@ -305,7 +305,7 @@ export function SettlementPredictor({
             <select
               value={formData.property_type}
               onChange={(e) => setFormData({ ...formData, property_type: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
             >
               <option value="residential_single">Residential (Single)</option>
               <option value="residential_multi">Residential (Multi)</option>
@@ -322,7 +322,7 @@ export function SettlementPredictor({
             <select
               value={formData.project_type}
               onChange={(e) => setFormData({ ...formData, project_type: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
             >
               <option value="highway">Highway</option>
               <option value="utility">Utility</option>
@@ -340,7 +340,7 @@ export function SettlementPredictor({
               type="checkbox"
               checked={formData.owner_occupied}
               onChange={(e) => setFormData({ ...formData, owner_occupied: e.target.checked })}
-              className="rounded text-purple-600 focus:ring-purple-500"
+              className="rounded text-brand focus:ring-brand"
             />
             Owner Occupied
           </label>
@@ -349,7 +349,7 @@ export function SettlementPredictor({
               type="checkbox"
               checked={formData.owner_has_attorney}
               onChange={(e) => setFormData({ ...formData, owner_has_attorney: e.target.checked })}
-              className="rounded text-purple-600 focus:ring-purple-500"
+              className="rounded text-brand focus:ring-brand"
             />
             Has Attorney
           </label>
@@ -358,7 +358,7 @@ export function SettlementPredictor({
               type="checkbox"
               checked={formData.partial_taking}
               onChange={(e) => setFormData({ ...formData, partial_taking: e.target.checked })}
-              className="rounded text-purple-600 focus:ring-purple-500"
+              className="rounded text-brand focus:ring-brand"
             />
             Partial Taking
           </label>
@@ -367,7 +367,7 @@ export function SettlementPredictor({
         {/* Advanced options toggle */}
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="text-sm text-purple-600 hover:text-purple-700 mb-4"
+          className="text-sm text-brand hover:text-brand-dark mb-4"
         >
           {showAdvanced ? "Hide" : "Show"} advanced options
         </button>
@@ -381,7 +381,7 @@ export function SettlementPredictor({
                   type="checkbox"
                   checked={formData.business_on_property}
                   onChange={(e) => setFormData({ ...formData, business_on_property: e.target.checked })}
-                  className="rounded text-purple-600 focus:ring-purple-500"
+                  className="rounded text-brand focus:ring-brand"
                 />
                 Business on Property
               </label>
@@ -390,7 +390,7 @@ export function SettlementPredictor({
                   type="checkbox"
                   checked={formData.access_impact}
                   onChange={(e) => setFormData({ ...formData, access_impact: e.target.checked })}
-                  className="rounded text-purple-600 focus:ring-purple-500"
+                  className="rounded text-brand focus:ring-brand"
                 />
                 Access Impact
               </label>
@@ -399,7 +399,7 @@ export function SettlementPredictor({
                   type="checkbox"
                   checked={formData.owner_contested_appraisal}
                   onChange={(e) => setFormData({ ...formData, owner_contested_appraisal: e.target.checked })}
-                  className="rounded text-purple-600 focus:ring-purple-500"
+                  className="rounded text-brand focus:ring-brand"
                 />
                 Contested Appraisal
               </label>
@@ -408,7 +408,7 @@ export function SettlementPredictor({
                   type="checkbox"
                   checked={formData.previous_counter_offer}
                   onChange={(e) => setFormData({ ...formData, previous_counter_offer: e.target.checked })}
-                  className="rounded text-purple-600 focus:ring-purple-500"
+                  className="rounded text-brand focus:ring-brand"
                 />
                 Has Counter Offer
               </label>
@@ -420,7 +420,7 @@ export function SettlementPredictor({
                   type="number"
                   value={formData.counter_offer_amount}
                   onChange={(e) => setFormData({ ...formData, counter_offer_amount: Number(e.target.value) })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
                 />
               </div>
             )}
@@ -432,7 +432,7 @@ export function SettlementPredictor({
                   type="checkbox"
                   checked={formData.principal_residence}
                   onChange={(e) => setFormData({ ...formData, principal_residence: e.target.checked })}
-                  className="rounded text-purple-600 focus:ring-purple-500"
+                  className="rounded text-brand focus:ring-brand"
                 />
                 Principal Residence
               </label>
@@ -444,7 +444,7 @@ export function SettlementPredictor({
                   min="0"
                   value={formData.family_ownership_years}
                   onChange={(e) => setFormData({ ...formData, family_ownership_years: Number(e.target.value) })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
                   placeholder="0"
                 />
               </div>
@@ -458,7 +458,7 @@ export function SettlementPredictor({
                     max="100"
                     value={formData.severance_impact}
                     onChange={(e) => setFormData({ ...formData, severance_impact: Number(e.target.value) })}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
                     placeholder="0"
                   />
                   <p className="text-xs text-slate-400 mt-1">Impact on remaining property value</p>
@@ -472,7 +472,7 @@ export function SettlementPredictor({
         <button
           onClick={handleSubmit}
           disabled={loading || formData.assessed_value <= 0}
-          className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          className="w-full py-3 bg-brand text-white rounded-lg font-medium hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {loading ? (
             <span className="flex items-center justify-center gap-2">
@@ -496,7 +496,7 @@ export function SettlementPredictor({
       {prediction && (
         <div className="border-t border-slate-200">
           {/* Settlement Range */}
-          <div className="p-6 bg-gradient-to-r from-emerald-50 to-teal-50">
+          <div className="p-6 bg-emerald-50">
             <h4 className="text-sm font-medium text-slate-700 mb-3">Predicted Settlement Range</h4>
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-slate-500">Low</span>
@@ -518,7 +518,7 @@ export function SettlementPredictor({
               {/* Range bar visualization */}
               {prediction.settlement_range.high > 0 && (
                 <div
-                  className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 absolute"
+                  className="h-full bg-emerald-500 absolute"
                   style={{
                     left: `${Math.max(0, (prediction.settlement_range.low / prediction.settlement_range.high) * 100)}%`,
                     width: `${Math.min(100, 100 - (prediction.settlement_range.low / prediction.settlement_range.high) * 100)}%`,
@@ -573,9 +573,9 @@ export function SettlementPredictor({
                   {formatCurrency(prediction.recommendations.initial_offer)}
                 </p>
               </div>
-              <div className="p-3 bg-purple-50 rounded-lg">
-                <p className="text-xs text-purple-600 mb-1">Ceiling</p>
-                <p className="text-lg font-semibold text-purple-900">
+              <div className="p-3 bg-brand/5 rounded-lg">
+                <p className="text-xs text-brand mb-1">Ceiling</p>
+                <p className="text-lg font-semibold text-brand-dark">
                   {formatCurrency(prediction.recommendations.ceiling)}
                 </p>
               </div>

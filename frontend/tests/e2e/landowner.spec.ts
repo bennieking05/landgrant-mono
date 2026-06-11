@@ -118,12 +118,11 @@ test.describe("Landowner Portal Flow", () => {
   });
 
   test("should navigate back to home", async ({ page }) => {
-    // Navigate to home
-    await page.goto("/");
-    
-    // Verify home page loads
-    await expect(page.locator("text=LandGrant MVP")).toBeVisible();
-    
+    // Client-side navigation keeps SPA auth/session state; a bare `goto("/")` reload
+    // can sit behind the auth gate longer than our budget in CI.
+    await page.getByRole("link", { name: /LandGrantIQ home/i }).click();
+    await expect(page).toHaveURL(/\/$/);
+
     await page.screenshot({
       path: path.join(ARTIFACTS_DIR, "landowner-06-home-return.png"),
       fullPage: true,

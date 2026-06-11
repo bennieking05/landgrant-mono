@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db import models
 from app.db.models import Persona
+from app.services.email_templates import render_email_html
 from app.services.hashing import sha256_hex
 
 
@@ -205,11 +206,16 @@ def preview_or_send(
     try:
         if channel == "email":
             # Minimal SendGrid v3 mail send example; real integration can be expanded later.
+            # SendGrid requires text/plain before text/html in the content list.
+            html_body = render_email_html(template_id, variables, subject, body)
             async_payload = {
                 "personalizations": [{"to": [{"email": to}]}],
                 "from": {"email": "no-reply@landgrant.local"},
                 "subject": subject or "",
-                "content": [{"type": "text/plain", "value": body}],
+                "content": [
+                    {"type": "text/plain", "value": body},
+                    {"type": "text/html", "value": html_body},
+                ],
             }
             with httpx.Client(timeout=10.0) as client:
                 r = client.post(

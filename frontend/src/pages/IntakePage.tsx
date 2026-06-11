@@ -1,5 +1,6 @@
 import { useState, lazy, Suspense } from "react";
 import { useAppContext } from "@/context";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { InviteCard } from "@/components/InviteCard";
 import { UploadPanel } from "@/components/UploadPanel";
 
@@ -70,7 +71,8 @@ function StepIndicator({ currentStep, onStepClick }: { currentStep: number; onSt
 }
 
 export function IntakePage() {
-  const { projectId, parcelId } = useAppContext();
+  const { projectId, parcelId, parcels } = useAppContext();
+  useDocumentTitle("Landowner portal");
   const [currentStep, setCurrentStep] = useState(0);
 
   const isFirst = currentStep === 0;
@@ -108,7 +110,7 @@ export function IntakePage() {
         )}
         {currentStep === 1 && (
           <Suspense fallback={<div className="h-96 flex items-center justify-center bg-slate-100 rounded-xl"><div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>}>
-            <ParcelMap selectedParcelId={parcelId ?? undefined} showFilters={false} />
+            <ParcelMap parcelData={parcels} selectedParcelId={parcelId ?? undefined} showFilters={false} />
           </Suspense>
         )}
         {currentStep === 2 && (

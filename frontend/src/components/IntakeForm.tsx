@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { createCase, getJurisdictions, type JurisdictionItem } from "@/lib/api";
 import { useAppContext } from "@/context";
 import { useNavigate } from "react-router-dom";
+import { Field, Input, Select, Button, Alert, useToast } from "@/components/ui";
 
 // Common Texas county FIPS codes for smart suggestions
 const TEXAS_COUNTIES: Record<string, string> = {
@@ -28,17 +29,19 @@ type Props = {
   onPartyAdd?: (party: { name: string; role: string; email?: string }) => void;
 };
 
-export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
+export function IntakeForm({ initialProjectId }: Props) {
   const navigate = useNavigate();
+  const toast = useToast();
   const { setProjectId: setSelectedProjectId, setParcelId } = useAppContext();
   const [projectId, setProjectId] = useState(initialProjectId);
   const [countyFips, setCountyFips] = useState("48439");
   const [jurisdiction, setJurisdiction] = useState("TX");
   const [jurisdictionOptions, setJurisdictionOptions] = useState<JurisdictionItem[]>([]);
-  const [status, setStatus] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ projectId?: string; countyFips?: string }>({});
   const [showSuggestions, setShowSuggestions] = useState(false);
-  
-  // Enhanced form fields
+
   const [ownerName, setOwnerName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [propertyAddress, setPropertyAddress] = useState("");
@@ -71,7 +74,6 @@ export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
     }
   }, [initialProjectId, projectId]);
 
-  // Auto-detect jurisdiction from FIPS code (contract states only)
   useEffect(() => {
     const prefix = countyFips.slice(0, 2);
     const detectedJurisdiction = STATE_PREFIXES[prefix];
@@ -85,243 +87,231 @@ export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
     }
   }, [countyFips, jurisdiction, jurisdictionOptions]);
 
-  // Get county name from FIPS
-  const countyName = useMemo(() => {
-    return TEXAS_COUNTIES[countyFips] || null;
-  }, [countyFips]);
+  const countyName = useMemo(() => TEXAS_COUNTIES[countyFips] || null, [countyFips]);
 
-  // Filter suggestions based on input
   const fipsSuggestions = useMemo(() => {
     if (!countyFips || countyFips.length < 2) return [];
     return Object.entries(TEXAS_COUNTIES)
-      .filter(([fips, name]) => 
-        fips.startsWith(countyFips) || 
-        name.toLowerCase().includes(countyFips.toLowerCase())
+      .filter(
+        ([fips, name]) =>
+          fips.startsWith(countyFips) || name.toLowerCase().includes(countyFips.toLowerCase()),
       )
       .slice(0, 5);
   }, [countyFips]);
 
-  // Calculate risk score from risk level
   const getRiskScore = useCallback((level: "low" | "medium" | "high") => {
     switch (level) {
-      case "low": return 25;
-      case "medium": return 50;
-      case "high": return 75;
+      case "low":
+        return 25;
+      case "medium":
+        return 50;
+      case "high":
+        return 75;
     }
   }, []);
 
+  function validate(): boolean {
+    const errs: { projectId?: string; countyFips?: string } = {};
+    if (!projectId.trim()) errs.projectId = "Select a project before creating a parcel case.";
+    if (!/^\d{5}$/.test(countyFips.trim())) errs.countyFips = "Enter a 5-digit county FIPS code.";
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const selectedProjectId = projectId.trim();
-    if (!selectedProjectId) {
-      setStatus("Create case failed: select a project before creating a parcel case.");
-      return;
-    }
-    setStatus("Submitting...");
-    
-    // Build parties array
+    setFormError(null);
+    if (!validate()) return;
+
+    setSubmitting(true);
     const parties = [];
     if (ownerName) {
-      parties.push({
-        name: ownerName,
-        role: "landowner",
-        email: ownerEmail || undefined,
-      });
+      parties.push({ name: ownerName, role: "landowner", email: ownerEmail || undefined });
     }
 
     try {
       const response = await createCase({
-        project_id: selectedProjectId,
+        project_id: projectId.trim(),
         jurisdiction_code: jurisdiction,
         parcels: [
-          {
-            county_fips: countyFips,
-            stage: "intake",
-            risk_score: getRiskScore(riskLevel),
-            parties,
-          },
+          { county_fips: countyFips, stage: "intake", risk_score: getRiskScore(riskLevel), parties },
         ],
       });
       const parcelId = response.parcel_ids?.[0];
-      setStatus(`Created parcels: ${response.parcel_ids?.join(", ") ?? "none"}`);
+      toast.success(
+        "Parcel case created",
+        parcelId ? `Created parcel ${parcelId}.` : "No parcels were returned.",
+      );
       if (parcelId) {
-        setSelectedProjectId(selectedProjectId);
+        setSelectedProjectId(projectId.trim());
         setParcelId(parcelId);
-        navigate(`/workbench?projectId=${encodeURIComponent(selectedProjectId)}&parcelId=${encodeURIComponent(parcelId)}`);
+        navigate(
+          `/workbench?projectId=${encodeURIComponent(projectId.trim())}&parcelId=${encodeURIComponent(parcelId)}`,
+        );
       }
     } catch (error) {
-      setStatus(`Create case failed: ${String(error)}`);
+      const message = error instanceof Error ? error.message : String(error);
+      setFormError(message);
+      toast.error("Could not create parcel case", message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-brand/5 to-purple-50">
-        <h3 className="text-lg font-semibold text-slate-900">Intake Form</h3>
-        <p className="text-sm text-slate-600">Create a new parcel case with smart field detection</p>
+    <form onSubmit={handleSubmit} className="rounded-card border border-slate-200 bg-white shadow-card">
+      <div className="border-b border-slate-200 bg-slate-50 px-6 py-4">
+        <h3 className="text-h3 text-slate-900">Intake form</h3>
+        <p className="text-small text-slate-600">Create a new parcel case with smart field detection.</p>
       </div>
-      
-      <div className="p-6 space-y-4">
-        {/* Project & Location */}
-        <div className="grid grid-cols-2 gap-4">
-          <label className="block text-sm">
-            <span className="text-slate-600 font-medium">Project ID</span>
-            <input
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-              required
-            />
-          </label>
-          
-          <label className="block text-sm relative">
-            <span className="text-slate-600 font-medium">County FIPS</span>
-            <input
-              value={countyFips}
-              onChange={(e) => {
-                setCountyFips(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-              placeholder="e.g., 48439"
-              required
-            />
-            {countyName && (
-              <span className="absolute right-3 top-9 text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                {countyName}
-              </span>
+
+      <div className="space-y-4 p-6">
+        {formError ? <Alert variant="danger" title="Submission failed">{formError}</Alert> : null}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Project ID" required error={fieldErrors.projectId}>
+            {(p) => (
+              <Input
+                {...p}
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                placeholder="Project identifier"
+              />
             )}
-            
-            {/* FIPS Suggestions Dropdown */}
-            {showSuggestions && fipsSuggestions.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
-                {fipsSuggestions.map(([fips, name]) => (
-                  <button
-                    key={fips}
-                    type="button"
-                    onClick={() => {
-                      setCountyFips(fips);
-                      setShowSuggestions(false);
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-50 text-sm flex justify-between items-center"
-                  >
-                    <span className="font-medium">{fips}</span>
-                    <span className="text-slate-500">{name}</span>
-                  </button>
-                ))}
+          </Field>
+
+          <Field
+            label="County FIPS"
+            required
+            error={fieldErrors.countyFips}
+            hint={countyName ?? "5-digit Federal Information Processing Standard county code"}
+          >
+            {(p) => (
+              <div className="relative">
+                <Input
+                  {...p}
+                  value={countyFips}
+                  onChange={(e) => {
+                    setCountyFips(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  placeholder="e.g. 48439"
+                  inputMode="numeric"
+                />
+                {showSuggestions && fipsSuggestions.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-control border border-slate-200 bg-white shadow-overlay">
+                    {fipsSuggestions.map(([fips, name]) => (
+                      <button
+                        key={fips}
+                        type="button"
+                        onMouseDown={() => {
+                          setCountyFips(fips);
+                          setShowSuggestions(false);
+                        }}
+                        className="flex w-full items-center justify-between px-3 py-2 text-small hover:bg-slate-50"
+                      >
+                        <span className="font-id font-medium">{fips}</span>
+                        <span className="text-slate-500">{name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </label>
+          </Field>
         </div>
 
-        {/* Jurisdiction (auto-detected) */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
-          <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          <span className="text-sm text-blue-700">
-            Jurisdiction{jurisdictionOptions.length ? "" : " (loading)"}: <strong>{jurisdiction}</strong>
-          </span>
-          <select
-            value={jurisdiction}
-            onChange={(e) => setJurisdiction(e.target.value)}
-            className="ml-auto text-sm bg-white border border-blue-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            {(jurisdictionOptions.length ? jurisdictionOptions : [{ code: "TX", label: "Texas", active: true }]).map((j) => (
-              <option key={j.code} value={j.code}>
-                {j.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Field label="Jurisdiction" hint="Auto-detected from the county FIPS code.">
+          {(p) => (
+            <Select
+              {...p}
+              value={jurisdiction}
+              onChange={(e) => setJurisdiction(e.target.value)}
+            >
+              {(jurisdictionOptions.length
+                ? jurisdictionOptions
+                : [{ code: "TX", label: "Texas", active: true }]
+              ).map((j) => (
+                <option key={j.code} value={j.code}>
+                  {j.label}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
 
-        {/* Landowner Info */}
-        <div className="pt-4 border-t border-slate-200">
-          <h4 className="text-sm font-medium text-slate-700 mb-3">Landowner Information (Optional)</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <label className="block text-sm">
-              <span className="text-slate-600">Owner Name</span>
-              <input
-                value={ownerName}
-                onChange={(e) => setOwnerName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-                placeholder="John Smith"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="text-slate-600">Owner Email</span>
-              <input
-                type="email"
-                value={ownerEmail}
-                onChange={(e) => setOwnerEmail(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-                placeholder="owner@email.com"
-              />
-            </label>
+        <div className="border-t border-slate-200 pt-4">
+          <h4 className="mb-3 text-small font-medium text-slate-700">Landowner information (optional)</h4>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Owner name">
+              {(p) => (
+                <Input {...p} value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="John Smith" />
+              )}
+            </Field>
+            <Field label="Owner email">
+              {(p) => (
+                <Input
+                  {...p}
+                  type="email"
+                  value={ownerEmail}
+                  onChange={(e) => setOwnerEmail(e.target.value)}
+                  placeholder="owner@email.com"
+                />
+              )}
+            </Field>
           </div>
         </div>
 
-        {/* Property & Risk */}
-        <div className="pt-4 border-t border-slate-200">
-          <h4 className="text-sm font-medium text-slate-700 mb-3">Property Details</h4>
+        <div className="border-t border-slate-200 pt-4">
+          <h4 className="mb-3 text-small font-medium text-slate-700">Property details</h4>
           <div className="space-y-4">
-            <label className="block text-sm">
-              <span className="text-slate-600">Property Address (Optional)</span>
-              <input
-                value={propertyAddress}
-                onChange={(e) => setPropertyAddress(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-                placeholder="123 Main St, City, State"
-              />
-            </label>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <label className="block text-sm">
-                <span className="text-slate-600">Estimated Value ($)</span>
-                <input
-                  type="number"
-                  value={estimatedValue}
-                  onChange={(e) => setEstimatedValue(e.target.value ? Number(e.target.value) : "")}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-                  placeholder="350000"
+            <Field label="Property address (optional)">
+              {(p) => (
+                <Input
+                  {...p}
+                  value={propertyAddress}
+                  onChange={(e) => setPropertyAddress(e.target.value)}
+                  placeholder="123 Main St, City, State"
                 />
-              </label>
-              
-              <label className="block text-sm">
-                <span className="text-slate-600">Initial Risk Assessment</span>
-                <select
-                  value={riskLevel}
-                  onChange={(e) => setRiskLevel(e.target.value as "low" | "medium" | "high")}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
-                >
-                  <option value="low">Low Risk</option>
-                  <option value="medium">Medium Risk</option>
-                  <option value="high">High Risk</option>
-                </select>
-              </label>
+              )}
+            </Field>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Estimated value (USD)">
+                {(p) => (
+                  <Input
+                    {...p}
+                    type="number"
+                    value={estimatedValue}
+                    onChange={(e) => setEstimatedValue(e.target.value ? Number(e.target.value) : "")}
+                    placeholder="350000"
+                  />
+                )}
+              </Field>
+              <Field label="Initial risk assessment">
+                {(p) => (
+                  <Select
+                    {...p}
+                    value={riskLevel}
+                    onChange={(e) => setRiskLevel(e.target.value as "low" | "medium" | "high")}
+                  >
+                    <option value="low">Low risk</option>
+                    <option value="medium">Medium risk</option>
+                    <option value="high">High risk</option>
+                  </Select>
+                )}
+              </Field>
             </div>
           </div>
         </div>
       </div>
-      
-      <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-        <button 
-          type="submit" 
-          className="rounded-lg bg-brand px-6 py-2 text-sm font-medium text-white hover:bg-brand-dark transition-colors"
-        >
-          Create Parcel Case
-        </button>
-        {status && (
-          <p className={`text-sm ${status.includes("failed") ? "text-rose-600" : "text-slate-500"}`}>
-            {status}
-          </p>
-        )}
+
+      <div className="flex items-center justify-end border-t border-slate-200 bg-slate-50 px-6 py-4">
+        <Button type="submit" loading={submitting}>
+          Create parcel case
+        </Button>
       </div>
     </form>
   );
 }
-
-
-
