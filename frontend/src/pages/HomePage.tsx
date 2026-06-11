@@ -5,7 +5,7 @@ const stages = [
   {
     title: "Landowner Portal",
     description: "Secure invite, document review, uploads, and accept or counter with e-sign.",
-    href: "/intake",
+    href: "/portal",
     personas: ["landowner", "platform_admin"] as Persona[],
   },
   {

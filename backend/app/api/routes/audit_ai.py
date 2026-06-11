@@ -13,8 +13,10 @@ from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_persona, get_db
+from app.api.deps import get_current_persona, get_current_principal, get_db
+from app.db import models
 from app.db.models import Persona
+from app.security.jwt_auth import JWTPrincipal
 from app.security.rbac import authorize, Action
 
 router = APIRouter(prefix="/audit", tags=["audit"])
@@ -365,4 +367,102 @@ async def verify_audit_chain(
         "rows_checked": result.rows_checked,
         "first_bad_event": result.first_bad_event,
         "reason": result.reason,
+    }
+
+
+@router.get("/chain/events")
+def list_audit_chain_events(
+    parcel_id: Optional[str] = None,
+    limit: int = Query(100, le=500),
+    persona: Persona = Depends(get_current_persona),
+    principal: JWTPrincipal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+):
+    """Firm-scoped audit hash-chain events, optionally filtered to a parcel via payload."""
+
+    authorize(persona, "audit", Action.READ)
+
+    q = db.query(models.AuditEvent)
+    if principal.firm_id is not None:
+        q = q.filter(models.AuditEvent.firm_id == principal.firm_id)
+
+    fetch_limit = min(max(limit, 1), 500) * 5 if parcel_id else min(max(limit, 1), 500)
+    rows = q.order_by(models.AuditEvent.occurred_at.desc()).limit(fetch_limit).all()
+    if parcel_id:
+        rows = [
+            r
+            for r in rows
+            if isinstance(r.payload, dict) and r.payload.get("parcel_id") == parcel_id
+        ][: min(max(limit, 1), 500)]
+    else:
+        rows = rows[: min(max(limit, 1), 500)]
+
+    return {
+        "count": len(rows),
+        "items": [
+            {
+                "id": r.id,
+                "action": r.action,
+                "resource": r.resource,
+                "user_id": r.user_id,
+                "occurred_at": (
+                    r.occurred_at.isoformat() + "Z" if r.occurred_at else None
+                ),
+                "hash": r.hash,
+                "payload": r.payload,
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.post("/digest-anchor")
+def record_audit_digest_anchor(
+    persona: Persona = Depends(get_current_persona),
+    principal: JWTPrincipal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+):
+    """Persist today's digest anchor (chain tip) for the authenticated firm."""
+
+    from datetime import date as date_cls
+    from uuid import uuid4
+
+    authorize(persona, "audit", Action.WRITE)
+
+    from app.services.audit_chain import chain_tip_hash
+
+    tip = chain_tip_hash(db, principal.firm_id)
+    if not tip:
+        raise HTTPException(status_code=400, detail="no_audit_events_for_firm")
+
+    today = date_cls.today()
+    exists = (
+        db.query(models.AuditDigestAnchor)
+        .filter(
+            models.AuditDigestAnchor.firm_id == principal.firm_id,
+            models.AuditDigestAnchor.digest_date == today,
+        )
+        .first()
+    )
+    if exists:
+        return {
+            "id": exists.id,
+            "digest_date": str(exists.digest_date),
+            "chain_tip_hash": exists.chain_tip_hash,
+            "status": "existing",
+        }
+
+    row = models.AuditDigestAnchor(
+        id=f"ada_{uuid4().hex[:12]}",
+        firm_id=principal.firm_id,
+        digest_date=today,
+        chain_tip_hash=tip,
+    )
+    db.add(row)
+    db.commit()
+    return {
+        "id": row.id,
+        "digest_date": str(row.digest_date),
+        "chain_tip_hash": row.chain_tip_hash,
+        "status": "created",
     }

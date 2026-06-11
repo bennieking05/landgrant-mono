@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createCase } from "@/lib/api";
+import { createCase, getJurisdictions, type JurisdictionItem } from "@/lib/api";
 import { useAppContext } from "@/context";
 import { useNavigate } from "react-router-dom";
 
@@ -17,14 +17,10 @@ const TEXAS_COUNTIES: Record<string, string> = {
   "48157": "Fort Bend County",
 };
 
-// State FIPS prefixes for jurisdiction detection
+// State FIPS prefixes allowed for Milestone 1 contract jurisdictions (TX, IN only)
 const STATE_PREFIXES: Record<string, string> = {
   "48": "TX",
-  "06": "CA",
-  "12": "FL",
   "18": "IN",
-  "26": "MI",
-  "29": "MO",
 };
 
 type Props = {
@@ -38,6 +34,7 @@ export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
   const [projectId, setProjectId] = useState(initialProjectId);
   const [countyFips, setCountyFips] = useState("48439");
   const [jurisdiction, setJurisdiction] = useState("TX");
+  const [jurisdictionOptions, setJurisdictionOptions] = useState<JurisdictionItem[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
@@ -49,19 +46,44 @@ export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
   const [riskLevel, setRiskLevel] = useState<"low" | "medium" | "high">("medium");
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getJurisdictions();
+        if (cancelled) return;
+        setJurisdictionOptions(res.items);
+        if (res.items.length && !res.items.some((i) => i.code === jurisdiction)) {
+          setJurisdiction(res.items[0].code);
+        }
+      } catch {
+        if (!cancelled) setJurisdictionOptions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only load jurisdiction list once on mount
+  }, []);
+
+  useEffect(() => {
     if (initialProjectId && !projectId.trim()) {
       setProjectId(initialProjectId);
     }
   }, [initialProjectId, projectId]);
 
-  // Auto-detect jurisdiction from FIPS code
+  // Auto-detect jurisdiction from FIPS code (contract states only)
   useEffect(() => {
     const prefix = countyFips.slice(0, 2);
     const detectedJurisdiction = STATE_PREFIXES[prefix];
-    if (detectedJurisdiction && detectedJurisdiction !== jurisdiction) {
+    const allowedCodes = new Set(jurisdictionOptions.map((j) => j.code));
+    if (
+      detectedJurisdiction &&
+      allowedCodes.has(detectedJurisdiction) &&
+      detectedJurisdiction !== jurisdiction
+    ) {
       setJurisdiction(detectedJurisdiction);
     }
-  }, [countyFips, jurisdiction]);
+  }, [countyFips, jurisdiction, jurisdictionOptions]);
 
   // Get county name from FIPS
   const countyName = useMemo(() => {
@@ -200,19 +222,18 @@ export function IntakeForm({ initialProjectId, onPartyAdd }: Props) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
           <span className="text-sm text-blue-700">
-            Jurisdiction auto-detected: <strong>{jurisdiction}</strong>
+            Jurisdiction{jurisdictionOptions.length ? "" : " (loading)"}: <strong>{jurisdiction}</strong>
           </span>
           <select
             value={jurisdiction}
             onChange={(e) => setJurisdiction(e.target.value)}
             className="ml-auto text-sm bg-white border border-blue-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="TX">Texas</option>
-            <option value="CA">California</option>
-            <option value="FL">Florida</option>
-            <option value="IN">Indiana</option>
-            <option value="MI">Michigan</option>
-            <option value="MO">Missouri</option>
+            {(jurisdictionOptions.length ? jurisdictionOptions : [{ code: "TX", label: "Texas", active: true }]).map((j) => (
+              <option key={j.code} value={j.code}>
+                {j.label}
+              </option>
+            ))}
           </select>
         </div>
 

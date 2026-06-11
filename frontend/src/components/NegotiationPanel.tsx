@@ -4,6 +4,7 @@ import {
   createOffer,
   createCounterOffer,
   getPaymentLedger,
+  getOfferLifecycleCheck,
   type OfferItem,
   type OfferCreatePayload,
   type CounterOfferPayload,
@@ -15,22 +16,35 @@ type Props = {
   projectId: string;
 };
 
-type OfferStatus = "draft" | "pending" | "accepted" | "rejected" | "countered" | "withdrawn" | "expired";
-type OfferType = "initial" | "counter" | "final" | "settlement";
+type OfferStatus =
+  | "draft"
+  | "sent"
+  | "received"
+  | "accepted"
+  | "rejected"
+  | "superseded"
+  | "expired"
+  | "pending"
+  | "countered"
+  | "withdrawn";
+type OfferType = "initial" | "counteroffer" | "final" | "settlement";
 
-const STATUS_COLORS: Record<OfferStatus, string> = {
+const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-100 text-slate-700",
+  sent: "bg-blue-50 text-blue-700",
+  received: "bg-purple-50 text-purple-700",
   pending: "bg-blue-50 text-blue-700",
   accepted: "bg-emerald-50 text-emerald-700",
   rejected: "bg-rose-50 text-rose-700",
   countered: "bg-purple-50 text-purple-700",
   withdrawn: "bg-amber-50 text-amber-700",
   expired: "bg-slate-50 text-slate-500",
+  superseded: "bg-slate-100 text-slate-500",
 };
 
 const TYPE_LABELS: Record<OfferType, string> = {
   initial: "Initial Offer",
-  counter: "Counter Offer",
+  counteroffer: "Counter Offer",
   final: "Final Offer",
   settlement: "Settlement",
 };
@@ -38,15 +52,17 @@ const TYPE_LABELS: Record<OfferType, string> = {
 export function NegotiationPanel({ parcelId, projectId }: Props) {
   const [offers, setOffers] = useState<OfferItem[] | null>(null);
   const [ledger, setLedger] = useState<PaymentLedgerResponse | null>(null);
+  const [lifecycle, setLifecycle] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  
+
   // Create offer form
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [offerType, setOfferType] = useState<OfferType>("initial");
   const [amount, setAmount] = useState("");
   const [terms, setTerms] = useState("");
+  const [statutoryOverrideReason, setStatutoryOverrideReason] = useState("");
   
   // Counter offer form
   const [counteringOfferId, setCounteringOfferId] = useState<string | null>(null);
@@ -58,14 +74,19 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const [offersRes, ledgerRes] = await Promise.all([
+      const [offersRes, ledgerRes, life] = await Promise.all([
         listOffers(parcelId),
         getPaymentLedger(parcelId).catch(() => null),
+        getOfferLifecycleCheck(parcelId, projectId).catch(() => null),
       ]);
-      // Sort by created_date descending (most recent first for timeline)
-      setOffers(offersRes.items.sort((a, b) => 
-        new Date(b.created_date || 0).getTime() - new Date(a.created_date || 0).getTime()
-      ));
+      setLifecycle(life);
+      // Sort by created_date / created_at descending (most recent first for timeline)
+      const sorted = [...offersRes.items].sort((a, b) => {
+        const ad = a.created_at || a.created_date || "";
+        const bd = b.created_at || b.created_date || "";
+        return new Date(bd).getTime() - new Date(ad).getTime();
+      });
+      setOffers(sorted);
       setLedger(ledgerRes);
     } catch (e) {
       setError(String(e));
@@ -95,10 +116,14 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
         amount: parseFloat(amount),
         terms: terms ? { description: terms } : undefined,
       };
+      if (offerType === "final" && statutoryOverrideReason.trim()) {
+        payload.statutory_override_reason = statutoryOverrideReason.trim();
+      }
       await createOffer(payload);
       setShowCreate(false);
       setAmount("");
       setTerms("");
+      setStatutoryOverrideReason("");
       setOfferType("initial");
       await refresh();
     } catch (e) {
@@ -118,8 +143,9 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
     setError(null);
     try {
       const payload: CounterOfferPayload = {
-        counter_amount: parseFloat(counterAmount),
-        counter_terms: counterTerms ? { description: counterTerms } : undefined,
+        amount: parseFloat(counterAmount),
+        terms: counterTerms ? { description: counterTerms } : undefined,
+        source: "internal",
       };
       await createCounterOffer(offerId, payload);
       setCounteringOfferId(null);
@@ -160,10 +186,11 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
     });
   }
 
-  const currentOffer = offers?.find((o) => 
-    o.status === "pending" || o.status === "accepted"
-  );
+  const currentOffer = offers?.find((o) => o.status === "sent" || o.status === "received");
   const acceptedOffer = offers?.find((o) => o.status === "accepted");
+
+  const blockers = (lifecycle?.final_offer_blockers as string[] | undefined) ?? [];
+  const folOk = lifecycle?.final_offer_statutory_ok === true;
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -195,7 +222,44 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
         </div>
       </div>
 
-      {/* Payment Ledger Summary */}
+      {lifecycle && (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3 text-sm">
+          <p className="font-medium text-slate-800">Statutory sequencing</p>
+          <p className="mt-1 text-xs text-slate-600">
+            Final offer (FOL) gate:{" "}
+            <span className={folOk ? "text-emerald-700 font-medium" : "text-amber-700 font-medium"}>
+              {folOk ? "clear" : "blocked or needs supervised override"}
+            </span>
+            {typeof lifecycle.tx_lbor_deliveries === "number" && lifecycle.rule_state === "TX" ? (
+              <span className="text-slate-500"> · LBOR deliveries on file: {lifecycle.tx_lbor_deliveries}</span>
+            ) : null}
+          </p>
+          {blockers.length > 0 ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-700">
+              {blockers.map((b) => (
+                <li key={b}>{b}</li>
+              ))}
+            </ul>
+          ) : null}
+          {Array.isArray(lifecycle.timeline) ? (
+            <ol className="mt-3 flex flex-wrap gap-2 text-xs">
+              {(lifecycle.timeline as { step: string; label: string; done?: boolean; applies?: boolean }[])
+                .filter((t) => t.applies !== false)
+                .map((t) => (
+                  <li
+                    key={t.step}
+                    className={`rounded-full px-2 py-0.5 ${
+                      t.done ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {t.label}
+                  </li>
+                ))}
+            </ol>
+          ) : null}
+        </div>
+      )}
+
       {ledger && (
         <div className="mb-6 p-3 rounded-lg bg-slate-50 border border-slate-200">
           <div className="flex items-center justify-between">
@@ -231,7 +295,7 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand"
               >
                 <option value="initial">Initial Offer</option>
-                <option value="counter">Counter Offer</option>
+                <option value="counteroffer">Counter Offer</option>
                 <option value="final">Final Offer</option>
                 <option value="settlement">Settlement</option>
               </select>
@@ -257,6 +321,20 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand"
             />
           </div>
+          {offerType === "final" ? (
+            <div className="mb-4">
+              <label className="text-xs text-slate-500 block mb-1">
+                Supervised statutory override (required if sequencing warnings were acknowledged)
+              </label>
+              <textarea
+                value={statutoryOverrideReason}
+                onChange={(e) => setStatutoryOverrideReason(e.target.value)}
+                placeholder="Document attorney-supervised reason when proceeding despite statutory warnings…"
+                rows={2}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand"
+              />
+            </div>
+          ) : null}
           <button
             onClick={handleCreateOffer}
             disabled={creating}
@@ -279,7 +357,7 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
 
         <ul className="space-y-4">
           {(offers ?? []).map((offer, index) => {
-            const status = (offer.status as OfferStatus) || "draft";
+            const st = (offer.status as string) || "draft";
             const type = (offer.offer_type as OfferType) || "initial";
             const isLatest = index === 0;
             const isCountering = counteringOfferId === offer.id;
@@ -288,19 +366,19 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
               <li key={offer.id} className="relative pl-10">
                 {/* Timeline dot */}
                 <div className={`absolute left-2.5 w-3 h-3 rounded-full border-2 ${
-                  status === "accepted"
+                  st === "accepted"
                     ? "bg-emerald-500 border-emerald-500"
-                    : status === "rejected"
+                    : st === "rejected"
                     ? "bg-rose-500 border-rose-500"
-                    : status === "pending"
+                    : st === "sent" || st === "received" || st === "pending"
                     ? "bg-blue-500 border-blue-500"
                     : "bg-white border-slate-300"
                 }`} style={{ top: "0.5rem" }} />
 
                 <div className={`p-4 rounded-lg border ${
-                  isLatest && status === "pending"
+                  isLatest && (st === "sent" || st === "received" || st === "pending")
                     ? "border-blue-200 bg-blue-50/30"
-                    : status === "accepted"
+                    : st === "accepted"
                     ? "border-emerald-200 bg-emerald-50/30"
                     : "border-slate-200 bg-white"
                 }`}>
@@ -310,15 +388,16 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
                         <span className="text-sm font-semibold text-slate-900">
                           {formatCurrency(offer.amount)}
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[status]}`}>
-                          {status}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[st] ?? "bg-slate-100 text-slate-600"}`}>
+                          {st}
                         </span>
                         <span className="text-xs text-slate-500">
-                          {TYPE_LABELS[type]}
+                          {TYPE_LABELS[type] ?? type}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500">
-                        {formatDate(offer.created_at)} at {formatTime(offer.created_at)}
+                        {formatDate(offer.created_at || offer.created_date)}{" "}
+                        {formatTime(offer.created_at || offer.created_date)}
                       </p>
                       {offer.terms && typeof offer.terms === "object" && (offer.terms as { description?: string }).description && (
                         <p className="text-xs text-slate-600 mt-2 italic">
@@ -333,7 +412,7 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
                     </div>
                     <div className="flex flex-col gap-2 ml-4">
                       {/* Actions for pending offers */}
-                      {status === "pending" && !isCountering && (
+                      {(st === "sent" || st === "received" || st === "pending") && !isCountering && (
                         <>
                           <button
                             onClick={() => setCounteringOfferId(offer.id)}
@@ -421,7 +500,7 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
             </div>
             <div>
               <p className="text-2xl font-semibold text-slate-900">
-                {offers.filter((o) => o.offer_type === "counter").length}
+                {offers.filter((o) => o.offer_type === "counteroffer").length}
               </p>
               <p className="text-xs text-slate-500">Counters</p>
             </div>

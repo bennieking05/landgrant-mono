@@ -2,12 +2,14 @@ from datetime import datetime
 from enum import Enum as PyEnum
 from sqlalchemy import (
     Column,
+    Date,
     DateTime,
     String,
     Text,
     ForeignKey,
     Boolean,
     Integer,
+    BigInteger,
     Numeric,
     JSON,
     Enum,
@@ -91,6 +93,15 @@ class Project(Base):
     firm_id = Column(String, ForeignKey("firms.id"), index=True)
     name = Column(String, nullable=False)
     jurisdiction_code = Column(String, nullable=False)
+    # Contract: primary state for rules (TX | IN); mirrors jurisdiction_code when set.
+    state = Column(String(2), nullable=True, index=True)
+    project_type = Column(String(50), nullable=True)
+    operational_status = Column(String(50), nullable=True)
+    client_org_id = Column(String(255), nullable=True)
+    target_in_service_date = Column(Date, nullable=True)
+    construction_start_date = Column(Date, nullable=True)
+    budget_total = Column(Numeric(15, 2), nullable=True)
+    created_by = Column(String, ForeignKey("users.id"), nullable=True)
     stage = Column(Enum(ProjectStage), default=ProjectStage.INTAKE, nullable=False)
     risk_score = Column(Integer, default=0)
     next_deadline_at = Column(DateTime)
@@ -107,7 +118,20 @@ class Parcel(Base):
 
     id = Column(String, primary_key=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False)
+    segment_id = Column(String, ForeignKey("segments.id"), nullable=True, index=True)
     county_fips = Column(String, nullable=False)
+    parcel_number = Column(String(100), nullable=True, index=True)
+    county_parcel_id = Column(String(100), nullable=True)
+    state_pin = Column(String(100), nullable=True)
+    county = Column(String(100), nullable=True)
+    parcel_state = Column(String(2), nullable=True)
+    address = Column(Text, nullable=True)
+    legal_description = Column(Text, nullable=True)
+    acreage = Column(Numeric(10, 4), nullable=True)
+    acquisition_type = Column(String(50), nullable=True)
+    parcel_acquisition_status = Column(String(50), nullable=True)
+    priority = Column(Integer, nullable=True, default=999)
+    construction_need_by = Column(Date, nullable=True)
     stage = Column(Enum(ParcelStage), default=ParcelStage.INTAKE, nullable=False)
     risk_score = Column(Integer, default=0)
     next_deadline_at = Column(DateTime)
@@ -117,7 +141,9 @@ class Parcel(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     project = relationship("Project", back_populates="parcels")
+    segment = relationship("Segment", foreign_keys=[segment_id])
     parties = relationship("ParcelParty", back_populates="parcel")
+    parcel_interests = relationship("ParcelInterest", back_populates="parcel")
     communications = relationship("Communication", back_populates="parcel")
     rule_results = relationship("RuleResult", back_populates="parcel")
 
@@ -127,13 +153,21 @@ class Party(Base):
 
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
+    owner_type = Column(String(50), nullable=True)
+    full_name = Column(String(255), nullable=True)
+    entity_name = Column(String(255), nullable=True)
+    primary_address = Column(Text, nullable=True)
+    alternate_address = Column(Text, nullable=True)
+    party_status = Column(String(50), nullable=True)
     email = Column(String)
     phone = Column(String)
     role = Column(String, nullable=False)
     address = Column(JSON)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     parcels = relationship("ParcelParty", back_populates="party")
+    interests = relationship("ParcelInterest", back_populates="party")
 
 
 class ParcelParty(Base):
@@ -145,6 +179,41 @@ class ParcelParty(Base):
 
     parcel = relationship("Parcel", back_populates="parties")
     party = relationship("Party", back_populates="parcels")
+
+
+class TitleDocument(Base):
+    __tablename__ = "title_documents"
+
+    id = Column(String, primary_key=True)
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False, index=True)
+    effective_date = Column(Date, nullable=False)
+    vendor = Column(String(255), nullable=True)
+    doc_type = Column(String(100), nullable=False)
+    file_ref = Column(String, ForeignKey("documents.id"), nullable=True)
+    extracted_summary_json = Column(JSON, nullable=True)
+    reviewed_by = Column(String, ForeignKey("users.id"), nullable=True)
+    review_date = Column(Date, nullable=True)
+    issues_identified = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ParcelInterest(Base):
+    """Contracted parcel ↔ party interest (supersedes parcel_parties over time)."""
+
+    __tablename__ = "parcel_interests"
+
+    id = Column(String, primary_key=True)
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False, index=True)
+    party_id = Column(String, ForeignKey("parties.id"), nullable=False, index=True)
+    interest_type = Column(String(50), nullable=False)
+    ownership_percentage = Column(Numeric(5, 2), nullable=True)
+    is_primary_contact = Column(Boolean, default=False)
+    interest_doc_id = Column(String, ForeignKey("title_documents.id"), nullable=True)
+    active_flag = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    parcel = relationship("Parcel", back_populates="parcel_interests")
+    party = relationship("Party", back_populates="interests")
 
 
 class TitleInstrument(Base):
@@ -168,6 +237,18 @@ class Appraisal(Base):
     comps = Column(JSON)
     summary = Column(Text)
     attachment_id = Column(String, ForeignKey("documents.id"))
+    # Contract columns (additive)
+    appraisal_type = Column(String(50), nullable=True)
+    appraiser_name = Column(String(255), nullable=True)
+    appraisal_date = Column(Date, nullable=True)
+    appraised_value = Column(Numeric(15, 2), nullable=True)
+    permanent_easement_value = Column(Numeric(15, 2), nullable=True)
+    temporary_easement_value = Column(Numeric(15, 2), nullable=True)
+    severance_damages = Column(Numeric(15, 2), nullable=True)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=True)
+    is_current = Column(Boolean, default=True)
+    staleness_flag = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Document(Base):
@@ -193,6 +274,24 @@ class Document(Base):
     metadata_json = Column(JSON, default=dict)
     created_by = Column(String, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Contract / filing packet (additive)
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=True, index=True)
+    complaint_id = Column(
+        String, ForeignKey("litigation_cases.id"), nullable=True, index=True
+    )
+    project_id = Column(String, ForeignKey("projects.id"), nullable=True, index=True)
+    document_type = Column(String(100), nullable=True)
+    document_name = Column(String(255), nullable=True)
+    file_name = Column(String(255), nullable=True)
+    file_path = Column(String, nullable=True)
+    file_size = Column(BigInteger, nullable=True)
+    mime_type = Column(String(100), nullable=True)
+    document_date = Column(Date, nullable=True)
+    is_current_version = Column(Boolean, default=True)
+    tags = Column(JSON, nullable=True)
+    is_confidential = Column(Boolean, default=False)
+    content_hash = Column(String(64), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Template(Base):
@@ -207,6 +306,19 @@ class Template(Base):
     privilege = Column(String, default="non_privileged")
     classifications = Column(JSON, default=list)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Contract (additive)
+    template_type = Column(String(100), nullable=True)
+    state = Column(String(2), nullable=True)
+    template_name = Column(String(255), nullable=True)
+    template_content = Column(Text, nullable=True)
+    variables = Column(JSON, nullable=True)
+    schema_json = Column(JSON, nullable=True)
+    version_int = Column(Integer, nullable=True)
+    template_status = Column(String(50), nullable=True)
+    approved_by = Column(String, ForeignKey("users.id"), nullable=True)
+    approved_date = Column(Date, nullable=True)
+    created_by = Column(String, ForeignKey("users.id"), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Communication(Base):
@@ -223,6 +335,18 @@ class Communication(Base):
     sla_due_at = Column(DateTime)
     hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Contract (additive)
+    owner_party_id = Column(String, ForeignKey("parties.id"), nullable=True)
+    communication_type = Column(String(100), nullable=True)
+    communication_date = Column(DateTime, nullable=True)
+    initiated_by = Column(String, ForeignKey("users.id"), nullable=True)
+    subject = Column(String(255), nullable=True)
+    summary = Column(Text, nullable=True)
+    related_to = Column(String(100), nullable=True)
+    attachments = Column(JSON, nullable=True)
+    follow_up_required = Column(Boolean, default=False)
+    follow_up_date = Column(Date, nullable=True)
+    follow_up_assigned_to = Column(String, ForeignKey("users.id"), nullable=True)
 
     parcel = relationship("Parcel", back_populates="communications")
 
@@ -453,12 +577,26 @@ class Deadline(Base):
     __tablename__ = "deadlines"
 
     id = Column(String, primary_key=True)
-    project_id = Column(String, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=True)
     parcel_id = Column(String, ForeignKey("parcels.id"))
+    case_id = Column(String, ForeignKey("litigation_cases.id"), nullable=True)
     title = Column(String, nullable=False)
     due_at = Column(DateTime, nullable=False)
     timezone = Column(String, default="UTC")
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Contract (additive)
+    deadline_type = Column(String(100), nullable=True)
+    is_automated = Column(Boolean, default=False)
+    calculation_rule = Column(Text, nullable=True)
+    responsible_party_id = Column(String, ForeignKey("users.id"), nullable=True)
+    deadline_status = Column(String(50), nullable=True)
+    completion_date = Column(Date, nullable=True)
+    alert_sent = Column(Boolean, default=False)
+    notes = Column(Text, nullable=True)
+    due_date = Column(Date, nullable=True)
+    source_kind = Column(String(32), nullable=True)  # statutory | court_set
+    citation = Column(Text, nullable=True)
+    inputs_json = Column(JSON, nullable=True)
 
 
 class StatusChange(Base):
@@ -1317,6 +1455,15 @@ class Notice(Base):
     # Status tracking
     status = Column(String, default="pending")  # pending, served, failed
     service_complete = Column(Boolean, default=False)
+    # Contract (additive string codes + party scope)
+    owner_party_id = Column(String, ForeignKey("parties.id"), nullable=True)
+    notice_state = Column(String(2), nullable=True)
+    notice_date = Column(Date, nullable=True)
+    service_required = Column(Boolean, default=True)
+    service_deadline = Column(Date, nullable=True)
+    response_deadline = Column(Date, nullable=True)
+    notice_type_code = Column(String(100), nullable=True)
+    notice_status_code = Column(String(50), nullable=True)
 
     # Metadata
     metadata_json = Column(JSON, default=dict)
@@ -1364,6 +1511,16 @@ class ServiceAttempt(Base):
     # Outcome details
     outcome_notes = Column(Text)
     outcome_date = Column(DateTime)
+    service_method_code = Column(String(100), nullable=True)
+    service_address = Column(Text, nullable=True)
+    tracking_number = Column(String(100), nullable=True)
+    delivery_date = Column(Date, nullable=True)
+    delivery_signature = Column(String(255), nullable=True)
+    outcome_code = Column(String(50), nullable=True)
+    process_server_name = Column(String(255), nullable=True)
+    affidavit_document_id = Column(String, ForeignKey("documents.id"), nullable=True)
+    publication_newspaper = Column(String(255), nullable=True)
+    publication_dates = Column(JSON, nullable=True)
 
     # Audit
     created_by = Column(String, ForeignKey("users.id"))
@@ -1497,13 +1654,30 @@ class LitigationCase(Base):
     __tablename__ = "litigation_cases"
 
     id = Column(String, primary_key=True)
-    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False)
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False)
 
     # Case identifiers
     cause_number = Column(String)
     court = Column(String, nullable=False)  # Court name
     court_county = Column(String)
+    # Contract (additive)
+    state = Column(String(2), nullable=True)
+    county = Column(String(100), nullable=True)
+    case_number = Column(String(100), nullable=True)
+    filing_date = Column(Date, nullable=True)
+    judge_name = Column(String(255), nullable=True)
+    case_type = Column(String(50), nullable=True)
+    litigation_stage = Column(String(100), nullable=True)
+    outside_counsel_firm = Column(String(255), nullable=True)
+    outside_counsel_attorney = Column(String(255), nullable=True)
+    opposing_counsel = Column(String(255), nullable=True)
+    quick_take_requested = Column(Boolean, default=False)
+    quick_take_granted = Column(Boolean, default=False)
+    possession_date = Column(Date, nullable=True)
+    final_award_amount = Column(Numeric(15, 2), nullable=True)
+    settlement_date = Column(Date, nullable=True)
+    case_closed_date = Column(Date, nullable=True)
 
     # Case type (per Agreement)
     is_quick_take = Column(Boolean, default=False)  # quick-take vs standard flag
@@ -1536,6 +1710,165 @@ class LitigationCase(Base):
     created_by = Column(String, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    complaint_parcels = relationship("ComplaintParcel", back_populates="complaint")
+
+
+class ComplaintParcel(Base):
+    __tablename__ = "complaint_parcels"
+
+    id = Column(String, primary_key=True)
+    complaint_id = Column(
+        String, ForeignKey("litigation_cases.id"), nullable=False, index=True
+    )
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    complaint = relationship("LitigationCase", back_populates="complaint_parcels")
+    parcel = relationship("Parcel")
+
+
+class TxSpecialCommissioner(Base):
+    __tablename__ = "tx_special_commissioners"
+
+    id = Column(String, primary_key=True)
+    complaint_id = Column(
+        String, ForeignKey("litigation_cases.id"), nullable=False, index=True
+    )
+    commissioner_number = Column(Integer, nullable=False)
+    commissioner_name = Column(String(255), nullable=False)
+    appointment_date = Column(Date, nullable=False)
+    is_freeholder = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TxCommissionersHearing(Base):
+    __tablename__ = "tx_commissioners_hearings"
+
+    id = Column(String, primary_key=True)
+    complaint_id = Column(
+        String, ForeignKey("litigation_cases.id"), nullable=False, index=True
+    )
+    hearing_date = Column(Date, nullable=False)
+    hearing_location = Column(Text, nullable=True)
+    evidence_presented = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TxCommissionersAward(Base):
+    __tablename__ = "tx_commissioners_awards"
+
+    id = Column(String, primary_key=True)
+    complaint_id = Column(
+        String, ForeignKey("litigation_cases.id"), nullable=False, index=True
+    )
+    award_date = Column(Date, nullable=False)
+    award_amount = Column(Numeric(15, 2), nullable=False)
+    objection_deadline = Column(Date, nullable=False)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TxBillOfRightsDelivery(Base):
+    __tablename__ = "tx_bill_of_rights_deliveries"
+
+    id = Column(String, primary_key=True)
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False, index=True)
+    owner_id = Column(String, ForeignKey("parties.id"), nullable=False)
+    delivery_type = Column(String(50), nullable=False)
+    delivery_date = Column(Date, nullable=False)
+    service_method = Column(String(100), nullable=False)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class InCourtAppraiser(Base):
+    __tablename__ = "in_court_appraisers"
+
+    id = Column(String, primary_key=True)
+    complaint_id = Column(
+        String, ForeignKey("litigation_cases.id"), nullable=False, index=True
+    )
+    appraiser_name = Column(String(255), nullable=False)
+    appraiser_firm = Column(String(255), nullable=True)
+    appointment_date = Column(Date, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class InAppraisersReport(Base):
+    __tablename__ = "in_appraisers_reports"
+
+    id = Column(String, primary_key=True)
+    complaint_id = Column(
+        String, ForeignKey("litigation_cases.id"), nullable=False, index=True
+    )
+    report_filing_date = Column(Date, nullable=False)
+    report_mailing_date = Column(Date, nullable=False)
+    appraised_value = Column(Numeric(15, 2), nullable=False)
+    exception_deadline = Column(Date, nullable=False)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class InException(Base):
+    __tablename__ = "in_exceptions"
+
+    id = Column(String, primary_key=True)
+    appraisers_report_id = Column(
+        String, ForeignKey("in_appraisers_reports.id"), nullable=False
+    )
+    complaint_id = Column(
+        String, ForeignKey("litigation_cases.id"), nullable=False, index=True
+    )
+    filed_by = Column(String(50), nullable=False)
+    filing_date = Column(Date, nullable=False)
+    grounds = Column(Text, nullable=True)
+    outcome = Column(String(50), nullable=True)
+    trial_scheduled = Column(Boolean, default=False)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LitigationObjectionType(Base):
+    __tablename__ = "litigation_objection_types"
+
+    id = Column(String, primary_key=True)
+    state = Column(String(2), nullable=False)
+    label = Column(String(255), nullable=False)
+    active = Column(Boolean, default=True)
+    sort_order = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LitigationObjection(Base):
+    __tablename__ = "litigation_objections"
+
+    id = Column(String, primary_key=True)
+    complaint_id = Column(
+        String, ForeignKey("litigation_cases.id"), nullable=False, index=True
+    )
+    objection_type_id = Column(
+        String, ForeignKey("litigation_objection_types.id"), nullable=True
+    )
+    filed = Column(Boolean, nullable=True)
+    date_filed = Column(Date, nullable=True)
+    outcome = Column(String(50), nullable=True)
+    discovery_deadline = Column(Date, nullable=True)
+    hearing_date = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AuditDigestAnchor(Base):
+    """Periodic digest hash over audit chain tip (tamper detection)."""
+
+    __tablename__ = "audit_digest_anchors"
+
+    id = Column(String, primary_key=True)
+    firm_id = Column(String, ForeignKey("firms.id"), nullable=True)
+    digest_date = Column(Date, nullable=False)
+    chain_tip_hash = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class CurativeStatus(str, PyEnum):
@@ -1585,12 +1918,51 @@ class CurativeItem(Base):
     # Resolution
     resolution_notes = Column(Text)
     resolution_document_id = Column(String, ForeignKey("documents.id"))
+    issue_type = Column(String(100), nullable=True)
+    is_blocking = Column(Boolean, default=False)
+    assigned_to = Column(String, ForeignKey("users.id"), nullable=True)
+    title_document_id = Column(String, ForeignKey("title_documents.id"), nullable=True)
+    resolution_method = Column(Text, nullable=True)
+    cost = Column(Numeric(15, 2), nullable=True)
+    notes = Column(Text, nullable=True)
 
     # Metadata
     metadata_json = Column(JSON, default=dict)
     created_by = Column(String, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Negotiation(Base):
+    __tablename__ = "negotiations"
+
+    id = Column(String, primary_key=True)
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False, index=True)
+    status = Column(String(50), nullable=False, default="active")
+    opened_at = Column(DateTime, default=datetime.utcnow)
+    closed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    parcel = relationship("Parcel")
+    offers = relationship("Offer", back_populates="negotiation")
+
+
+class Counteroffer(Base):
+    __tablename__ = "counteroffers"
+
+    id = Column(String, primary_key=True)
+    offer_id = Column(String, ForeignKey("offers.id"), nullable=False, index=True)
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False)
+    counteroffer_date = Column(Date, nullable=False)
+    proposed_amount = Column(Numeric(15, 2), nullable=True)
+    non_monetary_terms = Column(Text, nullable=True)
+    source = Column(String(50), nullable=True)
+    status = Column(String(50), nullable=False, default="under_review")
+    response_date = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    offer = relationship("Offer", back_populates="counteroffers")
 
 
 class OfferType(str, PyEnum):
@@ -1630,6 +2002,8 @@ class Offer(Base):
     id = Column(String, primary_key=True)
     parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False)
+    negotiation_id = Column(String, ForeignKey("negotiations.id"), nullable=True)
+    appraisal_id = Column(String, ForeignKey("appraisals.id"), nullable=True)
 
     # Offer sequence
     offer_type = Column(Enum(OfferType), nullable=False)
@@ -1651,6 +2025,9 @@ class Offer(Base):
     sent_date = Column(DateTime)
     response_due_date = Column(DateTime)
     response_date = Column(DateTime)
+    offer_date = Column(Date, nullable=True)
+    wait_period_days = Column(Integer, nullable=True)
+    earliest_filing_date = Column(Date, nullable=True)
 
     # Source
     source = Column(String, default="internal")  # internal, landowner
@@ -1668,6 +2045,11 @@ class Offer(Base):
     created_by = Column(String, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    negotiation = relationship("Negotiation", back_populates="offers")
+    counteroffers = relationship(
+        "Counteroffer", back_populates="offer", cascade="all, delete-orphan"
+    )
 
 
 class PaymentStatus(str, PyEnum):
@@ -1720,6 +2102,23 @@ class PaymentLedger(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class Payment(Base):
+    """Contracted payment rows (status + amount in DB; UI may hide amounts)."""
+
+    __tablename__ = "payments"
+
+    id = Column(String, primary_key=True)
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False, index=True)
+    payment_type = Column(String(50), nullable=False)
+    amount = Column(Numeric(15, 2), nullable=False, default=0)
+    status = Column(String(50), nullable=False, default="pending")
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    paid_at = Column(DateTime, nullable=True)
+    offer_id = Column(String, ForeignKey("offers.id"), nullable=True)
+    case_id = Column(String, ForeignKey("litigation_cases.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Alignment(Base):
     """Project alignments (routes).
 
@@ -1756,6 +2155,7 @@ class Alignment(Base):
 
     # Relationships
     segments = relationship("Segment", back_populates="alignment")
+    alignment_segments = relationship("AlignmentSegment", back_populates="alignment")
 
 
 class SegmentEDStatus(str, PyEnum):
@@ -1781,11 +2181,14 @@ class Segment(Base):
 
     id = Column(String, primary_key=True)
     alignment_id = Column(String, ForeignKey("alignments.id"), nullable=False)
-    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False)
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=True)
 
     # Segment details
     segment_number = Column(Integer)
     name = Column(String)
+    planned_start = Column(Date, nullable=True)
+    planned_finish = Column(Date, nullable=True)
+    segment_status = Column(String(50), nullable=True)
 
     # Geometry (portion of alignment within this parcel)
     geometry = Column(JSON)  # LineString
@@ -1808,3 +2211,23 @@ class Segment(Base):
 
     # Relationships
     alignment = relationship("Alignment", back_populates="segments")
+
+
+class AlignmentSegment(Base):
+    """Clipped alignment geometry within each parcel (contract junction)."""
+
+    __tablename__ = "alignment_segments"
+
+    id = Column(String, primary_key=True)
+    alignment_id = Column(
+        String, ForeignKey("alignments.id"), nullable=False, index=True
+    )
+    parcel_id = Column(String, ForeignKey("parcels.id"), nullable=False, index=True)
+    segment_geometry = Column(JSON, nullable=True)
+    segment_length_feet = Column(Numeric(10, 2), nullable=True)
+    easement_width_feet = Column(Numeric(8, 2), nullable=True)
+    easement_area_sqft = Column(Numeric(12, 2), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    alignment = relationship("Alignment", back_populates="alignment_segments")
+    parcel = relationship("Parcel")

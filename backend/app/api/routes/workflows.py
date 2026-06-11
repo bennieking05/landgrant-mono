@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_persona
@@ -163,14 +164,26 @@ def export_binder(
             )
         rules = rules_query.order_by(models.RuleResult.fired_at.desc()).all()
 
-        docs_query = db.query(models.Document).filter(
-            models.Document.metadata_json["project_id"].astext == request.project_id
+        docs_filter = or_(
+            models.Document.project_id == request.project_id,
+            models.Document.metadata_json["project_id"].astext == request.project_id,
         )
+        docs_query = db.query(models.Document).filter(docs_filter)
         if request.parcel_id:
             docs_query = docs_query.filter(
-                models.Document.metadata_json["parcel_id"].astext == request.parcel_id
+                or_(
+                    models.Document.parcel_id == request.parcel_id,
+                    models.Document.metadata_json["parcel_id"].astext
+                    == request.parcel_id,
+                )
             )
         docs = docs_query.order_by(models.Document.created_at.desc()).all()
+
+        if not comms and not rules and not docs:
+            raise HTTPException(
+                status_code=422,
+                detail="binder_manifest_empty",
+            )
 
         manifest = {
             "bundle_id": bundle_id,

@@ -269,7 +269,7 @@ critical_periods:
   - id: objection_window
     description: "30-day objection period is jurisdictional; courts treat these dates as critical"
     citation: "IC 32-24-1-8"
-    warning_days: [7, 3, 1]
+    warning_days: [14, 7, 1]
 
   - id: exceptions_window
     description: "45-day exceptions period is critical for preserving defenses"

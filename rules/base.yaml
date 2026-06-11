@@ -19,6 +19,8 @@ anchor_events:
     description: Appraisers or commissioners report mailed to parties
   - id: trial_date_set
     description: Trial date for damages determination scheduled
+  - id: settlement_offer_served
+    description: Plaintiff settlement offer served on opposing party (statutory settlement sequence)
   - id: resolution_adopted
     description: Resolution of necessity adopted by governing body
   - id: quick_take_deposit

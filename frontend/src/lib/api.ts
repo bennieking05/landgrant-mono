@@ -101,6 +101,59 @@ export type CaseCreatePayload = { project_id: string; parcels: ParcelPayload[]; 
 export type CaseResponse = { project_id: string; parcel_ids: string[]; next_deadline_at?: string };
 export type CaseDetails = { id: string; project_id: string; stage: string; risk_score: number; next_deadline_at?: string };
 
+export type JurisdictionItem = { code: string; label: string; active: boolean };
+export type JurisdictionsResponse = { items: JurisdictionItem[] };
+
+export type ProjectHierarchyParcel = {
+  id: string;
+  stage?: string | null;
+  county_fips: string;
+  parcel_state?: string | null;
+};
+export type ProjectHierarchySegment = {
+  id: string;
+  name?: string | null;
+  segment_number?: number | null;
+  parcels: ProjectHierarchyParcel[];
+};
+export type ProjectHierarchyAlignment = {
+  id: string;
+  name: string;
+  alignment_type?: string | null;
+  segments: ProjectHierarchySegment[];
+};
+export type ProjectHierarchyResponse = {
+  project: { id: string; name: string; state?: string | null; jurisdiction_code: string };
+  alignments: ProjectHierarchyAlignment[];
+  unassigned_parcels: ProjectHierarchyParcel[];
+};
+
+export type RulesEvaluateTrigger = {
+  rule_id: string;
+  version: string;
+  citation: string;
+  fired: boolean;
+  evidence: Record<string, unknown>;
+};
+export type RulesEvaluateDeadline = {
+  deadline_type: string;
+  due_date: string;
+  source: string;
+  citation: string;
+  inputs: Record<string, unknown>;
+};
+export type RulesEvaluatePayload = {
+  jurisdiction: string;
+  case_payload?: Record<string, unknown>;
+  anchor_events?: Record<string, string>;
+};
+export type RulesEvaluateResponse = {
+  jurisdiction: string;
+  triggers: RulesEvaluateTrigger[];
+  deadlines: RulesEvaluateDeadline[];
+  errors: string[];
+};
+
 // Templates
 export type TemplateMetadata = { id: string; version: string; locale: string; jurisdiction?: string; variables: Record<string, unknown>; privilege: string };
 export type TemplateRenderPayload = {
@@ -145,6 +198,7 @@ export type UploadsResponse = { items: UploadItem[] };
 // Communications
 export type CommItem = { id: string; ts?: string; channel: string; summary?: string; proof: unknown; status: string };
 export type CommsResponse = { items: CommItem[] };
+export type CommsFeedItem = CommItem & { kind?: string; parcel_id?: string | null };
 
 // Packet
 export type ChecklistItem = { label: string; done: boolean };
@@ -158,8 +212,12 @@ export type RuleResultsResponse = { parcel_id: string; items: RuleResultItem[] }
 export type BudgetSummary = { project_id: string; cap_amount: number; actual_amount: number; utilization_pct: number; alerts: string[]; updated_at?: string };
 
 // Binder
-export type BinderSection = { name: string; status: string };
-export type BinderStatusResponse = { project_id: string; sections: BinderSection[] };
+export type BinderSection = { name: string; status: string; detail?: string };
+export type BinderStatusResponse = {
+  project_id: string;
+  completeness_pct?: number;
+  sections: BinderSection[];
+};
 
 // Notifications
 export type NotificationPreviewPayload = { template_id: string; channel: string; to: string; project_id: string; parcel_id: string; variables?: Record<string, unknown> };
@@ -170,7 +228,16 @@ export type ParcelItem = { id: string; project_id: string; stage: string; risk_s
 export type ParcelsResponse = { total: number; items: ParcelItem[] };
 
 // Deadlines
-export type DeadlineItem = { id: string; title: string; due_at: string; parcel_id?: string; timezone: string };
+export type DeadlineItem = {
+  id: string;
+  title: string;
+  due_at: string;
+  parcel_id?: string;
+  timezone: string;
+  deadline_type?: string | null;
+  citation?: string | null;
+  source_kind?: string | null;
+};
 export type DeadlinesResponse = { project_id: string; items: DeadlineItem[] };
 export type DeadlineCreatePayload = { project_id: string; parcel_id?: string; title: string; due_at: string; timezone?: string };
 export type DeadlineCreateResponse = { deadline_id: string };
@@ -244,6 +311,10 @@ export const healthEsign = () => apiGet<EsignProbeResponse>("/health/esign");
 // --- Cases ---
 export const createCase = (payload: CaseCreatePayload) => apiPostJson<CaseResponse>("/cases", payload);
 export const getCase = (parcelId: string) => apiGet<CaseDetails>(`/cases/${encodeURIComponent(parcelId)}`);
+export const getJurisdictions = () => apiGet<JurisdictionsResponse>("/jurisdictions");
+export const getProjectHierarchy = (projectId: string) =>
+  apiGet<ProjectHierarchyResponse>(`/projects/${encodeURIComponent(projectId)}/hierarchy`);
+export const evaluateRules = (payload: RulesEvaluatePayload) => apiPostJson<RulesEvaluateResponse>("/rules/evaluate", payload);
 
 // --- Templates ---
 export const listTemplates = () => apiGet<TemplateMetadata[]>("/templates");
@@ -255,7 +326,8 @@ export const generateDraft = (payload: AIDraftPayload) => apiPostJson<AIDraftRes
 // --- Workflows ---
 export const createTask = (payload: TaskCreatePayload) => apiPostJson<TaskResponse>("/workflows/tasks", payload);
 export const listApprovals = () => apiGet<ApprovalsResponse>("/workflows/approvals");
-export const exportBinder = () => apiPostJson<BinderExportResponse>("/workflows/binder/export", {});
+export const exportBinder = (payload: { project_id: string; parcel_id?: string | null }) =>
+  apiPostJson<BinderExportResponse>("/workflows/binder/export", payload);
 
 // --- Integrations ---
 export const docketWebhook = (payload: Record<string, unknown>) => apiPostJson<DocketWebhookResponse>("/integrations/dockets", payload);
@@ -275,6 +347,11 @@ export const uploadFile = (parcelId: string, file: File) => {
 
 // --- Communications ---
 export const listCommunications = (parcelId: string) => apiGet<CommsResponse>(`/communications?parcel_id=${encodeURIComponent(parcelId)}`);
+export const getCommunicationsFeed = (projectId: string, parcelId?: string | null) => {
+  const q = new URLSearchParams({ project_id: projectId });
+  if (parcelId) q.set("parcel_id", parcelId);
+  return apiGet<{ items: CommsFeedItem[] }>(`/communications/feed?${q.toString()}`);
+};
 
 // --- Packet ---
 export const getPacketChecklist = (parcelId: string) => apiGet<PacketChecklistResponse>(`/packet/checklist?parcel_id=${encodeURIComponent(parcelId)}`);
@@ -561,6 +638,7 @@ export type OfferCreatePayload = {
   terms_summary?: string;
   response_due_date?: string;
   offer_letter_id?: string;
+  statutory_override_reason?: string;
 };
 export type OfferCreateResponse = { offer_id: string; offer_number: number };
 export type CounterOfferPayload = {
@@ -570,8 +648,6 @@ export type CounterOfferPayload = {
   source?: string;
   response_due_date?: string;
   landowner_party_id?: string;
-  counter_amount?: number;
-  counter_terms?: Record<string, unknown>;
 };
 export type CounterOfferResponse = { counter_id: string; original_offer_id: string; offer_number: number };
 export type PaymentLedgerResponse = {
@@ -595,6 +671,10 @@ export type PaymentLedgerResponse = {
 
 export const listOffers = (parcelId: string) => apiGet<OffersResponse>(`/offers?parcel_id=${encodeURIComponent(parcelId)}`);
 export const createOffer = (payload: OfferCreatePayload) => apiPostJson<OfferCreateResponse>("/offers", payload);
+export const getOfferLifecycleCheck = (parcelId: string, projectId: string) => {
+  const q = new URLSearchParams({ parcel_id: parcelId, project_id: projectId });
+  return apiGet<Record<string, unknown>>(`/offers/lifecycle-check?${q.toString()}`);
+};
 export const createCounterOffer = (offerId: string, payload: CounterOfferPayload) => 
   apiPostJson<CounterOfferResponse>(`/offers/${encodeURIComponent(offerId)}/counter`, payload);
 export const getPaymentLedger = (parcelId: string) => apiGet<PaymentLedgerResponse>(`/offers/payment-ledger/${encodeURIComponent(parcelId)}`);
@@ -689,6 +769,20 @@ export const updateLitigationCase = (caseId: string, payload: LitigationCaseUpda
   }).then(res => res.json() as Promise<LitigationCaseUpdateResponse>);
 };
 export const getLitigationHistory = (caseId: string) => apiGet<LitigationHistoryResponse>(`/litigation/${encodeURIComponent(caseId)}/history`);
+
+export type LitigationTracksResponse = {
+  case_id: string;
+  state?: string | null;
+  tx: Record<string, unknown[]>;
+  in: Record<string, unknown[]>;
+};
+export const getLitigationTracks = (caseId: string) =>
+  apiGet<LitigationTracksResponse>(`/litigation/${encodeURIComponent(caseId)}/tracks`);
+
+export type ComplaintParcelsValidatePayload = { project_id: string; parcel_ids: string[] };
+export type ComplaintParcelsValidateResponse = { ok: boolean; errors: string[] };
+export const validateComplaintParcels = (payload: ComplaintParcelsValidatePayload) =>
+  apiPostJson<ComplaintParcelsValidateResponse>("/litigation/complaint-parcels/validate", payload);
 
 // ============================================================================
 // Curative Items

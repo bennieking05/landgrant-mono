@@ -8,7 +8,7 @@ but does NOT perform any valuation, appraisal, or compensation computations.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import uuid4
 
@@ -21,6 +21,7 @@ from app.db import models
 from app.db.models import Persona, OfferType, OfferStatus, PaymentStatus
 from app.security.rbac import Action, authorize
 from app.services.hashing import sha256_hex
+from app.services.offer_lifecycle import lifecycle_snapshot, validate_new_offer
 
 
 router = APIRouter(prefix="/offers", tags=["offers"])
@@ -42,6 +43,7 @@ class OfferCreate(BaseModel):
     terms_summary: Optional[str] = None
     response_due_date: Optional[str] = None  # ISO date
     offer_letter_id: Optional[str] = None
+    statutory_override_reason: Optional[str] = None
 
 
 class OfferUpdate(BaseModel):
@@ -95,6 +97,24 @@ def create_offer(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="invalid_offer_type") from exc
 
+    ok, seq_errors = validate_new_offer(
+        db,
+        parcel_id=payload.parcel_id,
+        project_id=payload.project_id,
+        offer_type=offer_type,
+        statutory_override_reason=payload.statutory_override_reason,
+    )
+    if not ok:
+        raise HTTPException(status_code=422, detail={"errors": seq_errors})
+
+    meta_extra: dict = {}
+    if payload.statutory_override_reason and payload.statutory_override_reason.strip():
+        meta_extra["statutory_override_reason"] = (
+            payload.statutory_override_reason.strip()
+        )
+    if seq_errors:
+        meta_extra["sequencing_warnings_acknowledged"] = seq_errors
+
     # Parse response due date if provided
     response_due = None
     if payload.response_due_date:
@@ -129,6 +149,7 @@ def create_offer(
         offer_letter_id=payload.offer_letter_id,
         source="internal",
         created_by=getattr(user, "id", None),
+        metadata_json=meta_extra,
     )
     db.add(offer)
 
@@ -222,10 +243,26 @@ def list_offers(
                 ),
                 "response_notes": o.response_notes,
                 "previous_offer_id": o.previous_offer_id,
+                "created_at": (
+                    o.created_at.isoformat() + "Z" if o.created_at else None
+                ),
             }
             for o in items
         ],
     }
+
+
+@router.get("/lifecycle-check")
+def offer_lifecycle_check(
+    parcel_id: str,
+    project_id: str,
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
+    """Return statutory sequencing flags and final-offer blockers for UI."""
+
+    authorize(persona, "offer", Action.READ)
+    return lifecycle_snapshot(db, parcel_id=parcel_id, project_id=project_id)
 
 
 @router.get("/{offer_id}")
@@ -417,6 +454,24 @@ def create_counteroffer(
         created_by=getattr(user, "id", None),
     )
     db.add(counter)
+
+    if payload.source == "landowner":
+        db.add(
+            models.Task(
+                id=str(uuid4()),
+                project_id=original.project_id,
+                parcel_id=original.parcel_id,
+                title="SLA: Review landowner counteroffer (3 days)",
+                persona=Persona.LAND_AGENT,
+                due_at=datetime.utcnow() + timedelta(days=3),
+                status="open",
+                metadata_json={
+                    "queue": "counteroffer_sla",
+                    "offer_id": counter_id,
+                    "original_offer_id": offer_id,
+                },
+            )
+        )
 
     # Update payment ledger
     ledger = (

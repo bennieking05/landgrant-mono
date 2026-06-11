@@ -160,3 +160,21 @@ class TestDeadlinesDeriveEndpoint:
             },
         )
         assert res.status_code == 403
+
+    def test_derive_persist_blocked_on_chronology_in(self):
+        """Persisting IN deadlines is rejected when complaint precedes 30-day minimum."""
+
+        res = client.post(
+            "/deadlines/derive",
+            headers=auth_headers(Persona.IN_HOUSE_COUNSEL, user_id="COUNSEL-001"),
+            json={
+                "project_id": "PRJ-001",
+                "jurisdiction": "IN",
+                "anchor_events": {
+                    "offer_served": "2025-02-06",
+                    "complaint_filed": "2025-02-20",
+                },
+                "persist": True,
+            },
+        )
+        assert res.status_code == 422

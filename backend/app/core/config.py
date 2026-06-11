@@ -110,6 +110,9 @@ class Settings(BaseSettings):
     # Jira
     jira_api_key: Optional[str] = None
 
+    # Milestone 1 contract: ``projects.state`` CHECK (TX, IN) — single source for UI
+    contract_jurisdiction_codes: list[str] = ["TX", "IN"]
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Optional
 
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,6 +16,7 @@ from app.services.hashing import sha256_hex
 from app.services.deadline_rules import (
     derive_deadlines,
     derive_deadlines_from_template_render,
+    validate_anchor_chronology,
 )
 
 
@@ -44,6 +45,9 @@ def list_deadlines(
                 "due_at": d.due_at.isoformat() + "Z",
                 "parcel_id": d.parcel_id,
                 "timezone": d.timezone,
+                "deadline_type": d.deadline_type,
+                "citation": d.citation,
+                "source_kind": d.source_kind,
             }
             for d in items
         ],
@@ -209,6 +213,15 @@ def derive_statutory_deadlines(
     """
     authorize(persona, "deadline", Action.WRITE)
 
+    chronology_errors = validate_anchor_chronology(
+        payload.jurisdiction, payload.anchor_events
+    )
+    if chronology_errors and payload.persist:
+        raise HTTPException(
+            status_code=422,
+            detail={"errors": chronology_errors},
+        )
+
     # Derive deadlines
     if payload.template_id and payload.template_variables:
         result = derive_deadlines_from_template_render(
@@ -222,6 +235,10 @@ def derive_statutory_deadlines(
             jurisdiction=payload.jurisdiction,
             anchor_events=payload.anchor_events,
         )
+
+    if chronology_errors:
+        # Non-persisting callers still see ordering problems alongside derived rows.
+        result.errors.extend(chronology_errors)
 
     # Convert to response items
     deadline_items: list[DerivedDeadlineItem] = []
@@ -245,30 +262,62 @@ def derive_statutory_deadlines(
 
     persisted_count = 0
 
+    eff_parcel_id = payload.parcel_id
+    if payload.persist and not eff_parcel_id:
+        row = (
+            db.query(models.Parcel.id)
+            .filter(models.Parcel.project_id == payload.project_id)
+            .limit(1)
+            .first()
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=422,
+                detail="persist_requires_parcel_or_project_has_no_parcels",
+            )
+        eff_parcel_id = row[0]
+
     # Persist to database if requested
     if payload.persist and deadline_items:
         for item in deadline_items:
-            # Skip non-deadline types (floors, eligibility dates)
-            if item.deadline_type not in ("deadline", "service_requirement"):
-                continue
-
             try:
-                due_dt = datetime.fromisoformat(item.due_date)
+                due_date_only = date.fromisoformat(item.due_date)
             except ValueError:
                 continue
 
-            # Create deadline with citation in title
+            due_dt = datetime.combine(due_date_only, time(12, 0))
+
+            type_prefix = {
+                "deadline": "",
+                "floor": "[Earliest date] ",
+                "eligibility": "[Eligibility] ",
+                "service_requirement": "[Service requirement] ",
+            }.get(item.deadline_type, f"[{item.deadline_type}] ")
+
             title_with_citation = (
-                f"{item.title} ({item.citation})" if item.citation else item.title
+                f"{type_prefix}{item.title} ({item.citation})"
+                if item.citation
+                else f"{type_prefix}{item.title}"
             )
 
             d = models.Deadline(
                 id=str(uuid4()),
                 project_id=payload.project_id,
-                parcel_id=payload.parcel_id,
+                parcel_id=eff_parcel_id,
                 title=title_with_citation,
                 due_at=due_dt,
                 timezone=payload.timezone,
+                deadline_type=item.deadline_type,
+                citation=item.citation or None,
+                source_kind="statutory",
+                is_automated=True,
+                due_date=due_date_only,
+                inputs_json={
+                    "anchor_event": item.anchor_event,
+                    "anchor_date": item.anchor_date,
+                    "jurisdiction": payload.jurisdiction,
+                    "deadline_id_yaml": item.id,
+                },
             )
             db.add(d)
 
@@ -289,6 +338,7 @@ def derive_statutory_deadlines(
                         "anchor_event": item.anchor_event,
                         "citation": item.citation,
                         "jurisdiction": payload.jurisdiction,
+                        "deadline_type": item.deadline_type,
                     },
                     hash=sha256_hex(
                         {

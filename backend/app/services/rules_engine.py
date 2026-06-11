@@ -332,9 +332,13 @@ def evaluate_rules(
                     field: payload.get(field) for field in hook.get("fields", [])
                 }
 
-        # Get citation from first deadline or trigger itself
-        deadlines = trigger.get("deadlines", [{}])
-        citation = deadlines[0].get("citation", "") if deadlines else ""
+        citation = ""
+        hooks = trigger.get("evidence_hooks") or []
+        if hooks:
+            citation = hooks[0].get("citation", "") or ""
+        if not citation:
+            deadlines = trigger.get("deadlines", [{}])
+            citation = deadlines[0].get("citation", "") if deadlines else ""
 
         results.append(
             RuleResultPayload(

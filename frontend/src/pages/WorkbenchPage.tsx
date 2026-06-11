@@ -12,6 +12,8 @@ import { ROEPanel } from "@/components/ROEPanel";
 import { NegotiationPanel } from "@/components/NegotiationPanel";
 import { TaskManager } from "@/components/TaskManager";
 import { CopilotPanel } from "@/components/CopilotPanel";
+import { ProjectHierarchyNav } from "@/components/ProjectHierarchyNav";
+import { IntakeForm } from "@/components/IntakeForm";
 
 type WorkbenchTab = "parcels" | "pipeline" | "tasks";
 
@@ -70,6 +72,14 @@ export function WorkbenchPage() {
           {tabBtn("tasks", "Tasks")}
         </div>
 
+        {projectId ? (
+          <ProjectHierarchyNav
+            projectId={projectId}
+            selectedParcelId={parcelId}
+            onSelectParcel={setParcelId}
+          />
+        ) : null}
+
         {!parcelId && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             Select or create a parcel to view parcel-specific workbench tools.
@@ -78,6 +88,15 @@ export function WorkbenchPage() {
 
         {tab === "parcels" && (
           <>
+            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold">Staff intake</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Create or extend projects and parcels (moved from the landowner portal).
+              </p>
+              <div className="mt-4">
+                <IntakeForm initialProjectId={projectId} />
+              </div>
+            </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <Suspense
                 fallback={
@@ -94,9 +113,9 @@ export function WorkbenchPage() {
               </Suspense>
               <ParcelList projectId={projectId} onSelectParcel={setParcelId} />
             </div>
-            {parcelId && (
+            {parcelId && projectId && (
               <div className="grid gap-4 md:grid-cols-3">
-                <CommsLog parcelId={parcelId} />
+                <CommsLog projectId={projectId} parcelId={parcelId} />
                 <PacketChecklist parcelId={parcelId} />
                 <RuleResults parcelId={parcelId} />
               </div>

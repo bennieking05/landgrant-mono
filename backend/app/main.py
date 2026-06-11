@@ -9,6 +9,8 @@ from sqlalchemy import text
 from app.api.routes import (
     auth as auth_routes,
     cases,
+    jurisdictions,
+    projects,
     templates,
     ai,
     health,
@@ -16,6 +18,7 @@ from app.api.routes import (
     integrations,
     portal,
     communications,
+    notices,
     packet,
     budgets,
     binder,
@@ -51,6 +54,7 @@ from app.db.session import Base, SessionLocal, engine
 from app.db import models
 from app.telemetry import configure_tracing, instrument_app
 from app.security.auth_middleware import AuthEnforcementMiddleware
+from app.security.mutation_audit_middleware import MutationAuditMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +162,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(AuthEnforcementMiddleware)
+app.add_middleware(MutationAuditMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
@@ -168,13 +173,16 @@ app.add_middleware(
 
 app.include_router(auth_routes.router)
 app.include_router(health.router)
+app.include_router(jurisdictions.router)
 app.include_router(cases.router)
+app.include_router(projects.router)
 app.include_router(templates.router)
 app.include_router(ai.router)
 app.include_router(workflows.router)
 app.include_router(integrations.router)
 app.include_router(portal.router)
 app.include_router(communications.router)
+app.include_router(notices.router)
 app.include_router(packet.router)
 app.include_router(budgets.router)
 app.include_router(binder.router)
@@ -236,6 +244,58 @@ def _run_migrations_if_enabled() -> None:
         "sqlalchemy.url", settings.effective_database_url.replace("%", "%%")
     )
     command.upgrade(cfg, "head")
+
+
+def _seed_library_templates(db) -> None:
+    """Idempotent: load ``templates/library/*/meta.json`` into ``templates`` rows."""
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "templates" / "library"
+    if not root.is_dir():
+        return
+    for meta_path in sorted(root.glob("**/meta.json")):
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        tid = meta.get("id")
+        if not tid or db.get(models.Template, tid):
+            continue
+        folder = meta_path.parent
+        tmpl_path = folder / "template.md"
+        content = ""
+        if tmpl_path.is_file():
+            try:
+                content = tmpl_path.read_text(encoding="utf-8")
+            except OSError:
+                content = ""
+        ver = str(meta.get("version") or "1.0.0")
+        jur = (meta.get("jurisdiction") or "").strip().upper() or None
+        state = jur[:2] if jur and len(jur) >= 2 else None
+        variables = meta.get("variables") or {}
+        db.add(
+            models.Template(
+                id=tid,
+                version=ver,
+                locale=str(meta.get("locale") or "en-US"),
+                jurisdiction=jur,
+                variables_schema=variables,
+                redactions=meta.get("redactions") or [],
+                privilege=str(meta.get("privilege") or "non_privileged"),
+                classifications=meta.get("classifications") or [],
+                template_type=str(meta.get("template_type") or "letter"),
+                state=state,
+                template_name=str(
+                    meta.get("template_name") or tid.replace("_", " ").title()
+                ),
+                template_content=content or None,
+                variables=variables,
+                schema_json=meta,
+                version_int=1,
+                template_status="approved",
+            )
+        )
 
 
 def _bootstrap_dev_db() -> None:
@@ -312,16 +372,24 @@ def _bootstrap_dev_db() -> None:
             # === Projects ===
             project1 = models.Project(
                 id=project1_id,
+                firm_id=models.DEFAULT_FIRM_ID,
                 name="Utility Corridor Expansion",
                 jurisdiction_code="TX",
+                state="TX",
+                project_type="pipeline",
+                operational_status="active",
                 stage=models.ProjectStage.NEGOTIATION,
                 risk_score=35,
                 next_deadline_at=datetime.utcnow() + timedelta(days=12),
             )
             project2 = models.Project(
                 id=project2_id,
+                firm_id=models.DEFAULT_FIRM_ID,
                 name="Highway 281 Widening",
                 jurisdiction_code="TX",
+                state="TX",
+                project_type="other",
+                operational_status="planning",
                 stage=models.ProjectStage.INTAKE,
                 risk_score=20,
                 next_deadline_at=datetime.utcnow() + timedelta(days=30),
@@ -334,6 +402,10 @@ def _bootstrap_dev_db() -> None:
                 id=parcel1_id,
                 project_id=project1.id,
                 county_fips="48439",
+                parcel_number="P-001",
+                county="Montgomery County",
+                parcel_state="TX",
+                acquisition_type="permanent_easement",
                 stage="negotiation",
                 risk_score=40,
                 next_deadline_at=datetime.utcnow() + timedelta(days=7),
@@ -342,6 +414,10 @@ def _bootstrap_dev_db() -> None:
                 id=parcel2_id,
                 project_id=project1.id,
                 county_fips="48439",
+                parcel_number="P-002",
+                county="Montgomery County",
+                parcel_state="TX",
+                acquisition_type="fee_simple",
                 stage="intake",
                 risk_score=75,
                 next_deadline_at=datetime.utcnow() + timedelta(days=3),
@@ -350,6 +426,10 @@ def _bootstrap_dev_db() -> None:
                 id=parcel3_id,
                 project_id=project1.id,
                 county_fips="48439",
+                parcel_number="P-003",
+                county="Montgomery County",
+                parcel_state="TX",
+                acquisition_type="temporary_easement",
                 stage="offer_sent",
                 risk_score=25,
                 next_deadline_at=datetime.utcnow() + timedelta(days=14),
@@ -358,6 +438,10 @@ def _bootstrap_dev_db() -> None:
                 id=parcel4_id,
                 project_id=project1.id,
                 county_fips="48453",
+                parcel_number="P-004",
+                county="Travis County",
+                parcel_state="TX",
+                acquisition_type="fee_simple",
                 stage="closed",
                 risk_score=10,
                 next_deadline_at=None,
@@ -366,6 +450,10 @@ def _bootstrap_dev_db() -> None:
                 id=parcel5_id,
                 project_id=project2.id,
                 county_fips="48029",
+                parcel_number="P-005",
+                county="Bexar County",
+                parcel_state="TX",
+                acquisition_type="permanent_easement",
                 stage="intake",
                 risk_score=55,
                 next_deadline_at=datetime.utcnow() + timedelta(days=21),
@@ -440,6 +528,58 @@ def _bootstrap_dev_db() -> None:
                     parcel_id=parcel5_id,
                     party_id="OWNER-003",
                     relationship_type="owner",
+                )
+            )
+
+            # === Parcel interests (contracted junction) ===
+            db.add(
+                models.ParcelInterest(
+                    id="PI-001",
+                    parcel_id=parcel1_id,
+                    party_id="OWNER-001",
+                    interest_type="fee_owner",
+                    is_primary_contact=True,
+                    active_flag=True,
+                )
+            )
+            db.add(
+                models.ParcelInterest(
+                    id="PI-002",
+                    parcel_id=parcel2_id,
+                    party_id="OWNER-002",
+                    interest_type="fee_owner",
+                    is_primary_contact=True,
+                    active_flag=True,
+                )
+            )
+            db.add(
+                models.ParcelInterest(
+                    id="PI-003",
+                    parcel_id=parcel3_id,
+                    party_id="OWNER-002",
+                    interest_type="fee_owner",
+                    is_primary_contact=True,
+                    active_flag=True,
+                )
+            )
+            db.add(
+                models.ParcelInterest(
+                    id="PI-004",
+                    parcel_id=parcel4_id,
+                    party_id="OWNER-003",
+                    interest_type="fee_owner",
+                    is_primary_contact=True,
+                    active_flag=True,
+                )
+            )
+            db.add(
+                models.ParcelInterest(
+                    id="PI-005",
+                    parcel_id=parcel5_id,
+                    party_id="OWNER-003",
+                    interest_type="fee_owner",
+                    is_primary_contact=True,
+                    active_flag=True,
                 )
             )
 
@@ -733,6 +873,16 @@ def _bootstrap_dev_db() -> None:
             )
             db.add(
                 models.User(
+                    id="LANDOWNER-001",
+                    email="owner@example.com",
+                    persona=models.Persona.LANDOWNER,
+                    full_name="Riverbend Owner",
+                    firm_id=models.DEFAULT_FIRM_ID,
+                    password_hash=_dev_pw,
+                )
+            )
+            db.add(
+                models.User(
                     id="PLATFORM-001",
                     email="admin@landgrant.local",
                     persona=models.Persona.PLATFORM_ADMIN,
@@ -763,6 +913,11 @@ def _bootstrap_dev_db() -> None:
                     firm_id=models.DEFAULT_FIRM_ID,
                 )
             )
+
+            try:
+                _seed_library_templates(db)
+            except Exception:
+                logger.exception("template library seed failed; continuing demo seed")
 
             db.commit()
         except Exception:

@@ -37,6 +37,49 @@ def _bootstrap_schema() -> None:
     idempotent and only seeds demo rows when the Project table is empty.
     """
 
+    try:
+        from pathlib import Path
+
+        from alembic import command
+        from alembic.config import Config
+        from sqlalchemy import text
+
+        from app.core.config import get_settings
+        from app.db.session import engine
+
+        settings = get_settings()
+        url = settings.effective_database_url
+        if "postgresql" not in url:
+            raise RuntimeError("skip pg migration helper")
+
+        backend_root = Path(__file__).resolve().parents[1]
+        cfg = Config(str(backend_root / "alembic.ini"))
+        cfg.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
+
+        with engine.connect() as conn:
+            has_parcel_table = conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.tables "
+                    "WHERE table_schema='public' AND table_name='parcels'"
+                )
+            ).first()
+            try:
+                row = conn.execute(
+                    text("SELECT version_num FROM alembic_version LIMIT 1")
+                ).first()
+                cur = row[0] if row else None
+            except Exception:
+                cur = None
+
+        if has_parcel_table and cur is None:
+            # Dev DB created via ``create_all`` with no Alembic stamp — align
+            # revision so we only apply pending migrations (e.g. 0006).
+            command.stamp(cfg, "0005_auth_password_parcel_grants")
+
+        command.upgrade(cfg, "head")
+    except Exception:
+        pass
+
     from app.main import _bootstrap_dev_db
 
     try:

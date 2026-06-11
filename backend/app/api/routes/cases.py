@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_persona, get_current_principal
+from app.core.config import get_settings
 from app.db import models
-from app.db.models import Persona
+from app.db.models import Persona, ParcelStage
 from app.security.access_scope import require_parcel_scope
 from app.security.jwt_auth import JWTPrincipal
 from app.security.rbac import authorize, Action
@@ -48,9 +49,24 @@ class CaseResponse(BaseModel):
 def create_case(
     payload: CaseCreate,
     persona: Persona = Depends(get_current_persona),
+    principal: JWTPrincipal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ):
     authorize(persona, "parcel", Action.WRITE)
+
+    settings = get_settings()
+    allowed = {c.strip().upper() for c in settings.contract_jurisdiction_codes}
+    jc = payload.jurisdiction_code.strip().upper()
+    if jc not in allowed:
+        raise HTTPException(
+            status_code=422,
+            detail="unsupported_jurisdiction",
+        )
+
+    try:
+        project_stage = models.ProjectStage(payload.stage)
+    except ValueError:
+        project_stage = models.ProjectStage.INTAKE
 
     parcel_ids: list[str] = []
     try:
@@ -58,20 +74,49 @@ def create_case(
         if project is None:
             project = models.Project(
                 id=payload.project_id,
+                firm_id=principal.firm_id,
                 name=f"Project {payload.project_id}",
-                jurisdiction_code=payload.jurisdiction_code,
-                stage=payload.stage,
+                jurisdiction_code=jc,
+                state=jc,
+                stage=project_stage,
             )
             db.add(project)
             db.flush()
+        else:
+            if (
+                principal.firm_id
+                and project.firm_id
+                and project.firm_id != principal.firm_id
+            ):
+                raise HTTPException(
+                    status_code=403,
+                    detail="project_firm_mismatch",
+                )
+            if project.jurisdiction_code and project.jurisdiction_code.upper() != jc:
+                raise HTTPException(
+                    status_code=409,
+                    detail="jurisdiction_mismatch",
+                )
+            project.jurisdiction_code = jc
+            project.state = jc
+            if payload.stage:
+                try:
+                    project.stage = models.ProjectStage(payload.stage)
+                except ValueError:
+                    pass
 
         for parcel_payload in payload.parcels:
             parcel_id = str(uuid4())
+            try:
+                p_stage = ParcelStage(parcel_payload.stage)
+            except ValueError:
+                p_stage = ParcelStage.INTAKE
             parcel = models.Parcel(
                 id=parcel_id,
                 project_id=payload.project_id,
                 county_fips=parcel_payload.county_fips,
-                stage=parcel_payload.stage,
+                parcel_state=jc,
+                stage=p_stage,
                 risk_score=parcel_payload.risk_score,
             )
             db.add(parcel)

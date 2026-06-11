@@ -243,13 +243,59 @@ test.describe("Litigation Case Management", () => {
     console.log(`Analytics: ${JSON.stringify(data)}`);
   });
 
-  test("UI: should display litigation panel", async ({ page }) => {
-    await page.goto(`/workbench?projectId=${PROJECT_ID}&parcelId=${PARCEL_ID}`);
-    await page.waitForTimeout(1000);
-
-    await page.screenshot({
-      path: path.join(ARTIFACTS_DIR, "litigation-01-panel.png"),
-      fullPage: true,
+  test("API: complaint-parcels validate with JWT", async ({ request }) => {
+    if (!(await isBackendAvailable())) {
+      test.skip(true, SKIP_API_MESSAGE);
+      return;
+    }
+    const loginRes = await request.post(`${API_BASE}/auth/login`, {
+      data: { email: "counsel@example.com", password: "devpass123" },
     });
+    if (!loginRes.ok()) {
+      test.skip(true, "counsel login failed");
+      return;
+    }
+    const { access_token: token } = (await loginRes.json()) as { access_token: string };
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+    const res = await request.post(`${API_BASE}/litigation/complaint-parcels/validate`, {
+      headers,
+      data: { project_id: PROJECT_ID, parcel_ids: ["PARCEL-001", "PARCEL-002"] },
+    });
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as { ok: boolean; errors: string[] };
+    expect(body.ok).toBe(true);
+    expect(body.errors ?? []).toEqual([]);
+  });
+
+  test("API: litigation tracks with JWT", async ({ request }) => {
+    if (!(await isBackendAvailable())) {
+      test.skip(true, SKIP_API_MESSAGE);
+      return;
+    }
+    const loginRes = await request.post(`${API_BASE}/auth/login`, {
+      data: { email: "counsel@example.com", password: "devpass123" },
+    });
+    if (!loginRes.ok()) {
+      test.skip(true, "counsel login failed");
+      return;
+    }
+    const { access_token: token } = (await loginRes.json()) as { access_token: string };
+    const headers = { Authorization: `Bearer ${token}` };
+    const listRes = await request.get(`${API_BASE}/litigation?parcel_id=${PARCEL_ID}`, { headers });
+    expect(listRes.status()).toBe(200);
+    const list = (await listRes.json()) as { items: Array<{ id: string }> };
+    if (!list.items?.length) {
+      test.skip(true, "no litigation case for parcel");
+      return;
+    }
+    const caseId = list.items[0].id;
+    const tracksRes = await request.get(`${API_BASE}/litigation/${caseId}/tracks`, { headers });
+    expect(tracksRes.status()).toBe(200);
+    const tracks = (await tracksRes.json()) as { tx: unknown; in: unknown };
+    expect(tracks.tx).toBeDefined();
+    expect(tracks.in).toBeDefined();
   });
 });

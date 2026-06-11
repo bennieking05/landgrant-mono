@@ -68,6 +68,37 @@ def _parse_date(value: Union[str, date, datetime]) -> date:
     raise ValueError(f"Cannot parse date from: {value}")
 
 
+def validate_anchor_chronology(
+    jurisdiction: str, anchor_events: dict[str, Union[str, date, datetime]]
+) -> list[str]:
+    """Return human-readable validation errors for impossible anchor orderings."""
+
+    errors: list[str] = []
+    jur = jurisdiction.strip().upper()
+    parsed: dict[str, date] = {}
+    for event_name, event_date in anchor_events.items():
+        try:
+            parsed[event_name] = _parse_date(event_date)
+        except ValueError as e:
+            errors.append(f"Invalid date for {event_name}: {e}")
+            return errors
+
+    if jur == "IN":
+        offer = parsed.get("offer_served")
+        complaint = parsed.get("complaint_filed")
+        if offer and complaint:
+            if complaint < offer:
+                errors.append(
+                    "complaint_filed must be on or after offer_served (IC 32-24-1-5)"
+                )
+            elif complaint < offer + timedelta(days=30):
+                errors.append(
+                    "complaint_filed is before the 30-day minimum after offer_served "
+                    "(IC 32-24-1-5)"
+                )
+    return errors
+
+
 def _compute_due_date(anchor_date: date, offset_days: int, direction: str) -> date:
     """Compute due date from anchor and offset."""
     if direction in ("after", "after_hearing", "after_settlement_offer"):
@@ -136,51 +167,88 @@ def derive_deadlines(
         warning_days = period.get("warning_days", [])
         warning_lookup[period_id] = warning_days
 
-    # Process deadline chains
+    # Process deadline chains (multi-pass so relative_to anchors can resolve
+    # after earlier deadlines in the same chain, e.g. settlement_offer_served).
     for chain in rules.get("deadline_chains", []):
         anchor_event = chain.get("anchor_event")
         if anchor_event not in parsed_anchors:
             continue
 
         anchor_date = parsed_anchors[anchor_event]
+        chain_deadlines = list(chain.get("deadlines", []))
+        max_passes = max(len(chain_deadlines) + 3, 6)
+        pending = list(chain_deadlines)
 
-        for dl in chain.get("deadlines", []):
-            deadline_id = dl.get("id", "unknown")
-            offset_days = dl.get("offset_days", 0)
-            direction = dl.get("direction", "after")
+        for _ in range(max_passes):
+            if not pending:
+                break
+            still: list[dict[str, Any]] = []
+            progressed = False
+            for dl in pending:
+                deadline_id = dl.get("id", "unknown")
+                offset_days = dl.get("offset_days", 0)
+                direction = dl.get("direction", "after")
+                relative_to = dl.get("relative_to")
 
-            # Handle relative deadlines (e.g., relative_to: settlement_offer_served)
-            relative_to = dl.get("relative_to")
-            if relative_to and relative_to in parsed_anchors:
-                base_date = parsed_anchors[relative_to]
-            else:
-                base_date = anchor_date
+                if relative_to:
+                    if relative_to not in parsed_anchors:
+                        if relative_to == "settlement_offer_served":
+                            offer_d = next(
+                                (
+                                    x
+                                    for x in result.deadlines
+                                    if x.id == "settlement_offer_deadline"
+                                    and x.anchor_event == anchor_event
+                                ),
+                                None,
+                            )
+                            if offer_d is not None:
+                                parsed_anchors["settlement_offer_served"] = (
+                                    offer_d.due_date
+                                )
+                    if relative_to not in parsed_anchors:
+                        still.append(dl)
+                        continue
+                    base_date = parsed_anchors[relative_to]
+                else:
+                    base_date = anchor_date
 
-            due_date = _compute_due_date(base_date, offset_days, direction)
+                due_date = _compute_due_date(base_date, offset_days, direction)
 
-            # Determine warning days from critical periods
-            warn_days: list[int] = []
-            for period_id, days in warning_lookup.items():
-                if period_id in deadline_id:
-                    warn_days = days
-                    break
+                warn_days: list[int] = []
+                for period_id, days in warning_lookup.items():
+                    if period_id in deadline_id:
+                        warn_days = days
+                        break
 
-            derived = DerivedDeadline(
-                id=deadline_id,
-                title=_format_deadline_title(deadline_id),
-                description=dl.get("description", ""),
-                due_date=due_date,
-                anchor_event=anchor_event,
-                anchor_date=anchor_date,
-                offset_days=offset_days,
-                citation=dl.get("citation", ""),
-                deadline_type=dl.get("type", "deadline"),
-                extendable=dl.get("extendable", False),
-                max_extension_days=dl.get("max_extension_days", 0),
-                notes=dl.get("notes"),
-                warning_days=warn_days,
-            )
-            result.deadlines.append(derived)
+                derived = DerivedDeadline(
+                    id=deadline_id,
+                    title=_format_deadline_title(deadline_id),
+                    description=dl.get("description", ""),
+                    due_date=due_date,
+                    anchor_event=anchor_event,
+                    anchor_date=anchor_date,
+                    offset_days=offset_days,
+                    citation=dl.get("citation", ""),
+                    deadline_type=dl.get("type", "deadline"),
+                    extendable=dl.get("extendable", False),
+                    max_extension_days=dl.get("max_extension_days", 0),
+                    notes=dl.get("notes"),
+                    warning_days=warn_days,
+                )
+                result.deadlines.append(derived)
+                progressed = True
+            pending = still
+            if not progressed:
+                break
+
+        for dl in pending:
+            rel_to = dl.get("relative_to")
+            if rel_to:
+                result.errors.append(
+                    f"Missing anchor '{rel_to}' required for deadline "
+                    f"'{dl.get('id', '?')}' (chain {anchor_event})"
+                )
 
     # Sort deadlines by due date
     result.deadlines.sort(key=lambda d: d.due_date)

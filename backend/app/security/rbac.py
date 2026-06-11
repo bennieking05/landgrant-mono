@@ -33,6 +33,7 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
     },
     Persona.LAND_AGENT: {
         "parcel": {Action.READ, Action.WRITE, Action.UPDATE, Action.CREATE},
+        "audit": {Action.READ},
         "communication": {Action.READ, Action.WRITE},
         "packet": {Action.EXECUTE},
         "title": {Action.READ, Action.WRITE},
@@ -54,6 +55,7 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
     Persona.IN_HOUSE_COUNSEL: {
         "template": {Action.READ, Action.WRITE, Action.APPROVE, Action.EXECUTE},
         "binder": {Action.READ, Action.APPROVE},
+        "audit": {Action.READ},
         "budget": {Action.READ, Action.WRITE},
         "communication": {Action.READ, Action.WRITE},
         "deadline": {Action.READ, Action.WRITE},
@@ -79,6 +81,7 @@ PERMISSION_MATRIX: dict[Persona, dict[str, set[Action]]] = {
     Persona.OUTSIDE_COUNSEL: {
         "case": {Action.READ, Action.WRITE, Action.CREATE},
         "deadline": {Action.READ, Action.WRITE},
+        "audit": {Action.READ},
         "status": {Action.EXECUTE},
         "litigation": {Action.READ, Action.WRITE},
         "budget": {Action.READ},

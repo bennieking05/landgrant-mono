@@ -49,6 +49,12 @@ def _tail_hash(db: Session, firm_id: Optional[str]) -> Optional[str]:
     return row.hash if row else None
 
 
+def chain_tip_hash(db: Session, firm_id: Optional[str]) -> Optional[str]:
+    """Return the latest ``AuditEvent.hash`` for ``firm_id`` (or global if ``None``)."""
+
+    return _tail_hash(db, firm_id)
+
+
 def append_audit_event(
     db: Session,
     *,

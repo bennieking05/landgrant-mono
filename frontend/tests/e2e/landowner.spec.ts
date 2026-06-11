@@ -11,8 +11,8 @@ import path from "path";
  *   - Frontend running on port 3050
  *
  * The whole SPA is behind the auth guard (see App.tsx), so the smoke test
- * signs in with a seeded account that may open /intake (platform_admin) and
- * injects the JWT before the app boots.
+ * signs in with a seeded platform admin and opens `/portal` (same landowner
+ * shell as real owners — no staff intake block).
  */
 
 const ARTIFACTS_DIR = path.resolve(__dirname, "..", "..", "..", "artifacts", "e2e");
@@ -20,7 +20,7 @@ const PROJECT_ID = "PRJ-001";
 const PARCEL_ID = "PARCEL-001";
 const API_BASE = process.env.VITE_API_BASE ?? "http://localhost:8050";
 const TOKEN_KEY = "landgrant.jwt";
-// Seeded dev user with /intake access (see backend _bootstrap_dev_db).
+// Seeded dev user with `/portal` access (see backend _bootstrap_dev_db).
 const TEST_EMAIL = "admin@landgrant.local";
 const TEST_PASSWORD = "devpass123";
 
@@ -42,7 +42,7 @@ test.describe("Landowner Portal Flow", () => {
   test.beforeEach(async ({ page, request }) => {
     await authenticate(page, request);
     // Navigate to intake page with project/parcel context
-    await page.goto(`/intake?projectId=${PROJECT_ID}&parcelId=${PARCEL_ID}`);
+    await page.goto(`/portal?projectId=${PROJECT_ID}&parcelId=${PARCEL_ID}`);
   });
 
   test("should load intake page with all components", async ({ page }) => {
@@ -108,12 +108,11 @@ test.describe("Landowner Portal Flow", () => {
     });
   });
 
-  test("should show AI draft panel", async ({ page }) => {
-    // Look for AI draft section
-    const aiSection = page.locator("text=AI").first();
-    
+  test("portal should not surface staff intake or agent tools", async ({ page }) => {
+    await expect(page.locator("text=Staff intake")).toHaveCount(0);
+    await expect(page.locator("text=Agent Tools")).toHaveCount(0);
     await page.screenshot({
-      path: path.join(ARTIFACTS_DIR, "landowner-05-ai-panel.png"),
+      path: path.join(ARTIFACTS_DIR, "landowner-05-portal-no-staff-tools.png"),
       fullPage: true,
     });
   });

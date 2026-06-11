@@ -66,6 +66,194 @@ class LitigationCaseUpdate(BaseModel):
     closed_date: Optional[str] = None
 
 
+class ComplaintParcelsValidateRequest(BaseModel):
+    """Validate parcels can be joined on one complaint (same project + county)."""
+
+    project_id: str
+    parcel_ids: list[str]
+
+
+@router.post("/complaint-parcels/validate")
+def validate_complaint_parcels(
+    payload: ComplaintParcelsValidateRequest,
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
+    """Multi-parcel complaint checks: same project and same county label."""
+    authorize(persona, "litigation", Action.READ)
+
+    errors: list[str] = []
+    if not payload.parcel_ids:
+        errors.append("no_parcels")
+        return {"ok": False, "errors": errors}
+
+    parcels: list[models.Parcel] = []
+    for pid in payload.parcel_ids:
+        p = db.get(models.Parcel, pid)
+        if p is None:
+            errors.append(f"parcel_not_found:{pid}")
+            continue
+        if p.project_id != payload.project_id:
+            errors.append(f"project_mismatch:{pid}")
+        parcels.append(p)
+
+    if len(parcels) < 2 and not errors:
+        errors.append("need_at_least_two_parcels_for_multi_parcel_checks")
+
+    counties = {
+        (p.county or "").strip().lower() or (p.county_fips or "").strip()
+        for p in parcels
+    }
+    counties.discard("")
+    if len(counties) > 1:
+        errors.append("parcels_must_share_county")
+
+    return {"ok": not errors, "errors": errors}
+
+
+def _date_json(d) -> Optional[str]:
+    if d is None:
+        return None
+    if hasattr(d, "isoformat"):
+        return d.isoformat()
+    return str(d)
+
+
+@router.get("/{case_id}/tracks")
+def get_litigation_tracks(
+    case_id: str,
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+):
+    """Jurisdiction-specific litigation sub-records (TX commissioners / IN appraisers)."""
+    authorize(persona, "litigation", Action.READ)
+
+    case = db.get(models.LitigationCase, case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="case_not_found")
+
+    proj = db.get(models.Project, case.project_id)
+    state = (
+        case.state
+        or (proj.state if proj else None)
+        or (proj.jurisdiction_code if proj else "")
+        or ""
+    )
+    state = str(state).strip().upper()[:2]
+
+    tx_sc = (
+        db.query(models.TxSpecialCommissioner)
+        .filter(models.TxSpecialCommissioner.complaint_id == case_id)
+        .order_by(models.TxSpecialCommissioner.commissioner_number.asc())
+        .all()
+    )
+    tx_hear = (
+        db.query(models.TxCommissionersHearing)
+        .filter(models.TxCommissionersHearing.complaint_id == case_id)
+        .order_by(models.TxCommissionersHearing.hearing_date.asc())
+        .all()
+    )
+    tx_aw = (
+        db.query(models.TxCommissionersAward)
+        .filter(models.TxCommissionersAward.complaint_id == case_id)
+        .order_by(models.TxCommissionersAward.award_date.desc())
+        .all()
+    )
+
+    in_appr = (
+        db.query(models.InCourtAppraiser)
+        .filter(models.InCourtAppraiser.complaint_id == case_id)
+        .order_by(models.InCourtAppraiser.appointment_date.asc())
+        .all()
+    )
+    in_reports = (
+        db.query(models.InAppraisersReport)
+        .filter(models.InAppraisersReport.complaint_id == case_id)
+        .order_by(models.InAppraisersReport.report_filing_date.desc())
+        .all()
+    )
+    in_exc = (
+        db.query(models.InException)
+        .filter(models.InException.complaint_id == case_id)
+        .order_by(models.InException.filing_date.desc())
+        .all()
+    )
+
+    return {
+        "case_id": case_id,
+        "state": state or None,
+        "tx": {
+            "special_commissioners": [
+                {
+                    "id": r.id,
+                    "commissioner_number": r.commissioner_number,
+                    "commissioner_name": r.commissioner_name,
+                    "appointment_date": _date_json(r.appointment_date),
+                    "is_freeholder": r.is_freeholder,
+                }
+                for r in tx_sc
+            ],
+            "commissioners_hearings": [
+                {
+                    "id": r.id,
+                    "hearing_date": _date_json(r.hearing_date),
+                    "hearing_location": r.hearing_location,
+                }
+                for r in tx_hear
+            ],
+            "commissioners_awards": [
+                {
+                    "id": r.id,
+                    "award_date": _date_json(r.award_date),
+                    "award_amount": (
+                        float(r.award_amount) if r.award_amount is not None else None
+                    ),
+                    "objection_deadline": _date_json(r.objection_deadline),
+                    "document_id": r.document_id,
+                }
+                for r in tx_aw
+            ],
+        },
+        "in": {
+            "court_appraisers": [
+                {
+                    "id": r.id,
+                    "appraiser_name": r.appraiser_name,
+                    "appraiser_firm": r.appraiser_firm,
+                    "appointment_date": _date_json(r.appointment_date),
+                }
+                for r in in_appr
+            ],
+            "appraisers_reports": [
+                {
+                    "id": r.id,
+                    "report_filing_date": _date_json(r.report_filing_date),
+                    "report_mailing_date": _date_json(r.report_mailing_date),
+                    "appraised_value": (
+                        float(r.appraised_value)
+                        if r.appraised_value is not None
+                        else None
+                    ),
+                    "exception_deadline": _date_json(r.exception_deadline),
+                    "document_id": r.document_id,
+                }
+                for r in in_reports
+            ],
+            "exceptions": [
+                {
+                    "id": r.id,
+                    "appraisers_report_id": r.appraisers_report_id,
+                    "filed_by": r.filed_by,
+                    "filing_date": _date_json(r.filing_date),
+                    "grounds": r.grounds,
+                    "outcome": r.outcome,
+                }
+                for r in in_exc
+            ],
+        },
+    }
+
+
 # =============================================================================
 # Litigation Case Endpoints
 # =============================================================================

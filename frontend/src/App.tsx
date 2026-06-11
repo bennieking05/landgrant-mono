@@ -20,7 +20,7 @@ function ProtectedShell() {
   }
   // Wait for /auth/me before rendering persona-gated routes; otherwise the
   // persona defaults to ``land_agent`` and PersonaRoute can wrongly redirect a
-  // deep-linked/refreshed page (e.g. /intake, /admin) before the real persona
+  // deep-linked/refreshed page (e.g. /portal, /intake, /admin) before the real persona
   // resolves.
   if (!me) {
     return (
@@ -45,6 +45,14 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedShell />}>
           <Route path="/" element={<HomePage />} />
+          <Route
+            path="/portal"
+            element={
+              <PersonaRoute path="/portal">
+                <IntakePage />
+              </PersonaRoute>
+            }
+          />
           <Route
             path="/intake"
             element={

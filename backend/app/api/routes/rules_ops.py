@@ -10,13 +10,15 @@ Provides endpoints for:
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, Any
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_persona, get_db
 from app.db import models
 from app.db.models import Persona
 from app.security.rbac import authorize, Action
+from app.services.deadline_rules import derive_deadlines
+from app.services.rules_engine import evaluate_rules
 
 router = APIRouter(prefix="/rules", tags=["rules-ops"])
 
@@ -64,6 +66,64 @@ def list_rule_results(
                 }
             ],
         }
+
+
+class RulesEvaluateRequest(BaseModel):
+    jurisdiction: str
+    case_payload: dict[str, Any] = Field(default_factory=dict)
+    anchor_events: Optional[dict[str, str]] = None
+
+
+@router.post("/evaluate")
+def post_rules_evaluate(
+    payload: RulesEvaluateRequest,
+    persona: Persona = Depends(get_current_persona),
+):
+    """Evaluate jurisdiction triggers and optionally preview statutory deadlines."""
+
+    authorize(persona, "rules", Action.READ)
+    jur = payload.jurisdiction.strip().upper()
+    triggers_raw = evaluate_rules(jur, payload.case_payload)
+    triggers = [
+        {
+            "rule_id": t.rule_id,
+            "version": t.version,
+            "citation": t.citation,
+            "fired": t.fired,
+            "evidence": t.evidence,
+        }
+        for t in triggers_raw
+    ]
+    deadlines: list[dict[str, Any]] = []
+    errors: list[str] = []
+    if payload.anchor_events:
+        dr = derive_deadlines(jurisdiction=jur, anchor_events=payload.anchor_events)
+        errors.extend(dr.errors)
+        for d in dr.deadlines:
+            source = (
+                "court_set"
+                if d.deadline_type in ("floor", "eligibility")
+                else "statutory"
+            )
+            deadlines.append(
+                {
+                    "deadline_type": d.deadline_type,
+                    "due_date": d.due_date.isoformat(),
+                    "source": source,
+                    "citation": d.citation,
+                    "inputs": {
+                        "anchor_event": d.anchor_event,
+                        "anchor_date": d.anchor_date.isoformat(),
+                        "offset_days": d.offset_days,
+                    },
+                }
+            )
+    return {
+        "jurisdiction": jur,
+        "triggers": triggers,
+        "deadlines": deadlines,
+        "errors": errors,
+    }
 
 
 # Request/Response models

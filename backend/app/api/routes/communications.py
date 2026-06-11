@@ -7,6 +7,7 @@ including single and batch message sending via multiple channels.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -138,6 +139,111 @@ def list_communications(
                 },
             ]
         }
+
+
+@router.get("/feed")
+def communications_feed(
+    project_id: str,
+    parcel_id: Optional[str] = None,
+    persona: Persona = Depends(get_current_persona),
+    principal: JWTPrincipal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+):
+    """Time-ordered communications, notices, and service attempts for a project (optional parcel)."""
+
+    authorize(persona, "communication", Action.READ)
+    if parcel_id:
+        require_parcel_scope(db, principal, parcel_id)
+
+    comms = (
+        db.query(models.Communication)
+        .filter(models.Communication.project_id == project_id)
+        .order_by(models.Communication.created_at.asc())
+        .all()
+    )
+    if parcel_id:
+        comms = [c for c in comms if c.parcel_id == parcel_id]
+
+    notices_q = db.query(models.Notice).filter(models.Notice.project_id == project_id)
+    if parcel_id:
+        notices_q = notices_q.filter(models.Notice.parcel_id == parcel_id)
+    notices_list = notices_q.order_by(models.Notice.date_issued.asc()).all()
+
+    notice_ids = [n.id for n in notices_list]
+    attempts: list[models.ServiceAttempt] = []
+    if notice_ids:
+        attempts = (
+            db.query(models.ServiceAttempt)
+            .filter(models.ServiceAttempt.notice_id.in_(notice_ids))
+            .order_by(models.ServiceAttempt.attempt_date.asc())
+            .all()
+        )
+
+    merged: list[tuple[datetime, dict[str, Any]]] = []
+    for c in comms:
+        ts = c.created_at or datetime.utcnow()
+        merged.append(
+            (
+                ts,
+                {
+                    "kind": "communication",
+                    "id": c.id,
+                    "ts": c.created_at.isoformat() + "Z" if c.created_at else None,
+                    "channel": c.channel,
+                    "summary": c.content,
+                    "proof": c.delivery_proof,
+                    "status": c.delivery_status,
+                    "parcel_id": c.parcel_id,
+                },
+            )
+        )
+    for n in notices_list:
+        ts = n.date_issued or datetime.utcnow()
+        merged.append(
+            (
+                ts,
+                {
+                    "kind": "notice",
+                    "id": n.id,
+                    "ts": n.date_issued.isoformat() + "Z" if n.date_issued else None,
+                    "channel": "notice",
+                    "summary": (
+                        f"{n.notice_type.value if n.notice_type else 'notice'} via "
+                        f"{n.method.value if n.method else 'unknown'}"
+                    ),
+                    "proof": {
+                        "jurisdiction": n.jurisdiction,
+                        "citation": n.statutory_citation,
+                    },
+                    "status": n.status,
+                    "parcel_id": n.parcel_id,
+                },
+            )
+        )
+    for a in attempts:
+        ts = a.attempt_date or datetime.utcnow()
+        merged.append(
+            (
+                ts,
+                {
+                    "kind": "service_attempt",
+                    "id": a.id,
+                    "ts": a.attempt_date.isoformat() + "Z" if a.attempt_date else None,
+                    "channel": f"service:{a.method.value if a.method else 'unknown'}",
+                    "summary": f"Attempt #{a.attempt_number} outcome={a.outcome.value if a.outcome else ''}",
+                    "proof": {
+                        "notice_id": a.notice_id,
+                        "proof_document_id": a.proof_document_id,
+                        "proof_description": a.proof_description,
+                    },
+                    "status": a.outcome.value if a.outcome else None,
+                    "parcel_id": None,
+                },
+            )
+        )
+
+    merged.sort(key=lambda x: x[0])
+    return {"items": [m[1] for m in merged]}
 
 
 @router.post("/send")

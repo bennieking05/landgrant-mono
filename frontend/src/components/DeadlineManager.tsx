@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   listDeadlines,
   createDeadline,
@@ -21,6 +21,12 @@ const IN_ANCHOR_EVENTS = [
   { key: "trial_date_set", label: "Trial Date Set", citation: "IC 32-24-1-12" },
 ];
 
+const TX_ANCHOR_EVENTS = [
+  { key: "offer_served", label: "Offer Served", citation: "Tex. Prop. Code Ch. 21" },
+  { key: "final_offer_served", label: "Final Offer Served", citation: "Tex. Prop. Code §21.0113" },
+  { key: "commissioners_award", label: "Commissioners Award", citation: "Tex. Prop. Code Ch. 21" },
+];
+
 export function DeadlineManager({ projectId }: Props) {
   const [deadlines, setDeadlines] = useState<DeadlineItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +46,15 @@ export function DeadlineManager({ projectId }: Props) {
   const [anchorEvents, setAnchorEvents] = useState<Record<string, string>>({});
   const [deriving, setDeriving] = useState(false);
   const [deriveResult, setDeriveResult] = useState<DerivedDeadlineItem[] | null>(null);
+
+  const anchorFields = useMemo(
+    () => (deriveJurisdiction === "TX" ? TX_ANCHOR_EVENTS : IN_ANCHOR_EVENTS),
+    [deriveJurisdiction],
+  );
+
+  useEffect(() => {
+    setAnchorEvents({});
+  }, [deriveJurisdiction]);
 
   async function refresh() {
     setLoading(true);
@@ -253,7 +268,8 @@ export function DeadlineManager({ projectId }: Props) {
             </span>
           </div>
           <p className="text-xs text-slate-600">
-            Enter key procedural dates to automatically calculate statutory deadlines per Indiana Code Title 32, Article 24.
+            Enter key procedural dates to calculate statutory deadlines for{" "}
+            {deriveJurisdiction === "IN" ? "Indiana (IC Title 32 Art. 24)" : "Texas (Prop. Code Ch. 21)"}.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -283,7 +299,7 @@ export function DeadlineManager({ projectId }: Props) {
           <div className="border-t border-indigo-200 pt-3">
             <p className="text-xs font-medium text-slate-700 mb-2">Anchor Events (enter dates as they occur)</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {IN_ANCHOR_EVENTS.map((anchor) => (
+              {anchorFields.map((anchor) => (
                 <div key={anchor.key}>
                   <label className="block text-xs text-slate-600 mb-1">
                     {anchor.label}

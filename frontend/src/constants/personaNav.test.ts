@@ -26,10 +26,11 @@ describe("personaNavMap", () => {
   });
 
   it("keeps landowners off counsel/admin surfaces", () => {
-    const blocked = ["/counsel", "/admin", "/firm-admin", "/workbench", "/ops"];
+    const blocked = ["/counsel", "/admin", "/firm-admin", "/workbench", "/ops", "/intake"];
     for (const p of blocked) {
       expect(personaNavMap.landowner).not.toContain(p);
     }
+    expect(personaNavMap.landowner).toContain("/portal");
   });
 
   it("keeps outside counsel off in-house surfaces", () => {

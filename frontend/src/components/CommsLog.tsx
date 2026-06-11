@@ -1,18 +1,25 @@
 import { useEffect, useState, useCallback } from "react";
-import { apiGet } from "@/lib/api";
+import { getCommunicationsFeed } from "@/lib/api";
 import { LoadingSpinner, ErrorMessage, EmptyState } from "@/components/ui";
 import { MessageSquare } from "lucide-react";
 
 type CommsItem = {
+  kind?: string;
   id: string;
-  ts: string | null;
+  ts?: string | null;
   channel: string;
-  summary: string | null;
+  summary?: string | null;
   proof: unknown;
-  status: string;
+  status?: string | null;
+  parcel_id?: string | null;
 };
 
-export function CommsLog({ parcelId }: { parcelId: string }) {
+type Props = {
+  projectId: string;
+  parcelId?: string | null;
+};
+
+export function CommsLog({ projectId, parcelId }: Props) {
   const [items, setItems] = useState<CommsItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,14 +27,14 @@ export function CommsLog({ parcelId }: { parcelId: string }) {
   const fetchData = useCallback(() => {
     setLoading(true);
     setError(null);
-    apiGet<{ items: CommsItem[] }>(`/communications?parcel_id=${encodeURIComponent(parcelId)}`)
+    getCommunicationsFeed(projectId, parcelId ?? undefined)
       .then((d) => setItems(d.items))
       .catch((e) => {
         setItems(null);
         setError(String(e));
       })
       .finally(() => setLoading(false));
-  }, [parcelId]);
+  }, [projectId, parcelId]);
 
   useEffect(() => {
     fetchData();
@@ -36,7 +43,9 @@ export function CommsLog({ parcelId }: { parcelId: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="text-lg font-semibold">Comms log</h3>
-      <p className="mt-2 text-sm text-slate-600">Includes email/SMS/certified mail per EminentAI backlog.</p>
+      <p className="mt-2 text-sm text-slate-600">
+        Unified feed: outbound comms, notices, and service attempts (time-sorted).
+      </p>
 
       {loading && (
         <div className="mt-4">
@@ -61,12 +70,18 @@ export function CommsLog({ parcelId }: { parcelId: string }) {
       {!loading && !error && items && items.length > 0 && (
         <ul className="mt-4 space-y-3">
           {items.map((event) => (
-            <li key={event.id} className="flex items-start justify-between text-sm">
-              <div>
-                <p className="font-medium">{event.channel}</p>
-                <p className="text-slate-600">{event.summary}</p>
+            <li key={`${event.kind ?? "row"}-${event.id}`} className="flex items-start justify-between gap-3 text-sm">
+              <div className="min-w-0">
+                <p className="font-medium">
+                  {event.kind ? <span className="text-slate-400">{event.kind}</span> : null}{" "}
+                  <span>{event.channel}</span>
+                </p>
+                <p className="text-slate-600 break-words">{event.summary}</p>
+                {event.parcel_id ? (
+                  <p className="mt-0.5 text-xs text-slate-400">Parcel {event.parcel_id}</p>
+                ) : null}
               </div>
-              <span className="text-xs text-slate-500">{event.ts ?? event.status}</span>
+              <span className="shrink-0 text-xs text-slate-500">{event.ts ?? event.status ?? ""}</span>
             </li>
           ))}
         </ul>
@@ -74,6 +89,3 @@ export function CommsLog({ parcelId }: { parcelId: string }) {
     </div>
   );
 }
-
-
-

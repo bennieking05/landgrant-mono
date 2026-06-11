@@ -7,6 +7,7 @@ import { DeadlineManager } from "@/components/DeadlineManager";
 import { TemplateViewer } from "@/components/TemplateViewer";
 import { OutsideCounselPanel } from "@/components/OutsideCounselPanel";
 import { LitigationPanel } from "@/components/LitigationPanel";
+import { ComplaintParcelsValidatePanel } from "@/components/ComplaintParcelsValidatePanel";
 import { TaskManager } from "@/components/TaskManager";
 import { AIDecisionReview } from "@/components/AIDecisionReview";
 import { CopilotPanel } from "@/components/CopilotPanel";
@@ -106,13 +107,16 @@ export function CounselPage() {
 
         {tab === "binder" && (
           <div className="grid gap-4 lg:grid-cols-2">
-            <BinderStatus projectId={projectId} />
+            <BinderStatus projectId={projectId} parcelId={parcelId} />
             <DeadlineManager projectId={projectId} />
           </div>
         )}
 
-        {tab === "litigation" && parcelId && (
-          <LitigationPanel parcelId={parcelId} projectId={projectId} />
+        {tab === "litigation" && projectId && (
+          <div className="space-y-6">
+            <ComplaintParcelsValidatePanel projectId={projectId} />
+            {parcelId ? <LitigationPanel parcelId={parcelId} projectId={projectId} /> : null}
+          </div>
         )}
 
         {tab === "tasks" && <TaskManager projectId={projectId} parcelId={parcelId ?? undefined} />}

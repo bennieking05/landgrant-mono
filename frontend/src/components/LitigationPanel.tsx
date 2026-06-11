@@ -5,10 +5,12 @@ import {
   getLitigationCase,
   updateLitigationCase,
   getLitigationHistory,
+  getLitigationTracks,
   type LitigationCaseItem,
   type LitigationCaseDetail,
   type LitigationCaseCreatePayload,
   type LitigationCaseUpdatePayload,
+  type LitigationTracksResponse,
 } from "@/lib/api";
 
 type Props = {
@@ -78,6 +80,7 @@ export function LitigationPanel({ parcelId, projectId }: Props) {
   const [history, setHistory] = useState<HistoryItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [tracks, setTracks] = useState<LitigationTracksResponse | null>(null);
   
   // Create form
   const [showCreate, setShowCreate] = useState(false);
@@ -116,11 +119,13 @@ export function LitigationPanel({ parcelId, projectId }: Props) {
   async function handleSelectCase(caseId: string) {
     setError(null);
     try {
-      const [caseDetail, historyRes] = await Promise.all([
+      const [caseDetail, historyRes, tr] = await Promise.all([
         getLitigationCase(caseId),
         getLitigationHistory(caseId),
+        getLitigationTracks(caseId).catch(() => null),
       ]);
       setSelectedCase(caseDetail);
+      setTracks(tr ?? null);
       setHistory(historyRes.history.map(h => ({
         id: h.id,
         old_status: h.old_status ?? null,
@@ -503,6 +508,33 @@ export function LitigationPanel({ parcelId, projectId }: Props) {
                   </button>
                 </div>
               </div>
+
+              {/* Jurisdiction-specific tracks */}
+              {tracks ? (
+                <div className="mb-4 rounded-md border border-slate-200 bg-white p-3">
+                  <h5 className="text-sm font-medium text-slate-800">
+                    Litigation tracks ({tracks.state ?? "—"})
+                  </h5>
+                  <div className="mt-2 grid gap-3 md:grid-cols-2 text-xs text-slate-600">
+                    <div>
+                      <p className="font-medium text-slate-700">Texas</p>
+                      <ul className="mt-1 list-inside list-disc space-y-0.5">
+                        <li>Special commissioners: {tracks.tx?.special_commissioners?.length ?? 0}</li>
+                        <li>Commissioners hearings: {tracks.tx?.commissioners_hearings?.length ?? 0}</li>
+                        <li>Commissioners awards: {tracks.tx?.commissioners_awards?.length ?? 0}</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-700">Indiana</p>
+                      <ul className="mt-1 list-inside list-disc space-y-0.5">
+                        <li>Court appraisers: {tracks.in?.court_appraisers?.length ?? 0}</li>
+                        <li>Appraiser reports: {tracks.in?.appraisers_reports?.length ?? 0}</li>
+                        <li>Exceptions: {tracks.in?.exceptions?.length ?? 0}</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Status History */}
               {history && history.length > 0 && (

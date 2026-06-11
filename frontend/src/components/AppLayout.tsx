@@ -15,6 +15,7 @@ import {
 
 const navItems = [
   { path: "/", label: "Home", icon: Home },
+  { path: "/portal", label: "Portal", icon: FileInput },
   { path: "/intake", label: "Intake", icon: FileInput },
   { path: "/workbench", label: "Workbench", icon: Briefcase },
   { path: "/counsel", label: "Counsel", icon: Scale },
