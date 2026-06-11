@@ -1,5 +1,22 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8050";
 
+/** Thrown on non-2xx API responses so callers can distinguish 403 from empty data. */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  constructor(status: number, message: string, body?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+export function isApiError(e: unknown): e is ApiError {
+  return e instanceof ApiError;
+}
+
 // ---------------------------------------------------------------------------
 // Shared auth state: ``setApiAuth`` stores the JWT; all requests send
 // ``Authorization: Bearer`` when a token is present.
@@ -20,6 +37,12 @@ export function getApiAuth(): ApiAuth {
   return { ..._auth };
 }
 
+function _detailToMessage(detail: unknown): string {
+  if (detail == null) return "";
+  if (typeof detail === "string") return detail;
+  return JSON.stringify(detail);
+}
+
 async function apiFetch(path: string, init: RequestInit) {
   const headers: Record<string, string> = {
     ...((init.headers as Record<string, string>) ?? {}),
@@ -32,27 +55,25 @@ async function apiFetch(path: string, init: RequestInit) {
     headers,
   });
   if (!res.ok) {
-    // Try to parse JSON error response for better error messages
-    let errorMessage = `API ${res.status} ${res.statusText}`;
+    const rawText = await res.text();
+    let body: unknown = rawText;
     try {
-      const errorData = await res.json();
-      // FastAPI uses "detail" for error messages
-      const detail = errorData.detail || errorData.message || errorData.error;
-      if (detail) {
-        errorMessage = typeof detail === "string" ? detail : JSON.stringify(detail);
-      }
+      body = rawText ? JSON.parse(rawText) : undefined;
     } catch {
-      // Response wasn't JSON, try to get text
-      try {
-        const text = await res.text();
-        if (text) {
-          errorMessage = `${errorMessage}: ${text}`;
-        }
-      } catch {
-        // Ignore text parse errors
-      }
+      body = rawText;
     }
-    throw new Error(errorMessage);
+    let errorMessage = `API ${res.status} ${res.statusText}`;
+    if (typeof body === "object" && body !== null) {
+      const o = body as Record<string, unknown>;
+      const detail = o.detail ?? o.message ?? o.error;
+      const msg = _detailToMessage(detail);
+      if (msg) {
+        errorMessage = msg;
+      }
+    } else if (typeof body === "string" && body.trim()) {
+      errorMessage = `${errorMessage}: ${body}`;
+    }
+    throw new ApiError(res.status, errorMessage, body);
   }
   return res;
 }

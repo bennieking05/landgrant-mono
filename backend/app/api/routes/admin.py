@@ -7,10 +7,13 @@ Provides dashboard endpoints for two admin levels:
 """
 
 from datetime import datetime, timedelta
+from io import StringIO
 from time import perf_counter
 from typing import Any, Optional
+import csv
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
@@ -949,3 +952,55 @@ def get_platform_health(
         "services": [h.model_dump() for h in health_checks],
         "checked_at": datetime.utcnow().isoformat(),
     }
+
+
+@router.get("/access-review/export")
+def export_access_review(
+    persona: Persona = Depends(get_current_persona),
+    db: Session = Depends(get_db),
+    fmt: str = Query("csv", description="Export format: csv or json"),
+):
+    """SOC2 evidence: export users with persona and firm for access reviews."""
+
+    authorize(persona, "admin_platform", Action.READ)
+    if fmt not in ("csv", "json"):
+        raise HTTPException(status_code=422, detail="invalid_format")
+
+    rows = db.query(models.User).order_by(models.User.email).all()
+    if fmt == "json":
+        payload = [
+            {
+                "id": u.id,
+                "email": u.email,
+                "persona": u.persona.value if u.persona else None,
+                "firm_id": u.firm_id,
+                "full_name": u.full_name,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "metadata_roles": (u.metadata_json or {}).get("roles"),
+            }
+            for u in rows
+        ]
+        return JSONResponse(content={"users": payload, "count": len(payload)})
+
+    buf = StringIO()
+    w = csv.writer(buf)
+    w.writerow(["id", "email", "persona", "firm_id", "full_name", "created_at"])
+    for u in rows:
+        w.writerow(
+            [
+                u.id,
+                u.email,
+                u.persona.value if u.persona else "",
+                u.firm_id or "",
+                (u.full_name or "").replace("\n", " "),
+                u.created_at.isoformat() if u.created_at else "",
+            ]
+        )
+    data = buf.getvalue()
+    return StreamingResponse(
+        iter([data]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="access_review_export.csv"'
+        },
+    )

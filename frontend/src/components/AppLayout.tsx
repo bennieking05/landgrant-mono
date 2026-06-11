@@ -1,7 +1,9 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAppContext, useAuth, type Persona } from "@/context";
 import { personaNavMap } from "@/constants/personaNav";
 import { NotificationBell } from "@/components/NotificationBell";
+import { setStoredLocale } from "@/i18n";
 import {
   Home,
   FileInput,
@@ -14,14 +16,14 @@ import {
 } from "lucide-react";
 
 const navItems = [
-  { path: "/", label: "Home", icon: Home },
-  { path: "/portal", label: "Portal", icon: FileInput },
-  { path: "/intake", label: "Intake", icon: FileInput },
-  { path: "/workbench", label: "Workbench", icon: Briefcase },
-  { path: "/counsel", label: "Counsel", icon: Scale },
-  { path: "/ops", label: "Operations", icon: Settings },
-  { path: "/firm-admin", label: "Firm Admin", icon: Building2 },
-  { path: "/admin", label: "Admin", icon: ShieldCheck },
+  { path: "/", labelKey: "home" as const, icon: Home },
+  { path: "/portal", labelKey: "portal" as const, icon: FileInput },
+  { path: "/intake", labelKey: "intake" as const, icon: FileInput },
+  { path: "/workbench", labelKey: "workbench" as const, icon: Briefcase },
+  { path: "/counsel", labelKey: "counsel" as const, icon: Scale },
+  { path: "/ops", labelKey: "ops" as const, icon: Settings },
+  { path: "/firm-admin", labelKey: "firmAdmin" as const, icon: Building2 },
+  { path: "/admin", labelKey: "admin" as const, icon: ShieldCheck },
 ];
 
 const personaLabels: Record<Persona, string> = {
@@ -38,6 +40,7 @@ type Props = {
 };
 
 export function AppLayout({ children }: Props) {
+  const { t, i18n } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, me } = useAuth();
@@ -89,7 +92,7 @@ export function AppLayout({ children }: Props) {
                       }`}
                     >
                       <Icon className="h-4 w-4" />
-                      {item.label}
+                      {t(`nav.${item.labelKey}`)}
                     </Link>
                   );
                 })}
@@ -149,6 +152,23 @@ export function AppLayout({ children }: Props) {
                 </>
               )}
 
+              <label className="hidden items-center gap-1 text-xs text-slate-600 md:flex">
+                <span className="sr-only">{t("app.language")}</span>
+                <select
+                  value={i18n.language.startsWith("es") ? "es" : "en"}
+                  onChange={(e) => {
+                    const lng = e.target.value;
+                    void i18n.changeLanguage(lng);
+                    setStoredLocale(lng);
+                  }}
+                  className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                  aria-label={t("app.language")}
+                >
+                  <option value="en">{t("app.english")}</option>
+                  <option value="es">{t("app.spanish")}</option>
+                </select>
+              </label>
+
               <NotificationBell />
 
               <button
@@ -184,7 +204,7 @@ export function AppLayout({ children }: Props) {
                   }`}
                 >
                   <Icon className="h-4 w-4" />
-                  {item.label}
+                  {t(`nav.${item.labelKey}`)}
                 </Link>
               );
             })}

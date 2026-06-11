@@ -59,6 +59,10 @@ Legacy tokens with `persona=admin` are normalized server-side to **`platform_adm
 - `backend/tests/jwt_helpers.py` — `issue_test_token` / `auth_headers` for pytest.
 - `frontend/src/constants/personaNav.test.ts` — navigation invariants.
 
+## Observability and error reporting
+
+- **Sentry (optional)**: set `SENTRY_DSN` for the API (see `app/main.py`). Frontend uses `VITE_SENTRY_DSN` at build time for `@sentry/react` (see `frontend/src/main.tsx`). Store DSNs in Secret Manager for non-dev; tune sampling in production.
+
 ## SSO / MFA migration
 
 - OIDC/OAuth2 providers can populate the same JWT claims (`sub`, `email`, `firm_id`, `persona`, `roles`, `permissions`) via an IdP bridge; password login remains for staff bootstrap and break-glass until SSO is cut over.

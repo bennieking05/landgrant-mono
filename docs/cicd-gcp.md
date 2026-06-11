@@ -72,4 +72,14 @@ gcloud builds submit . \
   --substitutions="COMMIT_SHA=$(git rev-parse HEAD)"
 ```
 
-`COMMIT_SHA` must be set for image tags; CI passes `GITHUB_SHA`.
+## Centralized logs and retention
+
+Application logs ship to **Google Cloud Logging** with Cloud Run default retention. Adjust retention and export sinks in Terraform (`infra/gcp/`) per your compliance calendar. Restrict log viewer roles to least privilege.
+
+## Change management and signed releases
+
+- **Default branch**: merges to `main` only via pull request with required checks (`landgrant-ci`).
+- **Production deploy**: optional Cloud Build deploy job in CI runs after `validate`, `playwright`, and `staging_e2e` (skipped on non-tag pushes; for `v*` tags configure staging secrets or the job exits successfully when secrets are absent).
+- **Releases**: GitHub **Releases** should tag immutable SHAs. Prefer [artifact attestations](https://docs.github.com/en/actions/concepts/security/artifact-attestations) or image signing (Cosign) before claiming supply-chain controls in customer questionnaires.
+
+See also [soc2-readiness.md](./soc2-readiness.md) (internal index, not a SOC 2 opinion).

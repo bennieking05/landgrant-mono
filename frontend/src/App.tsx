@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { AppContextProvider, AuthProvider, useAuth } from "@/context";
 import { AppLayout } from "@/components/AppLayout";
@@ -15,6 +16,17 @@ import { NotFoundPage } from "@/pages/NotFoundPage";
 function ProtectedShell() {
   const { isAuthenticated, me } = useAuth();
   const location = useLocation();
+  const [authSlow, setAuthSlow] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated || me) {
+      setAuthSlow(false);
+      return;
+    }
+    const id = window.setTimeout(() => setAuthSlow(true), 20_000);
+    return () => window.clearTimeout(id);
+  }, [isAuthenticated, me]);
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
@@ -23,6 +35,31 @@ function ProtectedShell() {
   // deep-linked/refreshed page (e.g. /portal, /intake, /admin) before the real persona
   // resolves.
   if (!me) {
+    if (authSlow) {
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center text-slate-700">
+          <p className="font-medium">We couldn&apos;t finish loading your session in time.</p>
+          <p className="max-w-md text-sm text-slate-600">
+            The server may be slow or unreachable. You can retry or sign in again.
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </button>
+            <a
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              href="/login"
+            >
+              Sign in
+            </a>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex min-h-screen items-center justify-center text-slate-500">
         Loading…

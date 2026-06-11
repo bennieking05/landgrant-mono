@@ -14,6 +14,9 @@
 | [Production Deployment](./production-deployment.md) | Deployment guide for GCP |
 | [Application functionality map](./application-functionality-map.md) | Personas, UI routes, backend API domains |
 | [Manual regression script](./manual-regression-script.md) | Pre-release API + UI regression checklist |
+| [SOC2 readiness index](./soc2-readiness.md) | Internal control-evidence pointers (not an auditor opinion) |
+| [Staging demo seed](./demo-staging.md) | Reproducible sales demo on staging only |
+| [i18n scaffold](./i18n.md) | EN/ES language toggle and translation workflow |
 
 ---
 

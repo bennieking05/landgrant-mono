@@ -83,7 +83,9 @@ infra/gcp/
 ├── outputs.tf        # Output values
 ├── bootstrap.sh      # One-time setup script
 └── environments/
-    └── dev.tfvars    # Dev environment variables
+    ├── dev.tfvars       # Dev environment variables
+    ├── staging.tfvars   # Staging (isolated DB / demo tenant policy)
+    └── prod.tfvars      # Production (tighten tiers + deletion protection before apply)
 ```
 
 ## Cost Estimate (Testing Tier)

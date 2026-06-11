@@ -5,6 +5,7 @@ import {
   listEscalations,
   getEscalation,
   resolveEscalation,
+  isApiError,
   type AIDecisionItem,
   type AIDecisionDetail,
   type EscalationItem,
@@ -18,6 +19,11 @@ import {
 type TabType = "decisions" | "escalations";
 type DecisionFilter = "all" | "pending_review" | "reviewed";
 type EscalationFilter = "all" | "open" | "resolved";
+
+type ListFetchError =
+  | { kind: "none" }
+  | { kind: "forbidden" }
+  | { kind: "error"; message: string };
 
 // ============================================================================
 // Constants
@@ -64,7 +70,13 @@ export function AIDecisionDashboard() {
   const [selectedEscalation, setSelectedEscalation] = useState<EscalationDetail | null>(null);
   const [escalationFilter, setEscalationFilter] = useState<EscalationFilter>("open");
   const [loadingEscalations, setLoadingEscalations] = useState(false);
-  
+  const [decisionsFetchErr, setDecisionsFetchErr] = useState<ListFetchError>({
+    kind: "none",
+  });
+  const [escalationsFetchErr, setEscalationsFetchErr] = useState<ListFetchError>({
+    kind: "none",
+  });
+
   // Resolution state
   const [resolution, setResolution] = useState("");
   const [outcome, setOutcome] = useState("approved");
@@ -76,6 +88,7 @@ export function AIDecisionDashboard() {
 
   const loadDecisions = useCallback(async () => {
     setLoadingDecisions(true);
+    setDecisionsFetchErr({ kind: "none" });
     try {
       const pendingReview = decisionFilter === "pending_review" ? true : 
                            decisionFilter === "reviewed" ? false : undefined;
@@ -83,6 +96,15 @@ export function AIDecisionDashboard() {
       setDecisions(data);
     } catch (err) {
       console.error("Failed to load decisions:", err);
+      if (isApiError(err) && (err.status === 403 || err.status === 401)) {
+        setDecisionsFetchErr({ kind: "forbidden" });
+        setDecisions([]);
+      } else {
+        setDecisionsFetchErr({
+          kind: "error",
+          message: err instanceof Error ? err.message : "Failed to load decisions",
+        });
+      }
     } finally {
       setLoadingDecisions(false);
     }
@@ -90,12 +112,22 @@ export function AIDecisionDashboard() {
 
   const loadEscalations = useCallback(async () => {
     setLoadingEscalations(true);
+    setEscalationsFetchErr({ kind: "none" });
     try {
       const status = escalationFilter === "all" ? undefined : escalationFilter;
       const data = await listEscalations({ status });
       setEscalations(data);
     } catch (err) {
       console.error("Failed to load escalations:", err);
+      if (isApiError(err) && (err.status === 403 || err.status === 401)) {
+        setEscalationsFetchErr({ kind: "forbidden" });
+        setEscalations([]);
+      } else {
+        setEscalationsFetchErr({
+          kind: "error",
+          message: err instanceof Error ? err.message : "Failed to load escalations",
+        });
+      }
     } finally {
       setLoadingEscalations(false);
     }
@@ -281,8 +313,42 @@ export function AIDecisionDashboard() {
               <div className="overflow-y-auto max-h-[450px]">
                 {loadingDecisions ? (
                   <div className="p-8 text-center text-slate-500">Loading...</div>
+                ) : decisionsFetchErr.kind === "forbidden" ? (
+                  <div className="p-8 text-center">
+                    <p className="text-slate-800 font-medium">
+                      You don&apos;t have access to AI decisions for your role.
+                    </p>
+                    <p className="text-sm text-slate-500 mt-2">
+                      Ask your administrator if you need a different persona or permission.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void loadDecisions()}
+                      className="mt-4 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : decisionsFetchErr.kind === "error" ? (
+                  <div className="p-8 text-center">
+                    <p className="text-rose-700 text-sm font-medium">Could not load decisions</p>
+                    <p className="text-xs text-slate-600 mt-2 break-words">{decisionsFetchErr.message}</p>
+                    <button
+                      type="button"
+                      onClick={() => void loadDecisions()}
+                      className="mt-4 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Retry
+                    </button>
+                  </div>
                 ) : decisions.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500">No decisions found</div>
+                  <div className="p-8 text-center text-slate-500">
+                    <p className="font-medium text-slate-700">No decisions yet</p>
+                    <p className="text-sm mt-2">
+                      Decisions from AI agents appear here after they run on intake, documents, or
+                      workflows.
+                    </p>
+                  </div>
                 ) : (
                   decisions.map((decision) => (
                     <button
@@ -373,8 +439,43 @@ export function AIDecisionDashboard() {
               <div className="overflow-y-auto max-h-[450px]">
                 {loadingEscalations ? (
                   <div className="p-8 text-center text-slate-500">Loading...</div>
+                ) : escalationsFetchErr.kind === "forbidden" ? (
+                  <div className="p-8 text-center">
+                    <p className="text-slate-800 font-medium">
+                      You don&apos;t have access to escalations for your role.
+                    </p>
+                    <p className="text-sm text-slate-500 mt-2">
+                      This is not the same as having no escalations—your account cannot read this
+                      list. Ask your administrator if you need access.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void loadEscalations()}
+                      className="mt-4 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : escalationsFetchErr.kind === "error" ? (
+                  <div className="p-8 text-center">
+                    <p className="text-rose-700 text-sm font-medium">Could not load escalations</p>
+                    <p className="text-xs text-slate-600 mt-2 break-words">{escalationsFetchErr.message}</p>
+                    <button
+                      type="button"
+                      onClick={() => void loadEscalations()}
+                      className="mt-4 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Retry
+                    </button>
+                  </div>
                 ) : escalations.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500">No escalations found</div>
+                  <div className="p-8 text-center text-slate-500">
+                    <p className="font-medium text-slate-700">No escalations</p>
+                    <p className="text-sm mt-2">
+                      When the AI flags low confidence or risk, items appear here for counsel
+                      review.
+                    </p>
+                  </div>
                 ) : (
                   escalations.map((esc) => (
                     <button

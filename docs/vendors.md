@@ -13,3 +13,7 @@
 | GCP DocAI | OCR alternative | Signed | Lives in same project; locked to workers. |
 | LaunchDarkly | Feature flags | Signed | Flag change events logged. |
 | Sentry | Error monitoring | Signed | Uses relay to avoid PII egress. |
+
+## Review cadence
+
+Assign a **vendor owner** (security or IT) to confirm DPA status and subprocessors **annually** (or on renewal). Record completion in your SOC2 evidence store (see [soc2-readiness.md](./soc2-readiness.md)).

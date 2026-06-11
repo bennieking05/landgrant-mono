@@ -15,16 +15,22 @@
     "test:e2e:report": "playwright show-report",
     "test:evidence": "playwright test tests/evidence/ --project=chromium",
     "test:regression": "playwright test --project=chromium && playwright test tests/evidence/ --project=chromium",
-    "test:smoke": "playwright test tests/e2e/landowner.spec.ts --project=chromium"
+    "test:smoke": "playwright test tests/e2e/landowner.spec.ts --project=chromium",
+    "test:gallery": "playwright test tests/e2e/empty-db-gallery.spec.ts --project=chromium",
+    "test:a11y": "playwright test tests/e2e/a11y-portal-workbench.spec.ts --project=chromium"
   },
   "dependencies": {
+    "@sentry/react": "^8.47.0",
+    "i18next": "^26.3.1",
     "lucide-react": "0.424.0",
     "mapbox-gl": "^3.3.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-i18next": "^15.4.0",
     "react-router-dom": "7.1.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
     "@eslint/js": "9.17.0",
     "@playwright/test": "^1.50.0",
     "@testing-library/jest-dom": "6.6.3",

@@ -1,11 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   listEscalations,
   getEscalation,
   resolveEscalation,
+  isApiError,
   type EscalationItem,
   type EscalationDetail,
 } from "@/lib/api";
+
+type ListFetchError =
+  | { kind: "none" }
+  | { kind: "forbidden" }
+  | { kind: "error"; message: string };
 
 const PRIORITY_COLORS: Record<string, string> = {
   critical: "bg-red-100 text-red-800 border-red-300",
@@ -39,23 +45,34 @@ export function AIDecisionReview() {
   const [resolution, setResolution] = useState("");
   const [outcome, setOutcome] = useState("approved");
   const [filter, setFilter] = useState<"all" | "open" | "resolved">("open");
+  const [fetchErr, setFetchErr] = useState<ListFetchError>({ kind: "none" });
 
-  useEffect(() => {
-    loadEscalations();
-  }, [filter]);
-
-  async function loadEscalations() {
+  const loadEscalations = useCallback(async () => {
     setLoading(true);
+    setFetchErr({ kind: "none" });
     try {
       const status = filter === "all" ? undefined : filter;
       const data = await listEscalations({ status });
       setEscalations(data);
     } catch (err) {
       console.error("Failed to load escalations:", err);
+      if (isApiError(err) && (err.status === 403 || err.status === 401)) {
+        setFetchErr({ kind: "forbidden" });
+        setEscalations([]);
+      } else {
+        setFetchErr({
+          kind: "error",
+          message: err instanceof Error ? err.message : "Failed to load escalations",
+        });
+      }
     } finally {
       setLoading(false);
     }
-  }
+  }, [filter]);
+
+  useEffect(() => {
+    void loadEscalations();
+  }, [loadEscalations]);
 
   async function handleSelectEscalation(id: string) {
     try {
@@ -137,9 +154,37 @@ export function AIDecisionReview() {
 
       {loading ? (
         <div className="mt-6 text-center text-slate-500">Loading...</div>
+      ) : fetchErr.kind === "forbidden" ? (
+        <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-center">
+          <p className="font-medium text-amber-900">You don&apos;t have access to escalations</p>
+          <p className="mt-2 text-sm text-amber-800">
+            Your role cannot read this list. Contact an administrator if you need AI review
+            permissions.
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadEscalations()}
+            className="mt-3 rounded-md bg-amber-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-800"
+          >
+            Retry
+          </button>
+        </div>
+      ) : fetchErr.kind === "error" ? (
+        <div className="mt-6 text-center">
+          <p className="text-sm font-medium text-rose-700">Could not load escalations</p>
+          <p className="mt-1 text-xs text-slate-600 break-words">{fetchErr.message}</p>
+          <button
+            type="button"
+            onClick={() => void loadEscalations()}
+            className="mt-3 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Retry
+          </button>
+        </div>
       ) : escalations.length === 0 ? (
         <div className="mt-6 text-center text-slate-500">
-          No escalations {filter !== "all" ? `with status "${filter}"` : ""}
+          <p className="font-medium text-slate-700">No escalations {filter !== "all" ? `with status "${filter}"` : ""}</p>
+          <p className="mt-2 text-sm">Escalations appear when the AI requests human review.</p>
         </div>
       ) : (
         <div className="mt-4 divide-y divide-slate-100">

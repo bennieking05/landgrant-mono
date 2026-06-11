@@ -61,6 +61,24 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 configure_tracing()
 
+if settings.sentry_dsn:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.environment,
+            traces_sample_rate=0.1,
+            integrations=[
+                FastApiIntegration(),
+                SqlalchemyIntegration(),
+            ],
+        )
+    except Exception as exc:  # pragma: no cover - optional dependency path
+        logger.warning("sentry_init_failed: %s", exc)
+
 # Fail fast if prod config still carries dev placeholders (Phase 3.3).
 _prod_problems = settings.validate_prod_secrets()
 if _prod_problems:

@@ -1,0 +1,18 @@
+{
+  "app": {
+    "title": "LandGrant",
+    "language": "Idioma",
+    "english": "Inglés",
+    "spanish": "Español"
+  },
+  "nav": {
+    "home": "Inicio",
+    "portal": "Portal",
+    "intake": "Admisión",
+    "workbench": "Banco de trabajo",
+    "counsel": "Asesoría",
+    "ops": "Operaciones",
+    "firmAdmin": "Admin de firma",
+    "admin": "Admin"
+  }
+}

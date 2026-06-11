@@ -90,3 +90,19 @@ Tests should run in the GitHub Actions workflow (`.github/workflows/ci.yml`):
 ```
 
 Both must pass before merge to main.
+
+---
+
+## UI async states (loading, empty, error)
+
+Components that fetch from the API should treat outcomes explicitly:
+
+| State | When | UI |
+|-------|------|-----|
+| **Loading** | Request in flight | Skeleton or short inline spinner (avoid unbounded “Loading…” without a timeout). |
+| **Timeout** | Request exceeds ~30s (see `useAsyncResource` in `frontend/src/hooks/useAsyncResource.ts`) | Explain delay + **Retry** (treat as error). |
+| **Empty** | HTTP 200 with legitimately no rows | Explain what would appear and the **action** that creates data (e.g. run an agent, create a case). |
+| **Error** | Network / 5xx / parse failure | Name the failure (use API `detail` when present) + **Retry**. |
+| **Forbidden** | HTTP **401** or **403** | **Never** show as “no data”. Use copy such as “You don’t have access…” and optional Retry. Use `ApiError` from `frontend/src/lib/api.ts` (`isApiError`, `status`). |
+
+Playwright **empty-state gallery** (when `CLEAR_GALLERY_DB=1`) captures each nav route after truncating business tables so reviewers can scan screenshots for regressions.

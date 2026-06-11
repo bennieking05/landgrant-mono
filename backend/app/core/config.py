@@ -40,6 +40,7 @@ class Settings(BaseSettings):
 
     # Observability
     enable_otlp: bool = False
+    sentry_dsn: Optional[str] = None  # SENTRY_DSN; optional in dev
 
     # CORS — restrict to known origins; override via ALLOWED_ORIGINS env var
     allowed_origins: list[str] = [

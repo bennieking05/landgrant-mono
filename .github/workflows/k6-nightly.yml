@@ -1,0 +1,28 @@
+# Optional API smoke (Phase 2). Requires secret STAGING_API_BASE_URL for real runs.
+# See scripts/k6/README.md
+
+name: k6-api-smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * 1"
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run k6 against staging (Docker)
+        env:
+          STAGING_API_BASE_URL: ${{ secrets.STAGING_API_BASE_URL }}
+        run: |
+          if [ -z "$STAGING_API_BASE_URL" ]; then
+            echo "STAGING_API_BASE_URL not set — skipping k6"
+            exit 0
+          fi
+          docker run --rm \
+            -e BASE_URL="$STAGING_API_BASE_URL" \
+            -v "$GITHUB_WORKSPACE:/work" -w /work \
+            grafana/k6:latest run scripts/k6/api-smoke.js

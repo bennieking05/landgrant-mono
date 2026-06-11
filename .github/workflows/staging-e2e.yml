@@ -1,0 +1,48 @@
+# Manual or release-triggered Playwright against deployed staging (Phase 2).
+# Configure repository secrets: STAGING_FRONTEND_BASE_URL, STAGING_API_BASE_URL,
+# STAGING_LOGIN_EMAIL, STAGING_LOGIN_PASSWORD.
+
+name: staging-e2e
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Install Playwright Chromium
+        run: |
+          cd frontend
+          npx playwright install --with-deps chromium
+
+      - name: Run staging smoke
+        env:
+          PLAYWRIGHT_REMOTE: "1"
+          E2E_STAGING_BASE_URL: ${{ secrets.STAGING_FRONTEND_BASE_URL }}
+          VITE_API_BASE: ${{ secrets.STAGING_API_BASE_URL }}
+          STAGING_LOGIN_EMAIL: ${{ secrets.STAGING_LOGIN_EMAIL }}
+          STAGING_LOGIN_PASSWORD: ${{ secrets.STAGING_LOGIN_PASSWORD }}
+          CI: true
+        run: |
+          if [ -z "$E2E_STAGING_BASE_URL" ] || [ -z "$VITE_API_BASE" ]; then
+            echo "Missing STAGING_FRONTEND_BASE_URL or STAGING_API_BASE_URL"
+            exit 1
+          fi
+          cd frontend
+          npx playwright test tests/e2e/staging-smoke.spec.ts --project=chromium
