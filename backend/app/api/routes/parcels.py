@@ -365,7 +365,9 @@ def list_parcels(
     project_names: dict[str, str] = {}
     proj_ids = {p.project_id for p in items}
     if proj_ids:
-        for pr in db.query(models.Project).filter(models.Project.id.in_(proj_ids)).all():
+        for pr in (
+            db.query(models.Project).filter(models.Project.id.in_(proj_ids)).all()
+        ):
             project_names[pr.id] = pr.name
 
     segment_labels: dict[str, str] = {}
@@ -376,7 +378,11 @@ def list_parcels(
         aln_ids = {s.alignment_id for s in segs}
         aln_names: dict[str, str] = {}
         if aln_ids:
-            for a in db.query(models.Alignment).filter(models.Alignment.id.in_(aln_ids)).all():
+            for a in (
+                db.query(models.Alignment)
+                .filter(models.Alignment.id.in_(aln_ids))
+                .all()
+            ):
                 aln_names[a.id] = a.name
         for s in segs:
             segment_labels[s.id] = (
@@ -419,14 +425,18 @@ def list_parcels(
             .all()
         )
         for t in tasks:
-            if t.parcel_id and t.parcel_id not in assignee_user_by_parcel and t.assigned_to:
+            if (
+                t.parcel_id
+                and t.parcel_id not in assignee_user_by_parcel
+                and t.assigned_to
+            ):
                 assignee_user_by_parcel[t.parcel_id] = t.assigned_to
 
     user_names: dict[str, str] = {}
     uids = set(assignee_user_by_parcel.values())
     if uids:
         for u in db.query(models.User).filter(models.User.id.in_(uids)).all():
-            user_names[u.id] = (u.full_name or u.email or u.id)
+            user_names[u.id] = u.full_name or u.email or u.id
 
     return {
         "total": total,

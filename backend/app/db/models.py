@@ -413,7 +413,9 @@ class ParcelGridSavedView(Base):
 
     __tablename__ = "parcel_grid_saved_views"
     __table_args__ = (
-        UniqueConstraint("user_id", "name", name="uq_parcel_grid_saved_views_user_name"),
+        UniqueConstraint(
+            "user_id", "name", name="uq_parcel_grid_saved_views_user_name"
+        ),
     )
 
     id = Column(String, primary_key=True)
