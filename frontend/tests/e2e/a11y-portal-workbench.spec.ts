@@ -38,6 +38,14 @@ test.describe("Axe WCAG checks", () => {
     await staffLogin(page, request);
   });
 
+  test("dashboard route", async ({ page }) => {
+    await runAxe(page, "/");
+  });
+
+  test("parcel detail route", async ({ page }) => {
+    await runAxe(page, "/parcels/PARCEL-001?projectId=PRJ-001");
+  });
+
   test("portal route", async ({ page }) => {
     await runAxe(page, "/portal?projectId=PRJ-001&parcelId=PARCEL-001");
   });

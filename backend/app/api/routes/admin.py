@@ -334,7 +334,7 @@ def get_firm_cases(
         offer = (
             db.query(models.Offer)
             .filter(models.Offer.parcel_id == parcel.id)
-            .order_by(models.Offer.created_at.desc())
+            .order_by(models.Offer.created_date.desc())
             .first()
         )
 
@@ -622,7 +622,7 @@ def get_platform_cases(
         offer = (
             db.query(models.Offer)
             .filter(models.Offer.parcel_id == parcel.id)
-            .order_by(models.Offer.created_at.desc())
+            .order_by(models.Offer.created_date.desc())
             .first()
         )
 

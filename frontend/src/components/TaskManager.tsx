@@ -40,7 +40,7 @@ const TASK_PRIORITIES = [
 
 const TASK_STATUSES = [
   { value: 'open', label: 'Open', color: 'bg-blue-100 text-blue-800' },
-  { value: 'in_progress', label: 'In Progress', color: 'bg-purple-100 text-purple-800' },
+  { value: 'in_progress', label: 'In Progress', color: 'bg-info-bg text-info-fg' },
   { value: 'blocked', label: 'Blocked', color: 'bg-red-100 text-red-800' },
   { value: 'completed', label: 'Completed', color: 'bg-green-100 text-green-800' },
   { value: 'cancelled', label: 'Cancelled', color: 'bg-gray-100 text-gray-500' },
@@ -271,7 +271,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               <div className="text-xs text-gray-500">Open</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{stats.in_progress}</div>
+              <div className="text-2xl font-bold text-info-fg">{stats.in_progress}</div>
               <div className="text-xs text-gray-500">In Progress</div>
             </div>
             <div className="text-center">

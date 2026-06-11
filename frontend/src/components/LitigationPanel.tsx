@@ -45,7 +45,7 @@ const STATUS_COLORS: Record<LitigationStatus, string> = {
   pending_filing: "bg-slate-100 text-slate-700",
   filed: "bg-blue-50 text-blue-700",
   served: "bg-indigo-50 text-indigo-700",
-  discovery: "bg-purple-50 text-purple-700",
+  discovery: "bg-info-bg text-info-fg",
   trial_scheduled: "bg-amber-50 text-amber-700",
   trial: "bg-orange-50 text-orange-700",
   settled: "bg-emerald-50 text-emerald-700",

@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from app.api.routes import (
     auth as auth_routes,
+    user_me,
     cases,
     jurisdictions,
     projects,
@@ -24,6 +25,8 @@ from app.api.routes import (
     binder,
     notifications,
     parcels,
+    search,
+    dashboard,
     deadlines,
     title,
     appraisals,
@@ -190,6 +193,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_routes.router)
+app.include_router(user_me.router)
 app.include_router(health.router)
 app.include_router(jurisdictions.router)
 app.include_router(cases.router)
@@ -206,6 +210,8 @@ app.include_router(budgets.router)
 app.include_router(binder.router)
 app.include_router(notifications.router)
 app.include_router(parcels.router)
+app.include_router(search.router)
+app.include_router(dashboard.router)
 app.include_router(deadlines.router)
 app.include_router(title.router)
 app.include_router(appraisals.router)

@@ -21,7 +21,7 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex w-full max-w-2xl items-center justify-between px-4 py-4">
+        <div className="mx-auto flex w-full max-w-xl items-center justify-between px-4 py-4">
           <Logo size={28} />
           <label className="flex items-center gap-2">
             <span className="sr-only">{t("app.language")}</span>
@@ -41,12 +41,12 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main id="main-content" className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
+      <main id="main-content" className="mx-auto w-full max-w-xl flex-1 px-4 py-8 text-lg leading-relaxed text-slate-800">
         {children}
       </main>
 
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6">
+        <div className="mx-auto w-full max-w-xl space-y-4 px-4 py-6">
           <div className="rounded-card border border-info-border bg-info-bg p-4">
             <p className="flex items-center gap-2 text-h3 text-info-fg">
               <LifeBuoy className="h-5 w-5" /> {t("portal.help")}

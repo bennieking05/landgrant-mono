@@ -1,58 +1,193 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { type ColumnDef, type SortingState } from "@tanstack/react-table";
 import {
   getFirmDashboard,
   getFirmCases,
   getFirmActivity,
-  FirmMetrics,
-  FirmCaseItem,
-  FirmActivityItem,
+  type FirmMetrics,
+  type FirmCaseItem,
+  type FirmActivityItem,
 } from "@/lib/api";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { formatDate } from "@/lib/format";
+import { DataGrid, EmptyState, StageBadge } from "@/components/ui";
+
+const DEFAULT_PAGE = 50;
 
 export function FirmAdminPage() {
   useDocumentTitle("Firm admin");
   const [metrics, setMetrics] = useState<FirmMetrics | null>(null);
   const [cases, setCases] = useState<FirmCaseItem[]>([]);
+  const [casesTotal, setCasesTotal] = useState(0);
   const [activities, setActivities] = useState<FirmActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [litigationFilter, setLitigationFilter] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE);
+  const [sorting, setSorting] = useState<SortingState>([{ id: "updated_at", desc: true }]);
 
-  async function loadDashboard() {
+  useEffect(() => {
+    setPageIndex(0);
+  }, [statusFilter, litigationFilter, searchQuery, pageSize]);
+
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const offset = pageIndex * pageSize;
       const [metricsData, casesData, activityData] = await Promise.all([
         getFirmDashboard(),
-        getFirmCases({ status: statusFilter || undefined, litigation_status: litigationFilter || undefined, search: searchQuery || undefined, limit: 50 }),
+        getFirmCases({
+          status: statusFilter || undefined,
+          litigation_status: litigationFilter || undefined,
+          search: searchQuery || undefined,
+          limit: pageSize,
+          offset,
+        }),
         getFirmActivity(7, 20),
       ]);
       setMetrics(metricsData);
       setCases(casesData.cases);
+      setCasesTotal(casesData.total);
       setActivities(activityData.activities);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
       setLoading(false);
     }
-  }
+  }, [statusFilter, litigationFilter, searchQuery, pageIndex, pageSize]);
 
   useEffect(() => {
-    loadDashboard();
-  }, [statusFilter, litigationFilter, searchQuery]);
+    void loadDashboard();
+  }, [loadDashboard]);
 
-  // Format date for display
-  function formatDate(isoString: string): string {
-    if (!isoString) return "-";
-    const date = new Date(isoString);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  }
+  const sortedCases = useMemo(() => {
+    const copy = [...cases];
+    const s = sorting[0];
+    if (!s) return copy;
+    const dir = s.desc ? -1 : 1;
+    const id = s.id;
+    copy.sort((a, b) => {
+      let cmp = 0;
+      if (id === "parcel_id") cmp = a.parcel_id.localeCompare(b.parcel_id);
+      else if (id === "project_name")
+        cmp = (a.project_name ?? a.project_id).localeCompare(b.project_name ?? b.project_id);
+      else if (id === "parcel_stage") cmp = a.parcel_stage.localeCompare(b.parcel_stage);
+      else if (id === "litigation_status")
+        cmp = (a.litigation_status ?? "").localeCompare(b.litigation_status ?? "");
+      else if (id === "offer_status") cmp = (a.offer_status ?? "").localeCompare(b.offer_status ?? "");
+      else if (id === "payment_status") cmp = (a.payment_status ?? "").localeCompare(b.payment_status ?? "");
+      else if (id === "updated_at") cmp = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      return cmp * dir;
+    });
+    return copy;
+  }, [cases, sorting]);
 
-  // Status badge color
+  const columns = useMemo<ColumnDef<FirmCaseItem, unknown>[]>(
+    () => [
+      {
+        accessorKey: "parcel_id",
+        header: "Parcel ID",
+        cell: ({ row, getValue }) => (
+          <Link
+            to={`/parcels/${encodeURIComponent(String(getValue()))}?projectId=${encodeURIComponent(row.original.project_id)}`}
+            className="font-id font-medium text-brand hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {String(getValue())}
+          </Link>
+        ),
+      },
+      {
+        id: "project_name",
+        accessorFn: (r) => r.project_name ?? r.project_id,
+        header: "Project",
+        cell: ({ row }) => row.original.project_name || row.original.project_id,
+      },
+      {
+        accessorKey: "parcel_stage",
+        header: "Stage",
+        cell: ({ getValue }) => <StageBadge stage={String(getValue())} />,
+      },
+      {
+        accessorKey: "litigation_status",
+        header: "Litigation",
+        enableSorting: true,
+        cell: ({ getValue }) => (
+          <span className="text-slate-600">{getValue() ? String(getValue()).replace(/_/g, " ") : "—"}</span>
+        ),
+      },
+      {
+        accessorKey: "offer_status",
+        header: "Offer",
+        cell: ({ getValue }) => (
+          <span className="text-slate-600">{getValue() ? String(getValue()).replace(/_/g, " ") : "—"}</span>
+        ),
+      },
+      {
+        accessorKey: "payment_status",
+        header: "Payment",
+        cell: ({ getValue }) => (
+          <span className="text-slate-600">{getValue() ? String(getValue()).replace(/_/g, " ") : "—"}</span>
+        ),
+      },
+      {
+        accessorKey: "updated_at",
+        header: "Updated",
+        cell: ({ getValue }) => formatDate(String(getValue())),
+      },
+    ],
+    [],
+  );
+
+  const casesToolbar = (
+    <>
+      <input
+        type="text"
+        placeholder="Search by parcel ID…"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="h-8 w-48 rounded-control border border-slate-300 px-3 text-small"
+        aria-label="Search cases by parcel ID"
+      />
+      <select
+        value={statusFilter}
+        onChange={(e) => setStatusFilter(e.target.value)}
+        className="h-8 rounded-control border border-slate-300 px-2 text-small"
+        aria-label="Filter by stage"
+      >
+        <option value="">All stages</option>
+        <option value="intake">Intake</option>
+        <option value="appraisal">Appraisal</option>
+        <option value="offer_pending">Offer pending</option>
+        <option value="offer_sent">Offer sent</option>
+        <option value="negotiation">Negotiation</option>
+        <option value="closing">Closing</option>
+        <option value="litigation">Litigation</option>
+        <option value="closed">Closed</option>
+      </select>
+      <select
+        value={litigationFilter}
+        onChange={(e) => setLitigationFilter(e.target.value)}
+        className="h-8 rounded-control border border-slate-300 px-2 text-small"
+        aria-label="Filter by litigation status"
+      >
+        <option value="">All litigation status</option>
+        <option value="filed">Filed</option>
+        <option value="served">Served</option>
+        <option value="commissioners_hearing">Commissioners hearing</option>
+        <option value="trial">Trial</option>
+        <option value="settled">Settled</option>
+        <option value="closed">Closed</option>
+      </select>
+    </>
+  );
+
   function getStatusColor(status: string): string {
     const colors: Record<string, string> = {
       intake: "bg-slate-100 text-slate-700",
@@ -71,7 +206,7 @@ export function FirmAdminPage() {
     return (
       <section className="space-y-6">
         <div className="flex items-center justify-center py-12">
-          <div className="text-slate-500">Loading dashboard...</div>
+          <div className="text-slate-500">Loading dashboard…</div>
         </div>
       </section>
     );
@@ -79,25 +214,24 @@ export function FirmAdminPage() {
 
   return (
     <section className="space-y-6">
-      {/* Header */}
       <div>
         <p className="text-sm uppercase tracking-wide text-brand">Firm Administration</p>
         <h1 className="mt-2 text-3xl font-semibold">Firm Dashboard</h1>
         <p className="mt-2 max-w-3xl text-slate-600">
-          Rolled-up view of all cases across your firm's projects. Monitor progress, track litigation, and review activity.
+          Rolled-up view of all cases across your firm&apos;s projects. Monitor progress, track litigation, and review
+          activity.
         </p>
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
           {error}
-          <button onClick={loadDashboard} className="ml-4 text-red-600 underline">
+          <button type="button" onClick={() => void loadDashboard()} className="ml-4 text-red-600 underline">
             Retry
           </button>
         </div>
       )}
 
-      {/* Metrics Cards */}
       {metrics && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -119,7 +253,6 @@ export function FirmAdminPage() {
         </div>
       )}
 
-      {/* Secondary Metrics */}
       {metrics && (
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -137,13 +270,12 @@ export function FirmAdminPage() {
         </div>
       )}
 
-      {/* Stage Distribution */}
       {metrics && Object.keys(metrics.parcels_by_stage).length > 0 && (
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">Parcels by Stage</h3>
+          <h3 className="mb-4 text-lg font-semibold">Parcels by Stage</h3>
           <div className="flex flex-wrap gap-2">
             {Object.entries(metrics.parcels_by_stage).map(([stage, count]) => (
-              <div key={stage} className={`px-3 py-1.5 rounded-full text-sm font-medium ${getStatusColor(stage)}`}>
+              <div key={stage} className={`rounded-full px-3 py-1.5 text-sm font-medium ${getStatusColor(stage)}`}>
                 {stage.replace(/_/g, " ")}: {count}
               </div>
             ))}
@@ -151,110 +283,45 @@ export function FirmAdminPage() {
         </div>
       )}
 
-      {/* Cases Table */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="p-6 border-b border-slate-200">
-          <h3 className="text-lg font-semibold">All Cases</h3>
-          <p className="text-sm text-slate-500 mt-1">Cases across all firm projects</p>
-
-          {/* Filters */}
-          <div className="mt-4 flex flex-wrap gap-3">
-            <input
-              type="text"
-              placeholder="Search by parcel ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-48"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            >
-              <option value="">All Stages</option>
-              <option value="intake">Intake</option>
-              <option value="appraisal">Appraisal</option>
-              <option value="offer_pending">Offer Pending</option>
-              <option value="offer_sent">Offer Sent</option>
-              <option value="negotiation">Negotiation</option>
-              <option value="closing">Closing</option>
-              <option value="litigation">Litigation</option>
-              <option value="closed">Closed</option>
-            </select>
-            <select
-              value={litigationFilter}
-              onChange={(e) => setLitigationFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            >
-              <option value="">All Litigation Status</option>
-              <option value="filed">Filed</option>
-              <option value="served">Served</option>
-              <option value="commissioners_hearing">Commissioners Hearing</option>
-              <option value="trial">Trial</option>
-              <option value="settled">Settled</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="text-left px-6 py-3 font-medium">Parcel ID</th>
-                <th className="text-left px-6 py-3 font-medium">Project</th>
-                <th className="text-left px-6 py-3 font-medium">Stage</th>
-                <th className="text-left px-6 py-3 font-medium">Litigation</th>
-                <th className="text-left px-6 py-3 font-medium">Offer</th>
-                <th className="text-left px-6 py-3 font-medium">Payment</th>
-                <th className="text-left px-6 py-3 font-medium">Updated</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {cases.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
-                    No cases found
-                  </td>
-                </tr>
-              ) : (
-                cases.map((c) => (
-                  <tr key={c.parcel_id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-medium text-slate-900">{c.parcel_id}</td>
-                    <td className="px-6 py-4 text-slate-600">{c.project_name || c.project_id}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(c.parcel_stage)}`}>
-                        {c.parcel_stage.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">{c.litigation_status?.replace(/_/g, " ") || "-"}</td>
-                    <td className="px-6 py-4 text-slate-600">{c.offer_status?.replace(/_/g, " ") || "-"}</td>
-                    <td className="px-6 py-4 text-slate-600">{c.payment_status?.replace(/_/g, " ") || "-"}</td>
-                    <td className="px-6 py-4 text-slate-500">{formatDate(c.updated_at)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="space-y-2">
+        <h3 className="text-lg font-semibold text-slate-900">All cases</h3>
+        <p className="text-sm text-slate-500">Cases across all firm projects</p>
+        <DataGrid<FirmCaseItem>
+          data={sortedCases}
+          columns={columns}
+          rowId={(r) => r.parcel_id}
+          total={casesTotal}
+          loading={loading}
+          noun="cases"
+          sorting={sorting}
+          onSortingChange={setSorting}
+          pageIndex={pageIndex}
+          pageSize={pageSize}
+          onPageChange={setPageIndex}
+          onPageSizeChange={(n) => setPageSize(n)}
+          toolbar={casesToolbar}
+          virtualizeRows={false}
+          emptyState={<EmptyState message="Try adjusting filters or search." title="No cases found" />}
+        />
       </div>
 
-      {/* Recent Activity */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
+        <h3 className="mb-4 text-lg font-semibold">Recent Activity</h3>
         {activities.length === 0 ? (
           <p className="text-slate-500">No recent activity</p>
         ) : (
           <ul className="space-y-3">
             {activities.map((activity) => (
-              <li key={activity.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                <div className="w-2 h-2 mt-2 rounded-full bg-brand"></div>
-                <div className="flex-1 min-w-0">
+              <li key={activity.id} className="flex items-start gap-3 rounded-lg bg-slate-50 p-3">
+                <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-brand" />
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-slate-900">
                     {activity.action} on {activity.resource}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {activity.actor_persona && <span className="capitalize">{activity.actor_persona.replace(/_/g, " ")}</span>}
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {activity.actor_persona && (
+                      <span className="capitalize">{activity.actor_persona.replace(/_/g, " ")}</span>
+                    )}
                     {" · "}
                     {formatDate(activity.occurred_at)}
                   </p>

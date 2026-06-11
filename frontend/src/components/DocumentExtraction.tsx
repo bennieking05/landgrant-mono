@@ -46,7 +46,7 @@ type SelectedDocument = TitleInstrumentItem & {
 
 const ENTITY_TYPE_CONFIG: Record<EntityType, { label: string; icon: string; color: string }> = {
   grantor: { label: "Grantor", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z", color: "bg-blue-100 text-blue-700 border-blue-300" },
-  grantee: { label: "Grantee", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z", color: "bg-purple-100 text-purple-700 border-purple-300" },
+  grantee: { label: "Grantee", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z", color: "bg-info-bg text-info-fg border-info-border" },
   legal_description: { label: "Legal Description", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
   recording_date: { label: "Recording Date", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", color: "bg-amber-100 text-amber-700 border-amber-300" },
   book_page: { label: "Book/Page", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253", color: "bg-slate-100 text-slate-700 border-slate-300" },
@@ -57,7 +57,7 @@ const ENTITY_TYPE_CONFIG: Record<EntityType, { label: string; icon: string; colo
   acreage: { label: "Acreage", icon: "M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064", color: "bg-lime-100 text-lime-700 border-lime-300" },
   date: { label: "Date", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", color: "bg-orange-100 text-orange-700 border-orange-300" },
   amount: { label: "Amount", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", color: "bg-teal-100 text-teal-700 border-teal-300" },
-  name: { label: "Name", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z", color: "bg-violet-100 text-violet-700 border-violet-300" },
+  name: { label: "Name", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z", color: "bg-navy-100 text-navy-800 border-navy-200" },
   other: { label: "Other", icon: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z", color: "bg-gray-100 text-gray-700 border-gray-300" },
 };
 

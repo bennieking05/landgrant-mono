@@ -257,7 +257,7 @@ export function AppLayout({ children }: Props) {
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               disabled={loading}
-              className="hidden w-44 lg:block"
+              className="w-full min-w-0 max-w-[10rem] flex-shrink-0 sm:max-w-[11rem] sm:w-44"
               aria-label="Active project"
             >
               {projects.length === 0 && <option value="">No projects</option>}

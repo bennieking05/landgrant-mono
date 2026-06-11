@@ -1,8 +1,5 @@
-/* Fonts (self-hosted via @fontsource) */
-@import "@fontsource/inter/400.css";
-@import "@fontsource/inter/500.css";
-@import "@fontsource/inter/600.css";
-@import "@fontsource/inter/700.css";
+/* Fonts (self-hosted via @fontsource) — Inter variable for full weight range */
+@import "@fontsource-variable/inter/wght.css";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 
@@ -34,7 +31,7 @@
   :where(a, button, input, select, textarea, [tabindex], [role="button"], [role="tab"], [role="menuitem"]):focus-visible {
     outline: 2px solid var(--navy-600);
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: var(--radius-tight);
   }
 
   /* Identifiers (parcel numbers, cause numbers, hashes). */

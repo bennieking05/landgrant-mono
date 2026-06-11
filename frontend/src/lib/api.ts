@@ -95,6 +95,10 @@ export async function apiPostJson<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export async function apiDelete(path: string): Promise<void> {
+  await apiFetch(path, { method: "DELETE" });
+}
+
 export async function apiPostForm<T>(path: string, form: FormData): Promise<T> {
   const res = await apiFetch(
     path,
@@ -248,15 +252,31 @@ export type NotificationPreviewResponse = { notification_id: string; channel: st
 export type ParcelItem = {
   id: string;
   project_id: string;
+  project_name?: string | null;
+  segment_id?: string | null;
+  segment_label?: string | null;
+  alignment_label?: string | null;
+  county?: string | null;
+  parcel_state?: string | null;
   county_fips?: string;
   owner?: string | null;
   stage: string;
   risk_score: number;
+  offer_status?: string | null;
+  assignee_name?: string | null;
   next_deadline_at?: string;
   updated_at?: string;
   geom?: unknown;
 };
 export type ParcelsResponse = { total: number; items: ParcelItem[] };
+
+export type ParcelGridSavedView = {
+  id: string;
+  name: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
 
 // Deadlines
 export type DeadlineItem = {
@@ -399,6 +419,23 @@ export const getBinderStatus = (projectId: string) => apiGet<BinderStatusRespons
 // --- Notifications ---
 export const previewNotification = (payload: NotificationPreviewPayload) => apiPostJson<NotificationPreviewResponse>("/notifications/preview", payload);
 
+export const listParcelGridViews = () => apiGet<{ items: ParcelGridSavedView[] }>("/users/me/parcel-views");
+
+export const createParcelGridView = (body: { name: string; payload: Record<string, unknown> }) =>
+  apiPostJson<ParcelGridSavedView>("/users/me/parcel-views", body);
+
+export const deleteParcelGridView = (id: string) =>
+  apiDelete(`/users/me/parcel-views/${encodeURIComponent(id)}`);
+
+export type FirmAssignee = {
+  id: string;
+  full_name?: string | null;
+  email: string;
+  persona: string;
+};
+
+export const listFirmAssignees = () => apiGet<{ items: FirmAssignee[] }>("/users/me/firm-assignees");
+
 // --- Parcels ---
 export const listParcels = (params?: {
   project_id?: string;
@@ -406,6 +443,9 @@ export const listParcels = (params?: {
   min_risk?: number;
   deadline_before?: string;
   q?: string;
+  county?: string;
+  assigned_to?: string;
+  offer_status?: string;
   sort?: string;
   limit?: number;
   offset?: number;
@@ -416,12 +456,85 @@ export const listParcels = (params?: {
   if (params?.min_risk !== undefined) query.set("min_risk", String(params.min_risk));
   if (params?.deadline_before) query.set("deadline_before", params.deadline_before);
   if (params?.q) query.set("q", params.q);
+  if (params?.county) query.set("county", params.county);
+  if (params?.assigned_to) query.set("assigned_to", params.assigned_to);
+  if (params?.offer_status) query.set("offer_status", params.offer_status);
   if (params?.sort) query.set("sort", params.sort);
   if (params?.limit !== undefined) query.set("limit", String(params.limit));
   if (params?.offset !== undefined) query.set("offset", String(params.offset));
   const qs = query.toString();
   return apiGet<ParcelsResponse>(`/parcels${qs ? `?${qs}` : ""}`);
 };
+
+export async function exportParcelsCsv(params?: {
+  project_id?: string;
+  stage?: string;
+  min_risk?: number;
+  deadline_before?: string;
+  q?: string;
+  county?: string;
+  assigned_to?: string;
+  offer_status?: string;
+}): Promise<Blob> {
+  const query = new URLSearchParams();
+  if (params?.project_id) query.set("project_id", params.project_id);
+  if (params?.stage) query.set("stage", params.stage);
+  if (params?.min_risk !== undefined) query.set("min_risk", String(params.min_risk));
+  if (params?.deadline_before) query.set("deadline_before", params.deadline_before);
+  if (params?.q) query.set("q", params.q);
+  if (params?.county) query.set("county", params.county);
+  if (params?.assigned_to) query.set("assigned_to", params.assigned_to);
+  if (params?.offer_status) query.set("offer_status", params.offer_status);
+  const qs = query.toString();
+  const headers: Record<string, string> = {};
+  const tok = getApiAuth().token;
+  if (tok) headers.Authorization = `Bearer ${tok}`;
+  const res = await fetch(`${API_BASE}/parcels/export.csv${qs ? `?${qs}` : ""}`, { headers });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new ApiError(res.status, text || res.statusText);
+  }
+  return res.blob();
+}
+
+export type DashboardHomeResponse = {
+  persona: string;
+  project_id?: string | null;
+  sample_size: number;
+  sample_sufficient: boolean;
+  parcels_by_stage: Record<string, number>;
+  pending_offers_count: number;
+  overdue_tasks_count: number;
+  deadlines_next_14_count: number;
+  pending_approvals_count: number | null;
+  escalations_open_count: number | null;
+  litigation_rate: number | null;
+  litigation_rate_insufficient_data: boolean;
+  cycle_time_median_days: number | null;
+  cycle_time_insufficient_data: boolean;
+  budget_utilization_pct: number | null;
+  budget_utilization_insufficient_data: boolean;
+};
+
+export const getDashboardHome = (projectId?: string) => {
+  const qs = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return apiGet<DashboardHomeResponse>(`/dashboard/home${qs}`);
+};
+
+export type ParcelTimelineEvent = {
+  id: string;
+  kind: string;
+  title: string;
+  detail?: string | null;
+  at?: string | null;
+  actor?: string | null;
+  source?: string | null;
+};
+
+export const getParcelTimeline = (parcelId: string) =>
+  apiGet<{ parcel_id: string; events: ParcelTimelineEvent[] }>(
+    `/parcels/${encodeURIComponent(parcelId)}/timeline`,
+  );
 
 // --- Deadlines ---
 export const listDeadlines = (projectId: string) => apiGet<DeadlinesResponse>(`/deadlines?project_id=${encodeURIComponent(projectId)}`);
@@ -1095,7 +1208,7 @@ export const globalSearch = (q: string, limit?: number) => {
   const query = new URLSearchParams();
   query.set("q", q);
   if (limit) query.set("limit", limit.toString());
-  return apiGet<GlobalSearchResponse>(`/admin/platform/search?${query.toString()}`);
+  return apiGet<GlobalSearchResponse>(`/search?${query.toString()}`);
 };
 
 export const getPlatformHealth = () => apiGet<PlatformHealthResponse>("/admin/platform/health");

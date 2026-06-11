@@ -16,6 +16,8 @@ type Props = {
  * Cmd-K global search (UX-2): navigate by identifier - parcel number, project,
  * owner, cause number. Admin personas hit the server search endpoint; everyone
  * gets fast client-side jumps over loaded parcels + role navigation.
+ * Remote search calls ``GET /search`` (parcels, cases, parties, documents) for
+ * all staff personas; landowners rely on client-side matches only.
  */
 export function CommandPalette({ open, onOpenChange }: Props) {
   const navigate = useNavigate();
@@ -24,7 +26,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
   const [remote, setRemote] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
-  const canRemoteSearch = persona === "platform_admin";
+  const canRemoteSearch = persona !== "landowner";
 
   useEffect(() => {
     if (!open) {
@@ -75,7 +77,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
         <Command.Input
           value={query}
           onValueChange={setQuery}
-          placeholder="Search parcels, projects, owners, cause numbers..."
+          placeholder="Search parcels, projects, parties, documents, cause numbers..."
           className="h-12 w-full bg-transparent text-body text-slate-900 outline-none placeholder:text-slate-400"
         />
         <kbd className="hidden rounded bg-slate-100 px-1.5 py-0.5 text-caption text-slate-500 sm:block">
@@ -147,10 +149,12 @@ export function CommandPalette({ open, onOpenChange }: Props) {
                   if (r.parcel_id) {
                     const proj = r.project_id ? `?projectId=${encodeURIComponent(r.project_id)}` : "";
                     go(`/parcels/${encodeURIComponent(r.parcel_id)}${proj}`);
+                  } else if (r.result_type === "document" && r.project_id) {
+                    go(`/workbench?projectId=${encodeURIComponent(r.project_id)}`);
                   } else if (r.project_id) {
                     go(`/workbench?projectId=${encodeURIComponent(r.project_id)}`);
                   } else {
-                    go("/admin");
+                    go("/workbench");
                   }
                 }}
                 className="flex cursor-pointer items-center justify-between gap-2 rounded-control px-3 py-2 text-small text-slate-700 data-[selected=true]:bg-slate-100"

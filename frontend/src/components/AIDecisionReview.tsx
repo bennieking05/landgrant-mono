@@ -22,7 +22,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, string> = {
   open: "bg-blue-100 text-blue-800",
-  in_review: "bg-purple-100 text-purple-800",
+  in_review: "bg-navy-100 text-navy-800",
   resolved: "bg-green-100 text-green-800",
 };
 
@@ -291,11 +291,9 @@ export function AIDecisionReview() {
                 Resolve Escalation
               </h4>
               
-              <div className="mt-3">
-                <label className="text-xs font-medium text-slate-500">
-                  Outcome
-                </label>
-                <div className="mt-1 flex space-x-4">
+              <fieldset className="mt-3">
+                <legend className="text-xs font-medium text-slate-500">Outcome</legend>
+                <div className="mt-1 flex flex-wrap gap-4">
                   {["approved", "rejected", "modified"].map((opt) => (
                     <label key={opt} className="flex items-center space-x-2">
                       <input
@@ -310,7 +308,7 @@ export function AIDecisionReview() {
                     </label>
                   ))}
                 </div>
-              </div>
+              </fieldset>
 
               <div className="mt-3">
                 <label className="text-xs font-medium text-slate-500">

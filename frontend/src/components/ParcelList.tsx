@@ -1,8 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { type ColumnDef, type SortingState, type RowSelectionState } from "@tanstack/react-table";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  type ColumnDef,
+  type SortingState,
+  type RowSelectionState,
+  type VisibilityState,
+} from "@tanstack/react-table";
 import { Search, X, Bookmark, Trash2 } from "lucide-react";
-import { listParcels, type ParcelItem } from "@/lib/api";
+import {
+  listParcels,
+  exportParcelsCsv,
+  listParcelGridViews,
+  createParcelGridView,
+  deleteParcelGridView,
+  listFirmAssignees,
+  type FirmAssignee,
+  type ParcelGridSavedView,
+  type ParcelItem,
+} from "@/lib/api";
+import { useAppContext } from "@/context";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { formatDate } from "@/lib/format";
 import {
@@ -30,7 +46,20 @@ type Props = {
   onSelectParcel?: (parcelId: string) => void;
 };
 
-type SavedView = {
+const VIEWS_KEY = "landgrant.parcels.views";
+
+const OFFER_STATUS_OPTIONS = [
+  "",
+  "draft",
+  "sent",
+  "received",
+  "accepted",
+  "rejected",
+  "expired",
+  "superseded",
+] as const;
+
+type LegacySavedView = {
   name: string;
   q: string;
   stage: string;
@@ -39,9 +68,7 @@ type SavedView = {
   pageSize: number;
 };
 
-const VIEWS_KEY = "landgrant.parcels.views";
-
-function loadViews(): SavedView[] {
+function loadLegacyViews(): LegacySavedView[] {
   try {
     return JSON.parse(window.localStorage.getItem(VIEWS_KEY) ?? "[]");
   } catch {
@@ -49,8 +76,40 @@ function loadViews(): SavedView[] {
   }
 }
 
+function NextDeadlineCell({ iso }: { iso: string }) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return <span className="text-slate-400">&mdash;</span>;
+  }
+  const now = new Date();
+  const msPerDay = 86_400_000;
+  const dayStart = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+  const days = Math.round((dayStart(d) - dayStart(now)) / msPerDay);
+  const urgent = days >= 0 && days <= 7;
+  const overdue = days < 0;
+  const rel =
+    days < 0
+      ? `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} overdue`
+      : days === 0
+        ? "Due today"
+        : days === 1
+          ? "Due tomorrow"
+          : `Due in ${days} days`;
+  return (
+    <span
+      title={`${formatDate(iso)} (${rel})`}
+      className={urgent || overdue ? "font-medium text-danger-fg" : undefined}
+    >
+      {formatDate(iso)}
+      <span className="ml-1 text-caption text-slate-500">({rel})</span>
+    </span>
+  );
+}
+
 export function ParcelList({ projectId, onSelectParcel }: Props) {
   const toast = useToast();
+  const navigate = useNavigate();
+  const { persona } = useAppContext();
   const [searchParams] = useSearchParams();
 
   const [data, setData] = useState<ParcelItem[]>([]);
@@ -59,30 +118,59 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize filters from deep-link query (e.g. KPI cards -> /workbench?stage=litigation).
   const [q, setQ] = useState(() => searchParams.get("q") ?? "");
   const [debouncedQ, setDebouncedQ] = useState(() => searchParams.get("q") ?? "");
   const [stage, setStage] = useState(() => searchParams.get("stage") ?? "");
   const [minRisk, setMinRisk] = useState(() => searchParams.get("minRisk") ?? "");
+  const [deadlineBefore, setDeadlineBefore] = useState(() => searchParams.get("deadline_before") ?? "");
+  const [county, setCounty] = useState(() => searchParams.get("county") ?? "");
+  const [offerStatus, setOfferStatus] = useState(() => searchParams.get("offer_status") ?? "");
+  const [assignedTo, setAssignedTo] = useState(() => searchParams.get("assigned_to") ?? "");
+  const [assignees, setAssignees] = useState<FirmAssignee[]>([]);
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "updated_at", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    project_name: true,
+    alignment_label: false,
+    segment_label: false,
+    offer_status: true,
+    assignee_name: true,
+  });
 
-  const [views, setViews] = useState<SavedView[]>(() => loadViews());
+  const [savedViews, setSavedViews] = useState<ParcelGridSavedView[]>([]);
+  const viewsLoaded = useRef(false);
 
-  // Debounce search.
   useEffect(() => {
     const id = window.setTimeout(() => setDebouncedQ(q), 300);
     return () => window.clearTimeout(id);
   }, [q]);
 
-  // Reset to first page when filters change.
   useEffect(() => {
     setPageIndex(0);
-  }, [debouncedQ, stage, minRisk, projectId, sorting, pageSize]);
+  }, [debouncedQ, stage, minRisk, deadlineBefore, county, offerStatus, assignedTo, projectId, sorting, pageSize]);
+
+  useEffect(() => {
+    if (persona === "landowner") {
+      setAssignees([]);
+      return;
+    }
+    let canceled = false;
+    void (async () => {
+      try {
+        const res = await listFirmAssignees();
+        if (!canceled) setAssignees(res.items);
+      } catch {
+        if (!canceled) setAssignees([]);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [persona]);
 
   const sortParam = useMemo(() => {
     const s = sorting[0];
@@ -90,7 +178,6 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
     return `${s.desc ? "-" : ""}${s.id}`;
   }, [sorting]);
 
-  // Track the unfiltered grand total once per project for "filtered from X".
   const grandTotalProject = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -101,7 +188,11 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
         project_id: projectId || undefined,
         stage: stage || undefined,
         min_risk: minRisk && !Number.isNaN(Number(minRisk)) ? Number(minRisk) : undefined,
+        deadline_before: deadlineBefore || undefined,
         q: debouncedQ || undefined,
+        county: county.trim() || undefined,
+        offer_status: offerStatus || undefined,
+        assigned_to: assignedTo || undefined,
         sort: sortParam,
         limit: pageSize,
         offset: pageIndex * pageSize,
@@ -109,7 +200,15 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
       setData(res.items);
       setTotal(res.total);
 
-      const hasFilters = Boolean(debouncedQ || stage || minRisk);
+      const hasFilters = Boolean(
+        debouncedQ ||
+          stage ||
+          minRisk ||
+          deadlineBefore ||
+          county.trim() ||
+          offerStatus ||
+          assignedTo,
+      );
       if (!hasFilters) {
         setGrandTotal(res.total);
         grandTotalProject.current = projectId ?? "";
@@ -123,11 +222,68 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [projectId, stage, minRisk, debouncedQ, sortParam, pageSize, pageIndex]);
+  }, [
+    projectId,
+    stage,
+    minRisk,
+    deadlineBefore,
+    debouncedQ,
+    county,
+    offerStatus,
+    assignedTo,
+    sortParam,
+    pageSize,
+    pageIndex,
+  ]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (viewsLoaded.current) return;
+    viewsLoaded.current = true;
+    let canceled = false;
+    (async () => {
+      try {
+        const first = await listParcelGridViews();
+        if (canceled) return;
+        if (first.items.length === 0) {
+          const legacy = loadLegacyViews();
+          for (const v of legacy) {
+            try {
+              await createParcelGridView({
+                name: v.name,
+                payload: {
+                  q: v.q ?? "",
+                  stage: v.stage ?? "",
+                  minRisk: v.minRisk ?? "",
+                  deadlineBefore: "",
+                  county: "",
+                  offerStatus: "",
+                  assignedTo: "",
+                  sorting: v.sorting ?? [{ id: "updated_at", desc: true }],
+                  pageSize: v.pageSize ?? 50,
+                },
+              });
+            } catch {
+              /** duplicate name or offline */
+            }
+          }
+          if (legacy.length) window.localStorage.removeItem(VIEWS_KEY);
+          const second = await listParcelGridViews();
+          if (!canceled) setSavedViews(second.items);
+          return;
+        }
+        setSavedViews(first.items);
+      } catch {
+        if (!canceled) setSavedViews([]);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
   const columns = useMemo<ColumnDef<ParcelItem, unknown>[]>(
     () => [
@@ -172,15 +328,65 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
         ),
       },
       {
+        id: "project_name",
+        accessorKey: "project_name",
+        header: "Project",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.project_name ? (
+            String(row.original.project_name)
+          ) : (
+            <span className="text-slate-400">&mdash;</span>
+          ),
+      },
+      {
         accessorKey: "owner",
         header: "Owner",
         enableSorting: false,
         cell: ({ getValue }) => (getValue() ? String(getValue()) : <span className="text-slate-400">&mdash;</span>),
       },
       {
-        accessorKey: "county_fips",
+        id: "alignment_label",
+        accessorKey: "alignment_label",
+        header: "Alignment",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.alignment_label ? (
+            String(row.original.alignment_label)
+          ) : (
+            <span className="text-slate-400">&mdash;</span>
+          ),
+      },
+      {
+        id: "segment_label",
+        accessorKey: "segment_label",
+        header: "Segment",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.segment_label ? (
+            <span className="font-id">{String(row.original.segment_label)}</span>
+          ) : (
+            <span className="text-slate-400">&mdash;</span>
+          ),
+      },
+      {
+        id: "county",
         header: "County",
-        cell: ({ getValue }) => <span className="font-id">{String(getValue() ?? "")}</span>,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const r = row.original;
+          const label = [r.county, r.parcel_state].filter(Boolean).join(", ") || r.county_fips || "";
+          return label ? (
+            <span>
+              {label}
+              {r.county_fips ? (
+                <span className="ml-1 text-caption text-slate-400">({r.county_fips})</span>
+              ) : null}
+            </span>
+          ) : (
+            <span className="text-slate-400">&mdash;</span>
+          );
+        },
       },
       {
         accessorKey: "stage",
@@ -193,10 +399,39 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
         cell: ({ getValue }) => <RiskBadge score={Number(getValue() ?? 0)} />,
       },
       {
+        id: "offer_status",
+        accessorKey: "offer_status",
+        header: "Offer status",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.offer_status ? (
+            <span className="text-caption uppercase text-slate-600">{row.original.offer_status}</span>
+          ) : (
+            <span className="text-slate-400">&mdash;</span>
+          ),
+      },
+      {
+        id: "assignee_name",
+        accessorKey: "assignee_name",
+        header: "Assignee",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.assignee_name ? (
+            String(row.original.assignee_name)
+          ) : (
+            <span className="text-slate-400">&mdash;</span>
+          ),
+      },
+      {
         accessorKey: "next_deadline_at",
         header: "Next deadline",
+        enableSorting: true,
         cell: ({ getValue }) =>
-          getValue() ? formatDate(String(getValue())) : <span className="text-slate-400">No deadline</span>,
+          getValue() ? (
+            <NextDeadlineCell iso={String(getValue())} />
+          ) : (
+            <span className="text-slate-400">No deadline</span>
+          ),
       },
       {
         accessorKey: "updated_at",
@@ -212,60 +447,106 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
     debouncedQ && { key: "q", label: `Search: "${debouncedQ}"`, clear: () => setQ("") },
     stage && { key: "stage", label: `Stage: ${stageLabel(stage)}`, clear: () => setStage("") },
     minRisk && { key: "minRisk", label: `Risk >= ${minRisk}`, clear: () => setMinRisk("") },
+    deadlineBefore && {
+      key: "deadline_before",
+      label: `Deadline before ${formatDate(deadlineBefore)}`,
+      clear: () => setDeadlineBefore(""),
+    },
+    county.trim() && {
+      key: "county",
+      label: `County contains "${county.trim()}"`,
+      clear: () => setCounty(""),
+    },
+    offerStatus && {
+      key: "offer_status",
+      label: `Offer status: ${offerStatus}`,
+      clear: () => setOfferStatus(""),
+    },
+    assignedTo && {
+      key: "assigned_to",
+      label: `Assignee: ${assignees.find((a) => a.id === assignedTo)?.full_name || assignees.find((a) => a.id === assignedTo)?.email || assignedTo}`,
+      clear: () => setAssignedTo(""),
+    },
   ].filter(Boolean) as { key: string; label: string; clear: () => void }[];
 
   async function exportCsv() {
     try {
-      const res = await listParcels({
+      const blob = await exportParcelsCsv({
         project_id: projectId || undefined,
         stage: stage || undefined,
         min_risk: minRisk && !Number.isNaN(Number(minRisk)) ? Number(minRisk) : undefined,
+        deadline_before: deadlineBefore || undefined,
         q: debouncedQ || undefined,
-        sort: sortParam,
-        limit: 500,
-        offset: 0,
+        county: county.trim() || undefined,
+        offer_status: offerStatus || undefined,
+        assigned_to: assignedTo || undefined,
       });
-      const csv = toCsv(res.items, [
-        { header: "Parcel ID", value: (r) => r.id },
-        { header: "Owner", value: (r) => r.owner ?? "" },
-        { header: "County FIPS", value: (r) => r.county_fips ?? "" },
-        { header: "Stage", value: (r) => stageLabel(r.stage) },
-        { header: "Risk", value: (r) => r.risk_score },
-        { header: "Next deadline", value: (r) => (r.next_deadline_at ? formatDate(r.next_deadline_at) : "") },
-        { header: "Updated", value: (r) => (r.updated_at ? formatDate(r.updated_at) : "") },
-      ]);
-      const stamp = new Date().toISOString().slice(0, 10);
-      downloadCsv(`parcels_${stamp}.csv`, csv);
-      toast.success("Export ready", `${res.items.length} parcels exported to CSV.`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `parcels_export_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Export ready", "Server-generated CSV download started.");
     } catch (e) {
       toast.error("Export failed", e instanceof Error ? e.message : String(e));
     }
   }
 
-  function saveCurrentView() {
+  function buildViewPayload(): Record<string, unknown> {
+    return {
+      q: debouncedQ,
+      stage,
+      minRisk,
+      deadlineBefore,
+      county,
+      offerStatus,
+      assignedTo,
+      sorting,
+      pageSize,
+      columnVisibility,
+    };
+  }
+
+  async function saveCurrentView() {
     const name = window.prompt("Name this view");
-    if (!name) return;
-    const next = [
-      ...views.filter((v) => v.name !== name),
-      { name, q: debouncedQ, stage, minRisk, sorting, pageSize },
-    ];
-    setViews(next);
-    window.localStorage.setItem(VIEWS_KEY, JSON.stringify(next));
-    toast.success("View saved", `"${name}" is available in your saved views.`);
+    if (!name?.trim()) return;
+    try {
+      await createParcelGridView({ name: name.trim(), payload: buildViewPayload() });
+      const res = await listParcelGridViews();
+      setSavedViews(res.items);
+      toast.success("View saved", `"${name.trim()}" is synced to your account.`);
+    } catch (e) {
+      toast.error("Could not save view", e instanceof Error ? e.message : String(e));
+    }
   }
 
-  function applyView(v: SavedView) {
-    setQ(v.q);
-    setStage(v.stage);
-    setMinRisk(v.minRisk);
-    setSorting(v.sorting);
-    setPageSize(v.pageSize);
+  function applyServerView(v: ParcelGridSavedView) {
+    const p = v.payload;
+    setQ(String(p.q ?? ""));
+    setStage(String(p.stage ?? ""));
+    setMinRisk(String(p.minRisk ?? ""));
+    setDeadlineBefore(String(p.deadlineBefore ?? ""));
+    setCounty(String(p.county ?? ""));
+    setOfferStatus(String(p.offerStatus ?? ""));
+    setAssignedTo(String(p.assignedTo ?? ""));
+    const rawSort = p.sorting;
+    if (Array.isArray(rawSort) && rawSort.length) setSorting(rawSort as SortingState);
+    if (typeof p.pageSize === "number" && p.pageSize > 0) setPageSize(p.pageSize);
+    const cv = p.columnVisibility;
+    if (cv && typeof cv === "object" && !Array.isArray(cv)) {
+      setColumnVisibility((prev) => ({ ...prev, ...(cv as VisibilityState) }));
+    }
   }
 
-  function deleteView(name: string) {
-    const next = views.filter((v) => v.name !== name);
-    setViews(next);
-    window.localStorage.setItem(VIEWS_KEY, JSON.stringify(next));
+  async function removeServerView(id: string, name: string) {
+    try {
+      await deleteParcelGridView(id);
+      setSavedViews((prev) => prev.filter((v) => v.id !== id));
+      toast.success("View removed", `"${name}" was deleted.`);
+    } catch (e) {
+      toast.error("Could not delete view", e instanceof Error ? e.message : String(e));
+    }
   }
 
   const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
@@ -296,6 +577,40 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
         ))}
       </Select>
       <Input
+        value={county}
+        onChange={(e) => setCounty(e.target.value)}
+        placeholder="County"
+        className="h-8 w-32"
+        aria-label="Filter by county name"
+      />
+      <Select
+        value={offerStatus}
+        onChange={(e) => setOfferStatus(e.target.value)}
+        className="h-8 w-36"
+        aria-label="Filter by offer status"
+      >
+        {OFFER_STATUS_OPTIONS.map((s) => (
+          <option key={s || "any"} value={s}>
+            {s ? s.replaceAll("_", " ") : "Any offer status"}
+          </option>
+        ))}
+      </Select>
+      {persona !== "landowner" ? (
+        <Select
+          value={assignedTo}
+          onChange={(e) => setAssignedTo(e.target.value)}
+          className="h-8 min-w-[10rem] max-w-[14rem]"
+          aria-label="Filter by assignee"
+        >
+          <option value="">Any assignee</option>
+          {assignees.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.full_name?.trim() || a.email}
+            </option>
+          ))}
+        </Select>
+      ) : null}
+      <Input
         type="number"
         value={minRisk}
         onChange={(e) => setMinRisk(e.target.value)}
@@ -306,7 +621,7 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
       {activeFilters.map((f) => (
         <Badge key={f.key} variant="brand" className="gap-1">
           {f.label}
-          <button onClick={f.clear} aria-label={`Clear ${f.label}`} className="hover:text-brand-dark">
+          <button type="button" onClick={f.clear} aria-label={`Clear ${f.label}`} className="hover:text-brand-dark">
             <X className="h-3 w-3" />
           </button>
         </Badge>
@@ -320,16 +635,17 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuLabel>Saved views</DropdownMenuLabel>
-          {views.length === 0 ? (
+          {savedViews.length === 0 ? (
             <p className="px-2.5 py-2 text-caption text-slate-400">None yet</p>
           ) : (
-            views.map((v) => (
-              <DropdownMenuItem key={v.name} onSelect={() => applyView(v)} className="justify-between">
+            savedViews.map((v) => (
+              <DropdownMenuItem key={v.id} onSelect={() => applyServerView(v)} className="justify-between">
                 <span>{v.name}</span>
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    deleteView(v.name);
+                    void removeServerView(v.id, v.name);
                   }}
                   className="text-slate-400 hover:text-danger"
                   aria-label={`Delete ${v.name}`}
@@ -340,7 +656,7 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
             ))
           )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={saveCurrentView}>Save current view...</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void saveCurrentView()}>Save current view...</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </>
@@ -369,6 +685,8 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
         onPageSizeChange={setPageSize}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
         density={density}
         onDensityChange={setDensity}
         onRowClick={onSelectParcel ? (r) => onSelectParcel(r.id) : undefined}
@@ -399,6 +717,14 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
               activeFilters.length
                 ? "Try clearing a filter or broadening your search."
                 : "Create a parcel case from intake to populate this grid."
+            }
+            action={
+              activeFilters.length
+                ? undefined
+                : {
+                    label: "Go to intake",
+                    onClick: () => navigate("/intake"),
+                  }
             }
           />
         }

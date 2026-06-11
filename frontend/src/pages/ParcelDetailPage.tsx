@@ -15,13 +15,16 @@ import {
   listCommunications,
   listRuleResults,
   listDeadlines,
+  getProjectHierarchy,
   type ParcelItem,
   type OfferItem,
   type CommItem,
   type RuleResultItem,
   type DeadlineItem,
+  type ProjectHierarchyResponse,
 } from "@/lib/api";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useAppContext } from "@/context";
 import { formatDate, formatDateTime, formatRelative, formatCurrency } from "@/lib/format";
 import {
   Card,
@@ -40,6 +43,8 @@ import {
   Badge,
   Button,
   EmptyState,
+  Breadcrumbs,
+  type Crumb,
 } from "@/components/ui";
 
 type TimelineEvent = {
@@ -68,10 +73,12 @@ export function ParcelDetailPage() {
   const { parcelId = "" } = useParams();
   const [searchParams] = useSearchParams();
   const projectIdParam = searchParams.get("projectId") ?? undefined;
+  const { projects } = useAppContext();
 
   useDocumentTitle(parcelId, "Parcel");
 
   const [parcel, setParcel] = useState<ParcelItem | null>(null);
+  const [hierarchy, setHierarchy] = useState<ProjectHierarchyResponse | null>(null);
   const [offers, setOffers] = useState<OfferItem[]>([]);
   const [comms, setComms] = useState<CommItem[]>([]);
   const [rules, setRules] = useState<RuleResultItem[]>([]);
@@ -183,6 +190,59 @@ export function ParcelDetailPage() {
     });
   }, [offers, comms, rules, deadlines]);
 
+  useEffect(() => {
+    const pid = parcel?.project_id;
+    if (!pid) {
+      setHierarchy(null);
+      return;
+    }
+    let cancelled = false;
+    void getProjectHierarchy(pid)
+      .then((h) => {
+        if (!cancelled) setHierarchy(h);
+      })
+      .catch(() => {
+        if (!cancelled) setHierarchy(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [parcel?.project_id, reloadKey]);
+
+  const breadcrumbItems = useMemo((): Crumb[] => {
+    if (!parcel) return [];
+    const items: Crumb[] = [];
+    const proj = projects.find((p) => p.id === parcel.project_id);
+    const pname = proj?.name ?? hierarchy?.project.name ?? parcel.project_id;
+    items.push({
+      label: pname,
+      to: `/workbench?projectId=${encodeURIComponent(parcel.project_id)}`,
+    });
+    let alignLabel: string | undefined;
+    let segLabel: string | undefined;
+    if (hierarchy) {
+      for (const al of hierarchy.alignments) {
+        for (const seg of al.segments) {
+          if (seg.parcels.some((p) => p.id === parcel.id)) {
+            alignLabel = al.name;
+            segLabel =
+              seg.name ??
+              (seg.segment_number != null ? `Segment ${seg.segment_number}` : seg.id);
+            break;
+          }
+        }
+        if (alignLabel) break;
+      }
+      if (!alignLabel && hierarchy.unassigned_parcels.some((p) => p.id === parcel.id)) {
+        segLabel = "Unassigned route segment";
+      }
+    }
+    if (alignLabel) items.push({ label: alignLabel });
+    if (segLabel) items.push({ label: segLabel });
+    items.push({ label: `Parcel ${parcel.id}` });
+    return items;
+  }, [parcel, projects, hierarchy]);
+
   if (loading && !parcel) {
     return (
       <div className="space-y-4">
@@ -220,6 +280,7 @@ export function ParcelDetailPage() {
   return (
     <div className="space-y-4">
       <BackLink projectId={parcel.project_id} />
+      {breadcrumbItems.length > 0 ? <Breadcrumbs items={breadcrumbItems} className="pb-2" /> : null}
 
       {/* Persistent header */}
       <Card>

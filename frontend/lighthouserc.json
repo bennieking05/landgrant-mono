@@ -3,7 +3,11 @@
     "collect": {
       "startServerCommand": "npm run preview",
       "startServerReadyPattern": "Local:",
-      "url": ["http://localhost:3050/login"],
+      "url": [
+        "http://localhost:3050/login",
+        "http://localhost:3050/",
+        "http://localhost:3050/workbench"
+      ],
       "numberOfRuns": 3,
       "settings": {
         "preset": "desktop"

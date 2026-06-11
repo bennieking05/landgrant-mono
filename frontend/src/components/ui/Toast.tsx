@@ -101,7 +101,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             </RT.Root>
           );
         })}
-        <RT.Viewport className="fixed right-4 top-4 z-[100] flex w-[22rem] max-w-[calc(100vw-2rem)] flex-col gap-2 outline-none" />
+        <RT.Viewport
+          aria-live="polite"
+          aria-relevant="additions text"
+          role="region"
+          aria-label="Notifications"
+          className="fixed right-4 top-4 z-[100] flex w-[22rem] max-w-[calc(100vw-2rem)] flex-col gap-2 outline-none"
+        />
       </RT.Provider>
     </ToastContext.Provider>
   );

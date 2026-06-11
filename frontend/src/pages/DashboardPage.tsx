@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ResponsiveContainer,
@@ -17,6 +17,8 @@ import {
   FolderOpen,
   Scale,
   CheckCircle2,
+  ListTodo,
+  ClipboardList,
 } from "lucide-react";
 import { useAppContext, type Persona } from "@/context";
 import { navForPersona } from "@/constants/navConfig";
@@ -32,6 +34,8 @@ import {
 } from "@/components/ui";
 import { STAGE_ORDER, STAGE_COLORS, stageLabel } from "@/components/ui";
 import { formatDate, daysUntil } from "@/lib/format";
+import { addDays, formatISO } from "date-fns";
+import { getDashboardHome, type DashboardHomeResponse } from "@/lib/api";
 
 type KpiDef = {
   icon: typeof LayoutGrid;
@@ -84,27 +88,68 @@ const PERSONA_HEADLINE: Record<Persona, { title: string; subtitle: string }> = {
 
 export function DashboardPage() {
   const { persona, parcels, loading, projectId } = useAppContext();
+  const [dash, setDash] = useState<DashboardHomeResponse | null>(null);
+
+  useEffect(() => {
+    if (persona === "landowner") {
+      setDash(null);
+      return;
+    }
+    let cancelled = false;
+    void getDashboardHome(projectId || undefined)
+      .then((d) => {
+        if (!cancelled) setDash(d);
+      })
+      .catch(() => {
+        if (!cancelled) setDash(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [persona, projectId]);
 
   const stats = useMemo(() => {
     const byStage = new Map<string, number>();
     let upcoming = 0;
     let highRisk = 0;
+    const sourceStages = dash?.parcels_by_stage;
+    if (sourceStages && Object.keys(sourceStages).length > 0) {
+      for (const [k, v] of Object.entries(sourceStages)) {
+        byStage.set(k, v);
+      }
+    } else {
+      for (const p of parcels) {
+        byStage.set(p.stage, (byStage.get(p.stage) ?? 0) + 1);
+      }
+    }
     for (const p of parcels) {
-      byStage.set(p.stage, (byStage.get(p.stage) ?? 0) + 1);
       const d = daysUntil(p.next_deadline_at);
       if (d !== null && d >= 0 && d <= 14) upcoming += 1;
       if (p.risk_score >= 70) highRisk += 1;
     }
-    return { byStage, upcoming, highRisk, total: parcels.length };
-  }, [parcels]);
+    const total = dash?.sample_size ?? parcels.length;
+    const upcomingCount = dash?.deadlines_next_14_count ?? upcoming;
+    return { byStage, upcoming: upcomingCount, highRisk, total };
+  }, [parcels, dash]);
 
   const isCounsel = persona === "in_house_counsel" || persona === "outside_counsel";
   const isExec = persona === "firm_admin" || persona === "platform_admin";
 
+  const deadlineBeforeIso = formatISO(addDays(new Date(), 14));
+  const workbenchDeadlineLink = `/workbench?deadline_before=${encodeURIComponent(deadlineBeforeIso)}${
+    projectId ? `&projectId=${encodeURIComponent(projectId)}` : ""
+  }`;
+
   const kpis = useMemo<KpiDef[]>(() => {
     const base: KpiDef[] = [
       { icon: LayoutGrid, label: "Parcels", value: stats.total, tone: "brand", to: "/workbench" },
-      { icon: CalendarClock, label: "Deadlines <= 14 days", value: stats.upcoming, tone: "warning", to: "/workbench" },
+      {
+        icon: CalendarClock,
+        label: "Deadlines <= 14 days",
+        value: stats.upcoming,
+        tone: "warning",
+        to: workbenchDeadlineLink,
+      },
       { icon: AlertTriangle, label: "High risk", value: stats.highRisk, tone: "danger", to: "/workbench?minRisk=70" },
     ];
     if (isCounsel) {
@@ -131,8 +176,37 @@ export function DashboardPage() {
         tone: "info",
       });
     }
+    if (dash && !isCounsel && !isExec) {
+      base.splice(
+        1,
+        0,
+        {
+          icon: CheckCircle2,
+          label: "Offers awaiting response",
+          value: dash.pending_offers_count,
+          tone: "warning",
+          to: "/workbench",
+        },
+        {
+          icon: ListTodo,
+          label: "Overdue follow-ups",
+          value: dash.overdue_tasks_count,
+          tone: "danger",
+          to: "/workbench",
+        },
+      );
+    }
+    if (dash != null && typeof dash.pending_approvals_count === "number" && isCounsel) {
+      base.push({
+        icon: ClipboardList,
+        label: "Approvals pending",
+        value: dash.pending_approvals_count,
+        tone: "brand",
+        to: "/counsel",
+      });
+    }
     return base;
-  }, [stats, isCounsel, isExec]);
+  }, [stats, dash, isCounsel, isExec, workbenchDeadlineLink]);
 
   const chartData = useMemo(
     () =>
@@ -202,7 +276,7 @@ export function DashboardPage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {kpis.map((k) => (
               <KpiCard key={k.label} def={k} />
             ))}

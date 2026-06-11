@@ -55,9 +55,10 @@
   --risk-high: #b42318;
 
   /* Shape & elevation */
+  --radius-tight: 4px;
   --radius-control: 6px;
   --radius-card: 12px;
-  --radius-modal: 16px;
+  --radius-modal: 12px;
   --shadow-card: 0 1px 2px 0 rgb(16 27 48 / 0.06), 0 1px 3px 0 rgb(16 27 48 / 0.08);
   --shadow-overlay: 0 12px 32px -8px rgb(16 27 48 / 0.24), 0 4px 12px -4px rgb(16 27 48 / 0.12);
 

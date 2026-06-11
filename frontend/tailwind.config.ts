@@ -95,9 +95,33 @@ const config: Config = {
         },
       },
       borderRadius: {
+        /** 4px — tight controls, focus chrome */
+        tight: "4px",
+        /** 6px — buttons, inputs */
         control: "6px",
+        /** 12px — cards, modals */
         card: "12px",
-        modal: "16px",
+        modal: "12px",
+      },
+      spacing: {
+        /** LandGrantIQ spacing ramp (multiples of 4px) */
+        "0.5": "0.125rem",
+        "1.5": "0.375rem",
+        "2.5": "0.625rem",
+        "3.5": "0.875rem",
+        "4.5": "1.125rem",
+        "5.5": "1.375rem",
+        "6.5": "1.625rem",
+        "7.5": "1.875rem",
+        "8.5": "2.125rem",
+        "9.5": "2.375rem",
+        "13": "3.25rem",
+        "15": "3.75rem",
+        "17": "4.25rem",
+        "18": "4.5rem",
+        "22": "5.5rem",
+        "26": "6.5rem",
+        "30": "7.5rem",
       },
       boxShadow: {
         // Two elevation levels only (UX-1).
@@ -113,7 +137,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [require("tailwindcss-animate")],
 };
 
 export default config;

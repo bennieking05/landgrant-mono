@@ -69,6 +69,11 @@ def _layout(title: str, inner_html: str) -> str:
               <a href="https://landgrantiq.com/privacy" style="color:{MUTED};">Privacy</a> &middot;
               <a href="mailto:help@landgrantiq.com" style="color:{MUTED};">Support</a>
             </p>
+            <p style="margin:12px 0 0;font-size:11px;line-height:1.45;color:#94a3b8;">
+              LandRight AI, Inc. &middot; 1234 Commerce Drive, Austin, TX 78701 USA.
+              <a href="mailto:privacy@landgrantiq.com?subject=Unsubscribe" style="color:#94a3b8;">Unsubscribe</a>
+              from marketing and non-transactional reminders (CAN-SPAM).
+            </p>
           </td>
         </tr>
       </table>
@@ -116,6 +121,19 @@ def render_email_html(
             '<p style="margin:0;">Your response goes to your agent and attorney for review. We will '
             "contact you with the next steps.</p>"
         )
+        return _layout(title, inner)
+
+    if template_id == "deadline_reminder":
+        title_line = escape(str(variables.get("title", "Upcoming deadline")))
+        due = escape(str(variables.get("due_at", "")))
+        project = escape(str(variables.get("project_id", "")))
+        inner = (
+            f'<h1 style="margin:0 0 12px;font-size:20px;color:{NAVY};">Deadline reminder</h1>'
+            f'<p style="margin:0 0 12px;"><strong>{title_line}</strong></p>'
+            f'<p style="margin:0 0 12px;color:{MUTED};font-size:14px;">Due: {due}</p>'
+        )
+        if project:
+            inner += f'<p style="margin:0;color:{MUTED};font-size:13px;">Project {project}</p>'
         return _layout(title, inner)
 
     # Generic fallback: render the plain-text body as paragraphs.

@@ -32,11 +32,11 @@ type OfferType = "initial" | "counteroffer" | "final" | "settlement";
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-100 text-slate-700",
   sent: "bg-blue-50 text-blue-700",
-  received: "bg-purple-50 text-purple-700",
+  received: "bg-stage-offerSent-bg text-stage-offerSent-fg",
   pending: "bg-blue-50 text-blue-700",
   accepted: "bg-emerald-50 text-emerald-700",
   rejected: "bg-rose-50 text-rose-700",
-  countered: "bg-purple-50 text-purple-700",
+  countered: "bg-stage-negotiation-bg text-stage-negotiation-fg",
   withdrawn: "bg-amber-50 text-amber-700",
   expired: "bg-slate-50 text-slate-500",
   superseded: "bg-slate-100 text-slate-500",
@@ -405,7 +405,7 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
                         </p>
                       )}
                       {offer.counter_amount && (
-                        <p className="text-xs text-purple-600 mt-2">
+                        <p className="text-xs text-navy-600 mt-2">
                           Counter: {formatCurrency(offer.counter_amount)} on {formatDate(offer.counter_date)}
                         </p>
                       )}
@@ -416,7 +416,7 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
                         <>
                           <button
                             onClick={() => setCounteringOfferId(offer.id)}
-                            className="text-xs px-3 py-1 rounded bg-purple-500 text-white hover:bg-purple-600 transition-colors"
+                            className="text-xs px-3 py-1 rounded bg-navy-600 text-white hover:bg-navy-700 transition-colors"
                           >
                             Counter
                           </button>
@@ -455,7 +455,7 @@ export function NegotiationPanel({ parcelId, projectId }: Props) {
                         <button
                           onClick={() => handleCounterOffer(offer.id)}
                           disabled={submittingCounter}
-                          className="px-3 py-1 text-sm rounded-md bg-purple-500 text-white hover:bg-purple-600 disabled:opacity-50 transition-colors"
+                          className="px-3 py-1 text-sm rounded-md bg-navy-600 text-white hover:bg-navy-700 disabled:opacity-50 transition-colors"
                         >
                           {submittingCounter ? "Submitting..." : "Submit Counter"}
                         </button>

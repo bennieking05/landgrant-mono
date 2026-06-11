@@ -8,7 +8,7 @@ The visual language is **institutional, precise, calm** - closer to a financial 
 
 ## Typography
 
-- UI typeface: **Inter** (`font-sans`). Identifiers (parcel/cause numbers, hashes): **IBM Plex Mono** (`font-mono` or `.font-id`).
+- UI typeface: **Inter** (variable font, `@fontsource-variable/inter`) (`font-sans`). Identifiers (parcel/cause numbers, hashes): **IBM Plex Mono** (`font-mono` or `.font-id`).
 - Scale (use the named sizes, not arbitrary values):
 
 | Token | Size / line | Use |
@@ -38,10 +38,25 @@ AI features (Copilot, Settlement Predictor) use brand tokens + a small "AI" badg
 
 ## Shape, space, elevation, motion
 
-- Radius: `rounded-control` (6px, controls), `rounded-card` (12px, cards), `rounded-modal` (16px, dialogs).
+- Radius: `rounded-tight` (4px, tight chrome / focus), `rounded-control` (6px, buttons/inputs), `rounded-card` and `rounded-modal` (12px, cards and dialogs — one radius family for elevated surfaces).
 - Control height: **36px** (`h-9`) for buttons/inputs/selects.
+- Spacing: prefer the documented ramp in `tailwind.config.ts` (`spacing` extend) — multiples of **4px** (`1` = 4px, `2` = 8px, …); use named extras (`13`, `15`, …) only when the default scale is insufficient.
 - Elevation: two levels only - `shadow-card`, `shadow-overlay`.
 - Motion: `duration-fast` (150ms) hover/focus, `duration-base` (200ms) enter/exit, `ease-out`. Reduced-motion honored globally.
+
+### UX-1 legacy color codemod (purple / violet purge)
+
+These components were updated to consume semantic / stage / navy tokens instead of raw `purple-*` / `violet-*` utilities (AI and workflow UI stays in the brand system):
+
+- `frontend/package.json` (Inter variable font package)
+- `frontend/src/index.css`
+- `frontend/tailwind.config.ts`
+- `frontend/src/styles/tokens.css`
+- `frontend/src/components/DocumentExtraction.tsx`
+- `frontend/src/components/LitigationPanel.tsx`
+- `frontend/src/components/AIDecisionReview.tsx`
+- `frontend/src/components/NegotiationPanel.tsx`
+- `frontend/src/components/TaskManager.tsx`
 
 ## Loading, timeouts & optimistic UI (UX-11)
 

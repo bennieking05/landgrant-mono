@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   flexRender,
   getCoreRowModel,
@@ -65,6 +66,8 @@ export type DataGridProps<T> = {
   bulkActions?: React.ReactNode;
   emptyState?: React.ReactNode;
   noun?: string;
+  /** Force row virtualization; omit to auto-enable when the current page has about 30+ rows. */
+  virtualizeRows?: boolean;
 };
 
 export function DataGrid<T>({
@@ -92,6 +95,7 @@ export function DataGrid<T>({
   bulkActions,
   emptyState,
   noun = "rows",
+  virtualizeRows,
 }: DataGridProps<T>) {
   const enableSelection = Boolean(onRowSelectionChange);
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -114,6 +118,27 @@ export function DataGrid<T>({
     onRowSelectionChange,
     onColumnVisibilityChange,
   });
+
+  const rows = table.getRowModel().rows;
+  const scrollParentRef = useRef<HTMLDivElement>(null);
+  const enableVirtual =
+    Boolean(data.length) &&
+    !loading &&
+    (virtualizeRows ?? data.length >= 30);
+
+  const rowVirtualizer = useVirtualizer({
+    count: enableVirtual ? rows.length : 0,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => (density === "compact" ? 36 : 44),
+    overscan: 8,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const virtualTotal = rowVirtualizer.getTotalSize();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom =
+    virtualItems.length > 0 ? virtualTotal - virtualItems[virtualItems.length - 1].end : 0;
+  const colSpan = table.getVisibleLeafColumns().length;
 
   const selectedCount = Object.values(rowSelection ?? {}).filter(Boolean).length;
   const cellPad = density === "compact" ? "px-3 py-1.5" : "px-3 py-2.5";
@@ -196,64 +221,112 @@ export function DataGrid<T>({
         ) : data.length === 0 ? (
           <div className="p-8">{emptyState}</div>
         ) : (
-          <table className="w-full text-small">
-            <thead>
-              {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id} className="border-b border-slate-200 bg-slate-50/60">
-                  {hg.headers.map((header) => {
-                    const canSort = header.column.getCanSort();
-                    const sortDir = header.column.getIsSorted();
-                    return (
-                      <th
-                        key={header.id}
-                        className={cn(
-                          "whitespace-nowrap px-3 py-2 text-left text-caption font-semibold uppercase tracking-wide text-slate-500",
-                        )}
-                      >
-                        {header.isPlaceholder ? null : canSort ? (
-                          <button
-                            type="button"
-                            onClick={header.column.getToggleSortingHandler()}
-                            className="inline-flex items-center gap-1 hover:text-slate-900"
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {sortDir === "asc" ? (
-                              <ArrowUp className="h-3.5 w-3.5" />
-                            ) : sortDir === "desc" ? (
-                              <ArrowDown className="h-3.5 w-3.5" />
-                            ) : (
-                              <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
-                            )}
-                          </button>
-                        ) : (
-                          flexRender(header.column.columnDef.header, header.getContext())
-                        )}
-                      </th>
-                    );
-                  })}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className={cn(
-                    "border-b border-slate-100 last:border-0",
-                    onRowClick && "cursor-pointer hover:bg-slate-50",
-                    row.getIsSelected() && "bg-brand/5",
-                  )}
-                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className={cn(cellPad, "align-middle text-slate-700")}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div
+            ref={scrollParentRef}
+            className={enableVirtual ? "max-h-[min(60vh,560px)] overflow-auto" : undefined}
+          >
+            <table className="w-full text-small">
+              <thead
+                className={
+                  enableVirtual
+                    ? "sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 shadow-sm backdrop-blur"
+                    : "border-b border-slate-200 bg-slate-50/60"
+                }
+              >
+                {table.getHeaderGroups().map((hg) => (
+                  <tr key={hg.id} className={enableVirtual ? "" : "border-b border-slate-200"}>
+                    {hg.headers.map((header) => {
+                      const canSort = header.column.getCanSort();
+                      const sortDir = header.column.getIsSorted();
+                      return (
+                        <th
+                          key={header.id}
+                          className={cn(
+                            "whitespace-nowrap px-3 py-2 text-left text-caption font-semibold uppercase tracking-wide text-slate-500",
+                          )}
+                        >
+                          {header.isPlaceholder ? null : canSort ? (
+                            <button
+                              type="button"
+                              onClick={header.column.getToggleSortingHandler()}
+                              className="inline-flex items-center gap-1 hover:text-slate-900"
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {sortDir === "asc" ? (
+                                <ArrowUp className="h-3.5 w-3.5" />
+                              ) : sortDir === "desc" ? (
+                                <ArrowDown className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+                              )}
+                            </button>
+                          ) : (
+                            flexRender(header.column.columnDef.header, header.getContext())
+                          )}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </thead>
+              <tbody>
+                {enableVirtual ? (
+                  <>
+                    {paddingTop > 0 ? (
+                      <tr aria-hidden="true">
+                        <td style={{ height: paddingTop }} colSpan={colSpan} />
+                      </tr>
+                    ) : null}
+                    {virtualItems.map((vi) => {
+                      const row = rows[vi.index];
+                      return (
+                        <tr
+                          key={row.id}
+                          data-index={vi.index}
+                          ref={(node) => rowVirtualizer.measureElement(node)}
+                          className={cn(
+                            "border-b border-slate-100 last:border-0",
+                            onRowClick && "cursor-pointer hover:bg-slate-50",
+                            row.getIsSelected() && "bg-brand/5",
+                          )}
+                          onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <td key={cell.id} className={cn(cellPad, "align-middle text-slate-700")}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                    {paddingBottom > 0 ? (
+                      <tr aria-hidden="true">
+                        <td style={{ height: paddingBottom }} colSpan={colSpan} />
+                      </tr>
+                    ) : null}
+                  </>
+                ) : (
+                  rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className={cn(
+                        "border-b border-slate-100 last:border-0",
+                        onRowClick && "cursor-pointer hover:bg-slate-50",
+                        row.getIsSelected() && "bg-brand/5",
+                      )}
+                      onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className={cn(cellPad, "align-middle text-slate-700")}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

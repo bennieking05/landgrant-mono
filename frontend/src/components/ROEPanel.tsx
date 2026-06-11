@@ -19,7 +19,7 @@ type ROEStatus = "draft" | "sent" | "signed" | "active" | "expired" | "revoked";
 const STATUS_COLORS: Record<ROEStatus, string> = {
   draft: "bg-slate-100 text-slate-700",
   sent: "bg-blue-50 text-blue-700",
-  signed: "bg-purple-50 text-purple-700",
+  signed: "bg-info-bg text-info-fg",
   active: "bg-emerald-50 text-emerald-700",
   expired: "bg-rose-50 text-rose-700",
   revoked: "bg-amber-50 text-amber-700",
@@ -331,7 +331,7 @@ export function ROEPanel({ parcelId, projectId }: Props) {
                   {status === "sent" && (
                     <button
                       onClick={() => handleStatusChange(roe.id, "signed")}
-                      className="text-xs px-3 py-1 rounded bg-purple-500 text-white hover:bg-purple-600 transition-colors"
+                      className="text-xs px-3 py-1 rounded-control bg-navy-600 text-white hover:bg-navy-700 transition-colors duration-fast ease-out"
                     >
                       Mark Signed
                     </button>

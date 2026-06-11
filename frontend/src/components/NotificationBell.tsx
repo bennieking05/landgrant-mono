@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useWebSocket, type Notification, type NotificationSeverity } from "@/hooks/useWebSocket";
+import { useToast } from "@/components/ui";
 
 type Props = {
   userId?: string;
@@ -7,6 +8,7 @@ type Props = {
 };
 
 export function NotificationBell({ userId = "anonymous", onNotificationClick }: Props) {
+  const toast = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
@@ -20,9 +22,8 @@ export function NotificationBell({ userId = "anonymous", onNotificationClick }: 
   } = useWebSocket({
     userId,
     onNotification: (notification) => {
-      // Show toast for high-priority notifications
       if (notification.severity === "error" || notification.severity === "warning") {
-        showToast(notification);
+        toast.error(notification.title, notification.message);
       }
     },
   });
@@ -39,22 +40,16 @@ export function NotificationBell({ userId = "anonymous", onNotificationClick }: 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Simple toast (in production, use a toast library)
-  const showToast = (notification: Notification) => {
-    // This could be enhanced with a proper toast system
-    if (import.meta.env.DEV) console.debug("Toast notification:", notification.title);
-  };
-
   const getSeverityColor = (severity: NotificationSeverity) => {
     switch (severity) {
       case "error":
-        return "bg-rose-100 border-rose-300 text-rose-800";
+        return "bg-danger-bg border-danger-border text-danger-fg";
       case "warning":
-        return "bg-amber-100 border-amber-300 text-amber-800";
+        return "bg-warning-bg border-warning-border text-warning-fg";
       case "success":
-        return "bg-emerald-100 border-emerald-300 text-emerald-800";
+        return "bg-success-bg border-success-border text-success-fg";
       default:
-        return "bg-blue-100 border-blue-300 text-blue-800";
+        return "bg-info-bg border-info-border text-info-fg";
     }
   };
 

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Numeric,
     JSON,
     Enum,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -405,6 +406,22 @@ class User(Base):
     password_hash = Column(String(255), nullable=True)
     metadata_json = Column(JSON, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ParcelGridSavedView(Base):
+    """User-scoped saved filters/columns state for the enterprise parcel grid (UX-4)."""
+
+    __tablename__ = "parcel_grid_saved_views"
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_parcel_grid_saved_views_user_name"),
+    )
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    payload_json = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class ParcelAccessGrant(Base):

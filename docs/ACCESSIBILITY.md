@@ -84,6 +84,24 @@ Automated tools catch ~30–40% of issues. Before a release, verify:
 - [ ] Operate menus, dialogs, tabs, command palette (Cmd-K) by keyboard only.
 - [ ] Screen-reader smoke test (VoiceOver / NVDA) on login, dashboard, parcel
       grid, parcel detail, and the landowner portal flow.
+
+### VoiceOver (macOS Safari) — 10-minute script
+
+1. Enable VoiceOver (Cmd+F5). Open `/login`; confirm VO reads the page title and form labels.
+2. Tab to email and password fields; verify each announces its visible label.
+3. After sign-in, land on `/`; confirm the main landmark and `h1` for the dashboard.
+4. Open Cmd-K; arrow through command results; Esc closes without focus loss.
+5. Navigate to Workbench; verify the parcel grid table has column headers read on cell entry.
+6. Open a parcel detail URL; confirm tabs are announced as tablist and panel content updates.
+
+### NVDA (Windows Chrome) — 10-minute script
+
+1. Start NVDA, open `/login`; single-letter navigation `f` finds edit fields with labels.
+2. Tab through sign-in; activate primary button; wait for route change announcement.
+3. On dashboard, `h` jumps through headings; confirm KPI region and section headings.
+4. Workbench: enter table with `t`; use Ctrl+Alt+arrows to move cells; verify stage badges read text labels.
+5. Landowner `/portal`: confirm step indicator and decision controls expose state (pressed/expanded as applicable).
+
 - [ ] 200% browser zoom and 320px width: no loss of content or function.
 - [ ] Confirm color is never the sole signifier of state.
 
