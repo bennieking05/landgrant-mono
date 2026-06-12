@@ -310,4 +310,4 @@ jobs:
           gcloud builds submit . \
             --config=cloudbuild.yaml \
             --project="${PROJECT}" \
-            --substitutions="COMMIT_SHA=${GITHUB_SHA}"
+            --substitutions="COMMIT_SHA=${GITHUB_SHA},_PROJECT_ID=${PROJECT}"

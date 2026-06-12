@@ -8,7 +8,7 @@ Terraform configuration for deploying LandGrant to Google Cloud Platform.
 - **Database**: Cloud SQL PostgreSQL (db-f1-micro for testing)
 - **Cache**: Memorystore Redis (Basic tier, 1GB)
 - **AI**: Vertex AI Gemini 1.5 Flash
-- **Frontend**: Cloud Storage + Cloud CDN
+- **Frontend**: Cloud Storage + Cloud CDN (SPA on `app_domain`; see [`docs/frontend-hosting.md`](../../docs/frontend-hosting.md))
 - **Secrets**: Secret Manager
 
 ## Prerequisites

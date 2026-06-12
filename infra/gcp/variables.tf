@@ -1,6 +1,6 @@
 variable "project_id" {
   type        = string
-  description = "GCP project that hosts LandGrant."
+  description = "GCP project that hosts LandGrant (override in env tfvars for your org’s project ID)."
   default     = "clearpath-490715"
 }
 

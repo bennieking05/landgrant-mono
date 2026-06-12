@@ -3,15 +3,18 @@
 # Builds and deploys both backend API and frontend
 # ------------------------------------------------------------------------------
 
-# Use concrete Artifact Registry paths (not nested ${_REGION}/${_PROJECT_ID}) so
-# `gcloud builds submit --substitutions=COMMIT_SHA=...` and GitHub Actions validate.
+# Use substitution defaults for Artifact Registry and GCS, or override `_PROJECT_ID`
+# (and optionally `_FRONTEND_BUCKET`) so they match `gcloud builds submit --project=...`.
 substitutions:
   _REGION: us-central1
   _PROJECT_ID: clearpath-490715
-  _API_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landgrant/api
-  _WORKER_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landgrant/worker
-  _MARKETING_IMAGE: us-central1-docker.pkg.dev/clearpath-490715/landgrant/marketing
-  _FRONTEND_BUCKET: clearpath-490715-frontend
+  _API_IMAGE: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/landgrant/api
+  _WORKER_IMAGE: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/landgrant/worker
+  _MARKETING_IMAGE: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/landgrant/marketing
+  _FRONTEND_BUCKET: ${_PROJECT_ID}-frontend
+  # Terraform google_compute_url_map.frontend name; set _CDN_INVALIDATE to "0" to skip.
+  _FRONTEND_URL_MAP: landgrant-frontend-urlmap
+  _CDN_INVALIDATE: "1"
 
 steps:
   # ------------------------------------------------------------------------------
@@ -180,6 +183,32 @@ steps:
         gsutil -m setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" \
           "gs://${_FRONTEND_BUCKET}/index.html"
     waitFor: ['deploy-frontend']
+
+  # Cloud CDN may still serve old hashed chunks until invalidated (common "UX not updating" cause).
+  - id: 'invalidate-frontend-cdn'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        if [ "${_CDN_INVALIDATE}" != "1" ] || [ -z "${_FRONTEND_URL_MAP}" ]; then
+          echo "Skipping CDN invalidation (_CDN_INVALIDATE=${_CDN_INVALIDATE}, _FRONTEND_URL_MAP set?)"
+          exit 0
+        fi
+        set +e
+        gcloud compute url-maps invalidate-cdn-cache "${_FRONTEND_URL_MAP}" \
+          --path='/*' --global --project="${_PROJECT_ID}" --async
+        rc=$?
+        set -e
+        if [ "$rc" -ne 0 ]; then
+          echo "WARN: CDN invalidation failed (exit $rc). GCS has new files; edge cache may be stale until TTL."
+          echo "Fix IAM (compute.urlMaps.invalidateCache for the Cloud Build SA) or run manually:"
+          echo "  gcloud compute url-maps invalidate-cdn-cache ${_FRONTEND_URL_MAP} --path='/*' --global --project=${_PROJECT_ID}"
+        else
+          echo "CDN invalidation requested for URL map ${_FRONTEND_URL_MAP} (async)."
+        fi
+    waitFor: ['set-cache-headers']
 
 images:
   - '${_API_IMAGE}:$COMMIT_SHA'

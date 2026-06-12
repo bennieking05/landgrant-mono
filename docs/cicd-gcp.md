@@ -63,14 +63,23 @@ printf '%s' 'github-deploy@clearpath-490715.iam.gserviceaccount.com' | gh secret
 
 ## 4. Manual submit (local)
 
-From repo root (same as CI):
+From repo root (same as CI). **`--project` and `_PROJECT_ID` must match** so images, buckets, and `gcloud run` calls target the same LandGrant GCP project:
 
 ```bash
+PROJECT="$(gcloud config get-value project)"
 gcloud builds submit . \
   --config=cloudbuild.yaml \
-  --project=clearpath-490715 \
-  --substitutions="COMMIT_SHA=$(git rev-parse HEAD)"
+  --project="${PROJECT}" \
+  --substitutions="COMMIT_SHA=$(git rev-parse HEAD),_PROJECT_ID=${PROJECT}"
 ```
+
+If your frontend bucket name is not ``${PROJECT}-frontend`` (for example Terraform added a random suffix), add `,_FRONTEND_BUCKET=your-bucket-name` to the substitutions string.
+
+After deploy, open the SPA at your **`app_domain`** (see [frontend-hosting.md](./frontend-hosting.md)), not an unrelated `*.run.app` host unless you intentionally serve the SPA there.
+
+### CDN invalidation (Cloud Build)
+
+The build runs `gcloud compute url-maps invalidate-cdn-cache` on **`landgrant-frontend-urlmap`** by default so users see new JS/CSS quickly. Grant the **Cloud Build service account** permission to invalidate cache (for example role that includes `compute.urlMaps.invalidateCache`), or run the invalidate command manually after deploy. If invalidation fails, the build logs a **WARN** but still succeeds; origin objects in GCS are already updated.
 
 ## Database migrations
 

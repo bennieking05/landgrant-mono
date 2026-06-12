@@ -134,19 +134,19 @@ gcloud run deploy landgrant-api \
   --cpu 2
 ```
 
-### 4. Frontend Deployment
+### 4. Frontend deployment (current pipeline)
+
+The SPA is **static files**: Cloud Build runs `npm run build` and **`gsutil rsync`s** `frontend/dist` to the configured GCS bucket, then the **load balancer + Cloud CDN** serve it on **`app_domain`** (see [`cloudbuild.yaml`](../cloudbuild.yaml) and [`docs/frontend-hosting.md`](./frontend-hosting.md)).
+
+Do **not** rely on a separate Cloud Run service at `landgrant-frontend-*.run.app` unless you maintain that path yourself; it is **not** updated by this repo’s default deploy.
 
 ```bash
-# Build frontend
-cd frontend
-npm run build
-
-# Deploy to Cloud Run or Firebase Hosting
-gcloud run deploy landgrant-frontend \
-  --image gcr.io/$PROJECT_ID/landgrant-frontend \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated
+# Typical release: same as CI / docs/cicd-gcp.md
+PROJECT="$(gcloud config get-value project)"
+gcloud builds submit . \
+  --config=cloudbuild.yaml \
+  --project="${PROJECT}" \
+  --substitutions="COMMIT_SHA=$(git rev-parse HEAD),_PROJECT_ID=${PROJECT}"
 ```
 
 ### 5. Configure DNS and SSL
