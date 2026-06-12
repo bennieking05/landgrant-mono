@@ -49,6 +49,21 @@ steps:
       - '--image=${_API_IMAGE}:$COMMIT_SHA'
     waitFor: ['push-api']
 
+  # Canonical HTTPS URL for the API revision (avoids stale regional *.run.app hostnames).
+  - id: 'resolve-api-url'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        gcloud run services describe landgrant-api \
+          --region="${_REGION}" \
+          --project="${_PROJECT_ID}" \
+          --format='value(status.url)' > /workspace/vite_api_base.txt
+        test -s /workspace/vite_api_base.txt
+    waitFor: ['deploy-api']
+
   # ------------------------------------------------------------------------------
   # Backend Worker
   # ------------------------------------------------------------------------------
@@ -131,11 +146,15 @@ steps:
   - id: 'build-frontend'
     name: 'node:20-slim'
     dir: 'frontend'
-    entrypoint: 'npm'
-    args: ['run', 'build']
-    env:
-      - 'VITE_API_BASE=https://landgrant-api-${_PROJECT_ID}.${_REGION}.run.app'
-    waitFor: ['install-frontend']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        export VITE_API_BASE="$(tr -d '\r\n' < /workspace/vite_api_base.txt)"
+        test -n "$$VITE_API_BASE"
+        npm run build
+    waitFor: ['install-frontend', 'resolve-api-url']
 
   - id: 'deploy-frontend'
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'

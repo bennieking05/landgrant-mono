@@ -72,6 +72,27 @@ gcloud builds submit . \
   --substitutions="COMMIT_SHA=$(git rev-parse HEAD)"
 ```
 
+## Database migrations
+
+- **Cloud Run API (`landgrant-api`)** sets `ALEMBIC_AUTO=true` (see `infra/gcp/cloudrun.tf`). On each container start, the FastAPI lifespan runs `alembic upgrade head` against the configured database before serving traffic. That covers routine releases when the API can reach Cloud SQL (same VPC / private IP path as production).
+- **Manual `alembic upgrade head`** (from a workstation with Cloud SQL Auth Proxy, Cloud Shell on a VPC-attached VM, etc.) is still valid for one-off repairs, backfills, or if you ever disable `ALEMBIC_AUTO`.
+- **Verify revision** (optional): connect to the instance and `SELECT version_num FROM alembic_version;` — expect `0007_parcel_grid_saved_views` at head for current rule packs.
+
+### Optional: pipeline-only migrations (future)
+
+If you want migrations **decoupled** from API startup (faster cold starts, stricter change windows, or `ALEMBIC_AUTO=false`):
+
+1. **Cloud Run Job** — image reuse of `landgrant/api`, same env/secrets as the API service, command `alembic upgrade head` (or `python -m alembic upgrade head`), VPC egress to Cloud SQL, IAM `roles/cloudsql.client` on the job SA. Trigger the job from Cloud Build after `deploy-api` and before traffic shift, or on a schedule.
+2. **Cloud Build step** — a step that runs the API image with `DATABASE_URL` / connector flags and runs Alembic; requires granting the Cloud Build service account access to Cloud SQL (often via VPC-enabled worker pool or Cloud SQL Auth Proxy sidecar pattern).
+
+Prefer the **job** pattern for least coupling to build VMs and clearer audit logs.
+
+## Frontend `VITE_API_BASE` and staging E2E
+
+[`cloudbuild.yaml`](../cloudbuild.yaml) resolves the **live** Cloud Run URL with `gcloud run services describe landgrant-api … --format='value(status.url)'` and passes it into `npm run build`. That matches the hostname browsers and Playwright use.
+
+GitHub Actions [`.github/workflows/staging-e2e.yml`](../.github/workflows/staging-e2e.yml) expects `STAGING_API_BASE_URL` to match that same API origin. After changing regions or service names, update the repository secret if it was hand-maintained.
+
 ## Centralized logs and retention
 
 Application logs ship to **Google Cloud Logging** with Cloud Run default retention. Adjust retention and export sinks in Terraform (`infra/gcp/`) per your compliance calendar. Restrict log viewer roles to least privilege.
