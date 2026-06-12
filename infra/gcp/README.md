@@ -68,6 +68,12 @@ npm run build
 gsutil -m rsync -r -d dist gs://clearpath-490715-frontend
 ```
 
+## Helper scripts
+
+| Script | Purpose |
+|--------|---------|
+| [`scripts/print-cloudbuild-frontend-substitutions.sh`](scripts/print-cloudbuild-frontend-substitutions.sh) | After `terraform apply`, prints `,_FRONTEND_BUCKET=…` so `gcloud builds submit` targets the same GCS bucket as the load balancer (see [`docs/frontend-hosting.md`](../../docs/frontend-hosting.md)). |
+
 ## File Structure
 
 ```

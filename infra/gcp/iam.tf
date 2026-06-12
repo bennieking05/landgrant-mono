@@ -120,3 +120,11 @@ resource "google_project_iam_member" "cloudbuild_storage_admin" {
   role    = "roles/storage.admin"
   member  = "serviceAccount:${google_service_account.cloudbuild.email}"
 }
+
+# Reserved Cloud Build SA (runs default cloudbuild.yaml steps, including CDN invalidation).
+resource "google_project_iam_member" "reserved_cloudbuild_load_balancer_admin" {
+  count   = var.grant_reserved_cloudbuild_cdn_invalidation ? 1 : 0
+  project = var.project_id
+  role    = "roles/compute.loadBalancerAdmin"
+  member  = "serviceAccount:${data.google_project.current.number}@cloudbuild.gserviceaccount.com"
+}

@@ -26,7 +26,7 @@ Summary:
    - `roles/storage.objectUser` (or scoped access) — upload build source to `gs://PROJECT_ID_cloudbuild/source/`
    - `roles/serviceusage.serviceUsageConsumer` — often included via Editor; ensure API usage is allowed
 
-`gcloud builds submit` still runs build steps under the project’s **Cloud Build service identity** (e.g. default Compute SA); Artifact Registry and Cloud Run IAM for those identities are separate (see project setup).
+`gcloud builds submit` still runs build steps under the project’s **Cloud Build service identity** (typically `{project_number}@cloudbuild.gserviceaccount.com` unless you configure a custom build SA). Artifact Registry and Cloud Run IAM for those identities are separate (see project setup and [runbooks/cloud-build-cdn-invalidate-iam.md](./runbooks/cloud-build-cdn-invalidate-iam.md)).
 
 ## 3. GitHub repository secrets
 
@@ -67,19 +67,23 @@ From repo root (same as CI). **`--project` and `_PROJECT_ID` must match** so ima
 
 ```bash
 PROJECT="$(gcloud config get-value project)"
+COMMIT_SHA="$(git rev-parse HEAD)"
+EXTRA="$(infra/gcp/scripts/print-cloudbuild-frontend-substitutions.sh || true)"
 gcloud builds submit . \
   --config=cloudbuild.yaml \
   --project="${PROJECT}" \
-  --substitutions="COMMIT_SHA=$(git rev-parse HEAD),_PROJECT_ID=${PROJECT}"
+  --substitutions="COMMIT_SHA=${COMMIT_SHA},_PROJECT_ID=${PROJECT}${EXTRA}"
 ```
 
-If your frontend bucket name is not ``${PROJECT}-frontend`` (for example Terraform added a random suffix), add `,_FRONTEND_BUCKET=your-bucket-name` to the substitutions string.
+`EXTRA` appends `,_FRONTEND_BUCKET=<terraform bucket>` when [`infra/gcp/scripts/print-cloudbuild-frontend-substitutions.sh`](../infra/gcp/scripts/print-cloudbuild-frontend-substitutions.sh) can read Terraform state (run from repo root after `terraform apply` in `infra/gcp`). If the script prints nothing, confirm the default bucket matches the load balancer (see [runbooks/verify-frontend-bucket-and-cdn.md](./runbooks/verify-frontend-bucket-and-cdn.md)).
+
+If your frontend bucket name is not ``${PROJECT}-frontend`` (for example Terraform used a random suffix), you **must** pass **`_FRONTEND_BUCKET`** explicitly (script output or console value).
 
 After deploy, open the SPA at your **`app_domain`** (see [frontend-hosting.md](./frontend-hosting.md)), not an unrelated `*.run.app` host unless you intentionally serve the SPA there.
 
 ### CDN invalidation (Cloud Build)
 
-The build runs `gcloud compute url-maps invalidate-cdn-cache` on **`landgrant-frontend-urlmap`** by default so users see new JS/CSS quickly. Grant the **Cloud Build service account** permission to invalidate cache (for example role that includes `compute.urlMaps.invalidateCache`), or run the invalidate command manually after deploy. If invalidation fails, the build logs a **WARN** but still succeeds; origin objects in GCS are already updated.
+The build runs `gcloud compute url-maps invalidate-cdn-cache` on **`landgrant-frontend-urlmap`** by default so users see new JS/CSS quickly. Build steps run as Google’s **reserved** Cloud Build SA `{project_number}@cloudbuild.gserviceaccount.com` (not necessarily `landgrant-cloudbuild@…`). Grant that identity permission to invalidate caches (Terraform default `grant_reserved_cloudbuild_cdn_invalidation`, or manual steps in [runbooks/cloud-build-cdn-invalidate-iam.md](./runbooks/cloud-build-cdn-invalidate-iam.md)). If invalidation fails, the build logs a **WARN** but still succeeds; origin objects in GCS are already updated.
 
 ## Database migrations
 

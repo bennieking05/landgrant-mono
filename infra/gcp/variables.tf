@@ -10,6 +10,14 @@ variable "billing_account" {
   default     = "010525-01B070-3501CE"
 }
 
+# Grant the reserved Cloud Build SA (PROJECT_NUMBER@cloudbuild.gserviceaccount.com)
+# roles/compute.loadBalancerAdmin so cloudbuild.yaml can invalidate CDN after SPA deploy.
+variable "grant_reserved_cloudbuild_cdn_invalidation" {
+  type        = bool
+  default     = true
+  description = "If true, grant the GCP reserved Cloud Build service account permission to invalidate URL map CDN caches."
+}
+
 variable "region" {
   type        = string
   description = "Primary region for resources."

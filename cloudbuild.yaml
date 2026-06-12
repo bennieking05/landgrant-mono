@@ -11,6 +11,7 @@ substitutions:
   _API_IMAGE: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/landgrant/api
   _WORKER_IMAGE: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/landgrant/worker
   _MARKETING_IMAGE: ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/landgrant/marketing
+  # Default matches many installs; must equal the GCS bucket behind the LB (terraform output frontend_bucket).
   _FRONTEND_BUCKET: ${_PROJECT_ID}-frontend
   # Terraform google_compute_url_map.frontend name; set _CDN_INVALIDATE to "0" to skip.
   _FRONTEND_URL_MAP: landgrant-frontend-urlmap
