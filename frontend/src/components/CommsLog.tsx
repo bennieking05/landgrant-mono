@@ -73,12 +73,12 @@ export function CommsLog({ projectId, parcelId }: Props) {
             <li key={`${event.kind ?? "row"}-${event.id}`} className="flex items-start justify-between gap-3 text-sm">
               <div className="min-w-0">
                 <p className="font-medium">
-                  {event.kind ? <span className="text-slate-400">{event.kind}</span> : null}{" "}
+                  {event.kind ? <span className="text-slate-500">{event.kind}</span> : null}{" "}
                   <span>{event.channel}</span>
                 </p>
                 <p className="text-slate-600 break-words">{event.summary}</p>
                 {event.parcel_id ? (
-                  <p className="mt-0.5 text-xs text-slate-400">Parcel {event.parcel_id}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Parcel {event.parcel_id}</p>
                 ) : null}
               </div>
               <span className="shrink-0 text-xs text-slate-500">{event.ts ?? event.status ?? ""}</span>

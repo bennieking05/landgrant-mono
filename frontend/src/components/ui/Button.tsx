@@ -44,6 +44,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref,
   ) => {
     const Comp = asChild ? Slot : "button";
+    // Radix ``Slot`` requires exactly one React element child, so when
+    // ``asChild`` is set we must pass ``children`` alone — emitting a sibling
+    // (even a ``null`` spinner slot) makes Slot receive a 2-element array and
+    // throw "Expected a single React element child". Loading spinners are only
+    // meaningful on real <button>s anyway.
     return (
       <Comp
         ref={ref}
@@ -51,10 +56,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         {...props}
       >
-        {!asChild && loading ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-        ) : null}
-        {children}
+        {asChild ? (
+          children
+        ) : (
+          <>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+            {children}
+          </>
+        )}
       </Comp>
     );
   },

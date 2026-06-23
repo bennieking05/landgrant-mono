@@ -287,7 +287,7 @@ export function DashboardPage() {
               <CardBody>
                 <h2 className="text-h3 text-slate-900">Parcels by stage</h2>
                 {stats.total < 3 ? (
-                  <p className="mt-2 text-caption text-slate-400">
+                  <p className="mt-2 text-caption text-slate-500">
                     Limited data - showing all {stats.total} parcel{stats.total === 1 ? "" : "s"}.
                   </p>
                 ) : null}

@@ -12,6 +12,7 @@ import {
   HealthStatus,
 } from "@/lib/api";
 import { AIDecisionDashboard } from "@/components/AIDecisionDashboard";
+import { Alert, EmptyState, Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 type TabType = "cases" | "projects" | "health" | "ai_decisions";
@@ -182,9 +183,9 @@ export function AdminPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">
+        <Alert variant="danger" title="Couldn't load admin data">
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Global Search */}
@@ -251,53 +252,20 @@ export function AdminPage() {
       )}
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
-        <nav className="flex gap-6">
-          <button
-            onClick={() => setActiveTab("cases")}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "cases"
-                ? "border-brand text-brand"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            All Cases
-          </button>
-          <button
-            onClick={() => setActiveTab("projects")}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "projects"
-                ? "border-brand text-brand"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            Projects
-          </button>
-          <button
-            onClick={() => setActiveTab("health")}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "health"
-                ? "border-brand text-brand"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            System Health
-          </button>
-          <button
-            onClick={() => setActiveTab("ai_decisions")}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "ai_decisions"
-                ? "border-brand text-brand"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            AI Decisions
-          </button>
-        </nav>
-      </div>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as TabType)}
+        className="space-y-6"
+      >
+        <TabsList aria-label="Admin sections" className="gap-6">
+          <TabsTrigger value="cases">All Cases</TabsTrigger>
+          <TabsTrigger value="projects">Projects</TabsTrigger>
+          <TabsTrigger value="health">System Health</TabsTrigger>
+          <TabsTrigger value="ai_decisions">AI Decisions</TabsTrigger>
+        </TabsList>
 
       {/* Cases Tab */}
-      {activeTab === "cases" && (
+      <TabsContent value="cases">
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="p-6 border-b border-slate-200">
             <div className="flex items-center justify-between mb-4">
@@ -372,8 +340,8 @@ export function AdminPage() {
                   </tr>
                 ) : cases.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-slate-500">
-                      No cases found
+                    <td colSpan={8} className="px-6 py-8">
+                      <EmptyState message="No cases match the current filters." />
                     </td>
                   </tr>
                 ) : (
@@ -398,10 +366,10 @@ export function AdminPage() {
             </table>
           </div>
         </div>
-      )}
+      </TabsContent>
 
       {/* Projects Tab */}
-      {activeTab === "projects" && (
+      <TabsContent value="projects">
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="p-6 border-b border-slate-200">
             <h3 className="text-lg font-semibold">All Projects</h3>
@@ -430,8 +398,8 @@ export function AdminPage() {
                   </tr>
                 ) : projects.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
-                      No projects found
+                    <td colSpan={7} className="px-6 py-8">
+                      <EmptyState message="No projects found." />
                     </td>
                   </tr>
                 ) : (
@@ -468,10 +436,10 @@ export function AdminPage() {
             </table>
           </div>
         </div>
-      )}
+      </TabsContent>
 
       {/* Health Tab */}
-      {activeTab === "health" && (
+      <TabsContent value="health">
         <div className="space-y-6">
           {/* Overall Status */}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -496,8 +464,8 @@ export function AdminPage() {
                   Loading health status...
                 </div>
               ) : healthServices.length === 0 ? (
-                <div className="px-6 py-8 text-center text-slate-500">
-                  No health data available
+                <div className="px-6 py-8">
+                  <EmptyState message="No health data available yet." />
                 </div>
               ) : (
                 healthServices.map((service) => (
@@ -521,10 +489,13 @@ export function AdminPage() {
             </div>
           </div>
         </div>
-      )}
+      </TabsContent>
 
       {/* AI Decisions Tab */}
-      {activeTab === "ai_decisions" && <AIDecisionDashboard />}
+      <TabsContent value="ai_decisions">
+        <AIDecisionDashboard />
+      </TabsContent>
+      </Tabs>
     </section>
   );
 }

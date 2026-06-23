@@ -50,7 +50,7 @@ function StepIndicator({ currentStep, onStepClick }: { currentStep: number; onSt
             </span>
             <span
               className={`text-xs font-medium whitespace-nowrap ${
-                idx === currentStep ? "text-brand" : idx < currentStep ? "text-slate-700" : "text-slate-400"
+                idx === currentStep ? "text-brand" : idx < currentStep ? "text-slate-700" : "text-slate-500"
               }`}
             >
               {step.label}

@@ -1,5 +1,20 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import path from "path";
+
+const API_BASE = process.env.VITE_API_BASE ?? "http://localhost:8050";
+const TOKEN_KEY = "landgrant.jwt";
+
+async function staffLogin(page: Page, request: APIRequestContext): Promise<void> {
+  const res = await request.post(`${API_BASE}/auth/login`, {
+    data: { email: "admin@landgrant.local", password: "devpass123" },
+  });
+  expect(res.ok()).toBeTruthy();
+  const { access_token: token } = (await res.json()) as { access_token: string };
+  await page.addInitScript(
+    ([key, value]) => window.sessionStorage.setItem(key, value),
+    [TOKEN_KEY, token] as const,
+  );
+}
 
 /**
  * Land Agent Workbench E2E Tests
@@ -16,7 +31,9 @@ const PROJECT_ID = "PRJ-001";
 const PARCEL_ID = "PARCEL-001";
 
 test.describe("Agent Workbench Flow", () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, request }) => {
+    // Authenticate (token in sessionStorage) before visiting the gated page.
+    await staffLogin(page, request);
     // Navigate to workbench page
     await page.goto(`/workbench?projectId=${PROJECT_ID}&parcelId=${PARCEL_ID}`);
   });
@@ -24,7 +41,7 @@ test.describe("Agent Workbench Flow", () => {
   test("should load workbench page with all components", async ({ page }) => {
     // Verify page title/header
     await expect(page.locator("text=Agent workbench")).toBeVisible();
-    await expect(page.locator("text=Parcel list")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Workbench", exact: true })).toBeVisible();
 
     // Take screenshot of initial state
     await page.screenshot({
@@ -143,11 +160,12 @@ test.describe("Agent Workbench Flow", () => {
   test("should navigate between pages", async ({ page }) => {
     // Click home link or navigate
     await page.goto("/");
-    await expect(page.locator("text=LandGrant MVP")).toBeVisible();
-    
-    // Navigate back to workbench
-    await page.click("text=Agent Workbench");
-    await expect(page.locator("text=Agent workbench")).toBeVisible();
+    const sidebar = page.getByRole("navigation", { name: "Primary" });
+    await expect(sidebar.getByRole("link", { name: "Workbench" })).toBeVisible();
+
+    // Navigate back to workbench via the sidebar
+    await sidebar.getByRole("link", { name: "Workbench" }).click();
+    await expect(page.getByRole("heading", { name: "Workbench", exact: true })).toBeVisible();
     
     await page.screenshot({
       path: path.join(ARTIFACTS_DIR, "agent-08-navigation.png"),

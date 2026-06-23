@@ -36,6 +36,9 @@ export function InviteCard({ projectId, parcelId }: { projectId: string; parcelI
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          aria-label="Landowner email"
+          autoComplete="email"
+          placeholder="owner@example.com"
           className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
         <button

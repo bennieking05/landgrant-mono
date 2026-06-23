@@ -72,18 +72,18 @@ function DeadlineCalendar({
   const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
   const gridStart = startOfCalendarGrid(monthStart);
   const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const byDay = useMemo(() => {
-    const m = new Map<string, DeadlineItem[]>();
-    for (const d of deadlines) {
-      const x = new Date(d.due_at);
-      if (Number.isNaN(x.getTime())) continue;
-      const key = `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
-      const arr = m.get(key) ?? [];
-      arr.push(d);
-      m.set(key, arr);
-    }
-    return m;
-  }, [deadlines]);
+  // Bucket deadlines by calendar day. This is a cheap derivation over a small
+  // list rebuilt only while the calendar view is mounted, so it's computed
+  // inline rather than memoized.
+  const byDay = new Map<string, DeadlineItem[]>();
+  for (const d of deadlines) {
+    const x = new Date(d.due_at);
+    if (Number.isNaN(x.getTime())) continue;
+    const key = `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+    const arr = byDay.get(key) ?? [];
+    arr.push(d);
+    byDay.set(key, arr);
+  }
 
   const cells: { date: Date; inMonth: boolean }[] = [];
   for (let i = 0; i < 42; i++) {
@@ -260,7 +260,7 @@ export function DeadlineManager({ projectId }: Props) {
       {
         accessorKey: "parcel_id",
         header: "Parcel",
-        cell: ({ row, getValue }) => {
+        cell: ({ getValue }) => {
           const pid = getValue() as string | undefined;
           if (!pid) return <span className="text-slate-400">&mdash;</span>;
           return (

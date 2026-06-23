@@ -55,7 +55,16 @@ function readStoredToken(): string | null {
 type Props = { children: ReactNode };
 
 export function AuthProvider({ children }: Props) {
-  const [token, setToken] = useState<string | null>(() => readStoredToken());
+  const [token, setToken] = useState<string | null>(() => {
+    // Seed the shared API client synchronously during the first render, before
+    // any child component fires a request. Without this, a page reload or
+    // deep-link restores the token into React state (so /auth/me succeeds via
+    // its explicit header) but leaves the shared ``apiFetch`` client tokenless,
+    // so every data request 401s and the UI shows "Not authenticated".
+    const stored = readStoredToken();
+    setApiAuth({ token: stored ?? undefined });
+    return stored;
+  });
   const [me, setMe] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(false);
 

@@ -273,7 +273,7 @@ export function ParcelMap({
             </p>
           </div>
           {import.meta.env.DEV ? (
-            <p className="text-caption text-slate-400">
+            <p className="text-caption text-slate-600">
               Dev note: configure the {engine.label} access token to enable the map.
             </p>
           ) : null}

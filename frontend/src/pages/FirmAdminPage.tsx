@@ -11,7 +11,7 @@ import {
 } from "@/lib/api";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { formatDate } from "@/lib/format";
-import { DataGrid, EmptyState, StageBadge } from "@/components/ui";
+import { Alert, DataGrid, EmptyState, StageBadge } from "@/components/ui";
 
 const DEFAULT_PAGE = 50;
 
@@ -224,12 +224,13 @@ export function FirmAdminPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+        <Alert
+          variant="danger"
+          title="Couldn't load firm dashboard"
+          action={{ label: "Retry", onClick: () => void loadDashboard() }}
+        >
           {error}
-          <button type="button" onClick={() => void loadDashboard()} className="ml-4 text-red-600 underline">
-            Retry
-          </button>
-        </div>
+        </Alert>
       )}
 
       {metrics && (

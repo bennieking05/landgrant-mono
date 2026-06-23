@@ -1,5 +1,67 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import path from "path";
+
+const API_BASE = process.env.VITE_API_BASE ?? "http://localhost:8050";
+const TOKEN_KEY = "landgrant.jwt";
+
+/** Seed a staff JWT in sessionStorage so auth-gated routes render real content. */
+async function staffLogin(page: Page, request: APIRequestContext): Promise<void> {
+  const res = await request.post(`${API_BASE}/auth/login`, {
+    data: { email: "admin@landgrant.local", password: "devpass123" },
+  });
+  expect(res.ok()).toBeTruthy();
+  const { access_token: token } = (await res.json()) as { access_token: string };
+  await page.addInitScript(
+    ([key, value]) => window.sessionStorage.setItem(key, value),
+    [TOKEN_KEY, token] as const,
+  );
+}
+
+// Fixed instant the whole suite renders "now" as, so every relative-date
+// computation (days-until a deadline, urgency colors, the calendar "today"
+// ring, the footer year, the Ops "last checked" stamp) is identical on every
+// run regardless of the real wall clock.
+const FIXED_NOW = new Date(2026, 5, 23, 12, 0, 0); // 2026-06-23 12:00 local
+
+// Pin the two time-windowed/data-driven sources whose numbers drift with
+// *server* time (so freezing the browser clock alone isn't enough): the
+// dashboard rollup and the three Ops health probes. Fixtures captured from the
+// live dev API; only the volatile counts matter for determinism.
+const DASHBOARD_HOME = {
+  persona: "platform_admin",
+  project_id: "PRJ-002",
+  sample_size: 1,
+  sample_sufficient: false,
+  parcels_by_stage: { intake: 1 },
+  pending_offers_count: 0,
+  overdue_tasks_count: 0,
+  deadlines_next_14_count: 1,
+  pending_approvals_count: 0,
+  escalations_open_count: null,
+  litigation_rate: null,
+  litigation_rate_insufficient_data: true,
+  cycle_time_median_days: null,
+  cycle_time_insufficient_data: true,
+  budget_utilization_pct: null,
+  budget_utilization_insufficient_data: true,
+};
+
+/**
+ * Make the page deterministic for pixel comparison: freeze the clock and pin
+ * the data-driven endpoints. Everything else (parcels, projects, deadline
+ * *dates*) is stable seeded data, so the UI renders identically every run.
+ */
+async function stabilize(page: Page): Promise<void> {
+  await page.clock.setFixedTime(FIXED_NOW);
+  await page.route("**/dashboard/home*", (route) => route.fulfill({ json: DASHBOARD_HOME }));
+  await page.route("**/health/live", (route) => route.fulfill({ json: { status: "ok" } }));
+  await page.route("**/health/invite", (route) =>
+    route.fulfill({ json: { status: "invite-flow", checks: ["magic_link", "email_queue"] } }),
+  );
+  await page.route("**/health/esign", (route) =>
+    route.fulfill({ json: { status: "esign", vendor: "adobe" } }),
+  );
+}
 
 /**
  * Visual Regression Tests
@@ -21,6 +83,11 @@ const ARTIFACTS_DIR = path.resolve(__dirname, "..", "..", "..", "artifacts", "e2
 const TIMESTAMP = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
 test.describe("Visual Regression Suite", () => {
+  test.beforeEach(async ({ page, request }) => {
+    await staffLogin(page, request);
+    await stabilize(page);
+  });
+
   test.describe("Home Page", () => {
     test("home page layout", async ({ page }) => {
       await page.goto("/");
@@ -206,6 +273,11 @@ test.describe("Visual Regression Suite", () => {
 });
 
 test.describe("Component Regression", () => {
+  test.beforeEach(async ({ page, request }) => {
+    await staffLogin(page, request);
+    await stabilize(page);
+  });
+
   test("map component renders", async ({ page }) => {
     await page.goto(`/workbench?projectId=${PROJECT_ID}&parcelId=${PARCEL_ID}`);
     await page.waitForLoadState("networkidle");

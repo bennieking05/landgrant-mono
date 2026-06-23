@@ -69,7 +69,7 @@ export function RuleResults({ parcelId }: { parcelId: string }) {
                 <p className="font-medium text-slate-900">{result.rule_id}</p>
                 <p className="text-slate-600">{result.citation}</p>
               </div>
-              <span className={`text-xs font-semibold ${result.fired ? "text-emerald-600" : "text-slate-400"}`}>
+              <span className={`text-xs font-semibold ${result.fired ? "text-emerald-700" : "text-slate-500"}`}>
                 {result.fired ? "Fired" : "Not triggered"}
               </span>
             </li>

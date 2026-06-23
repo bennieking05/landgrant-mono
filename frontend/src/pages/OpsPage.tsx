@@ -175,7 +175,7 @@ export function OpsPage() {
                 </div>
                 <p className="text-xs text-slate-500">{p.description}</p>
                 {s.detail ? (
-                  <p className="mt-1 truncate text-xs text-slate-400" title={s.detail}>
+                  <p className="mt-1 truncate text-xs text-slate-600" title={s.detail}>
                     {s.detail}
                   </p>
                 ) : null}

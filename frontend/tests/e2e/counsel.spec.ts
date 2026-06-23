@@ -1,5 +1,20 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import path from "path";
+
+const API_BASE = process.env.VITE_API_BASE ?? "http://localhost:8050";
+const TOKEN_KEY = "landgrant.jwt";
+
+async function staffLogin(page: Page, request: APIRequestContext): Promise<void> {
+  const res = await request.post(`${API_BASE}/auth/login`, {
+    data: { email: "admin@landgrant.local", password: "devpass123" },
+  });
+  expect(res.ok()).toBeTruthy();
+  const { access_token: token } = (await res.json()) as { access_token: string };
+  await page.addInitScript(
+    ([key, value]) => window.sessionStorage.setItem(key, value),
+    [TOKEN_KEY, token] as const,
+  );
+}
 
 /**
  * Counsel Controls E2E Tests
@@ -16,7 +31,9 @@ const PROJECT_ID = "PRJ-001";
 const PARCEL_ID = "PARCEL-001";
 
 test.describe("Counsel Controls Flow", () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, request }) => {
+    // Authenticate (token in sessionStorage) before visiting the gated page.
+    await staffLogin(page, request);
     // Navigate to counsel page
     await page.goto(`/counsel?projectId=${PROJECT_ID}&parcelId=${PARCEL_ID}`);
   });
@@ -24,7 +41,7 @@ test.describe("Counsel Controls Flow", () => {
   test("should load counsel page with all components", async ({ page }) => {
     // Verify page title/header
     await expect(page.locator("text=Counsel controls")).toBeVisible();
-    await expect(page.locator("text=Template approvals")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Counsel workbench", exact: true })).toBeVisible();
 
     // Take screenshot of initial state
     await page.screenshot({

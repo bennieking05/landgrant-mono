@@ -380,7 +380,7 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
             <span>
               {label}
               {r.county_fips ? (
-                <span className="ml-1 text-caption text-slate-400">({r.county_fips})</span>
+                <span className="ml-1 text-caption text-slate-500">({r.county_fips})</span>
               ) : null}
             </span>
           ) : (

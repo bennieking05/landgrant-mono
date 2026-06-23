@@ -297,22 +297,22 @@ export function ParcelDetailPage() {
             </div>
             <dl className="flex flex-wrap gap-x-6 gap-y-1 text-small text-slate-600">
               <div className="flex gap-1">
-                <dt className="text-slate-400">Owner:</dt>
+                <dt className="text-slate-500">Owner:</dt>
                 <dd>{parcel.owner ?? "-"}</dd>
               </div>
               <div className="flex gap-1">
-                <dt className="text-slate-400">County FIPS:</dt>
+                <dt className="text-slate-500">County FIPS:</dt>
                 <dd className="font-id">{parcel.county_fips ?? "-"}</dd>
               </div>
               <div className="flex gap-1">
-                <dt className="text-slate-400">Next deadline:</dt>
+                <dt className="text-slate-500">Next deadline:</dt>
                 <dd>{parcel.next_deadline_at ? formatDate(parcel.next_deadline_at) : "None"}</dd>
               </div>
             </dl>
           </div>
           <div className="flex items-center gap-3">
             {parcel.updated_at ? (
-              <span className="flex items-center gap-1 text-caption text-slate-400" title={formatDateTime(parcel.updated_at)}>
+              <span className="flex items-center gap-1 text-caption text-slate-500" title={formatDateTime(parcel.updated_at)}>
                 <Info className="h-3.5 w-3.5" /> Updated {formatRelative(parcel.updated_at)}
               </span>
             ) : null}
@@ -355,7 +355,7 @@ export function ParcelDetailPage() {
                         <div className="pb-5">
                           <p className="text-small font-medium text-slate-900">{ev.title}</p>
                           {ev.detail ? <p className="text-small text-slate-600">{ev.detail}</p> : null}
-                          <p className="text-caption text-slate-400">
+                          <p className="text-caption text-slate-500">
                             {ev.at ? `${formatDate(ev.at)} - ${formatRelative(ev.at)}` : "Date unknown"}
                           </p>
                         </div>
@@ -384,7 +384,7 @@ export function ParcelDetailPage() {
                         {o.amount != null ? formatCurrency(o.amount) : "-"}
                       </span>
                       <Badge variant="neutral">{o.status ?? "unknown"}</Badge>
-                      <span className="text-caption text-slate-400">
+                      <span className="text-caption text-slate-500">
                         {o.sent_date ? formatDate(o.sent_date) : o.created_date ? formatDate(o.created_date) : "-"}
                       </span>
                     </li>
@@ -406,7 +406,7 @@ export function ParcelDetailPage() {
                     <li key={c.id} className="flex items-center justify-between gap-3 py-3">
                       <span className="text-small text-slate-700">{c.summary ?? c.channel}</span>
                       <Badge variant="info">{c.channel}</Badge>
-                      <span className="text-caption text-slate-400">{c.ts ? formatDate(c.ts) : "-"}</span>
+                      <span className="text-caption text-slate-500">{c.ts ? formatDate(c.ts) : "-"}</span>
                     </li>
                   ))}
                 </ul>
@@ -425,7 +425,7 @@ export function ParcelDetailPage() {
                   {deadlines.map((d) => (
                     <li key={d.id} className="flex items-center justify-between gap-3 py-3">
                       <span className="text-small text-slate-700">{d.title}</span>
-                      {d.citation ? <span className="font-id text-caption text-slate-400">{d.citation}</span> : null}
+                      {d.citation ? <span className="font-id text-caption text-slate-500">{d.citation}</span> : null}
                       <span className="text-small font-medium text-slate-700">{formatDate(d.due_at)}</span>
                     </li>
                   ))}

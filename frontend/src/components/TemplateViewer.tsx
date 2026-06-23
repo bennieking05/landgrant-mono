@@ -274,7 +274,7 @@ export function TemplateViewer() {
               )}
             </>
           ) : (
-            <div className="flex items-center justify-center h-48 text-slate-400 text-sm">
+            <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
               Select a template to view details
             </div>
           )}
