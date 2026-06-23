@@ -264,13 +264,35 @@ Validation: guard test **2 passed** (and confirmed **2 failed** on a deliberatel
 `5.0.0`, then restored); CI one-liner passes silently on `4.0.1`; `ci.yml` valid YAML;
 `setup.sh` passes `bash -n`.
 
+## 9g. Performance, i18n, and Copilot dialog a11y (round 8)
+
+The larger §10 items are now done:
+
+- **Bundle code-splitting** — route-level `React.lazy` for every page (and the dashboard,
+  so Recharts loads on demand) plus `manualChunks` for `react-vendor`/`radix`. The initial
+  `index` chunk dropped from **1,237 kB → 342 kB** (gzip **355 → 107 kB**, ~70% less initial
+  JS); `mapbox-gl` (1.68 MB) and Recharts now load only when their screens mount. A
+  shell-level `Suspense` keeps the sidebar up while page content loads.
+- **i18n expansion** — moved the primary staff surfaces to `t()` with EN + **ES** strings
+  (`LoginPage`; the Workbench/Counsel/Ops/Admin/FirmAdmin headers; `ActiveParcelBar` and its
+  hints). Verified Spanish renders (e.g. "Mesa de trabajo", "Iniciar sesión"); English
+  defaults unchanged so baselines hold.
+- **Copilot as a full a11y dialog** — `CopilotDrawer` now restores focus to the trigger on
+  close (all modes), and on small screens (where it's a modal overlay) sets `aria-modal` and
+  traps Tab focus; on desktop it stays a labelled, non-modal docked panel so the workspace
+  remains usable beside it. Verified: desktop returns focus on Esc with no `aria-modal`;
+  mobile sets `aria-modal="true"` and keeps focus inside across repeated Tabs.
+
+Validation: typecheck **PASS**, unit **14/14**, build **PASS**, e2e (agent/counsel/a11y/
+visual) **31 passed**, 0 lint errors in changed files.
+
 ## 10. Suggested next-phase improvements (not implemented — larger scope)
 
-- Sweep remaining WCAG contrast failures (footer version text, ParcelDetail `dt` labels,
-  portal stepper labels) — standardize muted text on `text-slate-500`+.
-- Replace bespoke empty/error states with `EmptyState`/`Alert`; unify map Suspense fallbacks
-  on `LoadingSpinner`.
-- Make the AI Copilot panel dismissible (Esc/backdrop) and non-overlapping on small screens.
-- Add toast feedback when `PersonaRoute` denies access.
-- Complete i18n coverage of section headings and helper strings.
-- Code-split the 1.2 MB main bundle (and lazy-load `mapbox-gl`, 1.68 MB) via `manualChunks`.
+- ~~Sweep remaining WCAG contrast failures~~ — done (§9c). ~~Replace bespoke empty/error
+  states~~ — done for the main offenders (§9b/§9c). ~~Copilot dismissible/non-overlapping~~
+  and ~~full dialog a11y~~ — done (§9c/§9g). ~~i18n of headings~~ — primary surfaces done
+  (§9g). ~~Code-split the bundle~~ — done (§9g).
+- Remaining: unify map `Suspense` fallbacks on `LoadingSpinner`; toast feedback when
+  `PersonaRoute` denies access; extend i18n to the deeper panel/section strings and the
+  AppLayout "Workspace"/"Administration" labels; move visual-regression toward fixed-date
+  seed fixtures so a DB re-seed can't require re-baselining.

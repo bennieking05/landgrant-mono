@@ -11,6 +11,7 @@ import {
   SearchResult,
   HealthStatus,
 } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 import { AIDecisionDashboard } from "@/components/AIDecisionDashboard";
 import { Alert, EmptyState, Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -18,6 +19,7 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 type TabType = "cases" | "projects" | "health" | "ai_decisions";
 
 export function AdminPage() {
+  const { t } = useTranslation();
   useDocumentTitle("Platform admin");
   const [activeTab, setActiveTab] = useState<TabType>("cases");
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
@@ -175,11 +177,9 @@ export function AdminPage() {
     <section className="space-y-6">
       {/* Header */}
       <div>
-        <p className="text-sm uppercase tracking-wide text-brand">Platform Administration</p>
-        <h1 className="mt-2 text-3xl font-semibold">Admin Dashboard</h1>
-        <p className="mt-2 max-w-3xl text-slate-600">
-          System-wide view of all cases, projects, and services. Search across all data and monitor platform health.
-        </p>
+        <p className="text-sm uppercase tracking-wide text-brand">{t("pages.admin.eyebrow")}</p>
+        <h1 className="mt-2 text-3xl font-semibold">{t("pages.admin.title")}</h1>
+        <p className="mt-2 max-w-3xl text-slate-600">{t("pages.admin.subtitle")}</p>
       </div>
 
       {error && (

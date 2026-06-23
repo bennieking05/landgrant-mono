@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Sparkles, ScrollText } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAppContext } from "@/context";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui";
@@ -21,6 +22,7 @@ import { AIAuditDrawer } from "@/components/AIAuditDrawer";
 type CounselTab = "approvals" | "binder" | "litigation" | "tasks";
 
 export function CounselPage() {
+  const { t } = useTranslation();
   const { projectId, parcelId } = useAppContext();
   useDocumentTitle("Counsel");
   const [showCopilot, setShowCopilot] = useState(false);
@@ -33,12 +35,9 @@ export function CounselPage() {
       <section className={`flex-1 space-y-6 transition-all ${showCopilot ? "md:mr-96" : ""}`}>
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm uppercase tracking-wide text-brand">Counsel controls</p>
-            <h1 className="mt-2 text-3xl font-semibold">Counsel workbench</h1>
-            <p className="mt-2 max-w-3xl text-slate-600">
-              Approve templates before filing, assemble the document binder, track litigation
-              deadlines, and manage budgets — every action audit-logged.
-            </p>
+            <p className="text-sm uppercase tracking-wide text-brand">{t("pages.counsel.eyebrow")}</p>
+            <h1 className="mt-2 text-3xl font-semibold">{t("pages.counsel.title")}</h1>
+            <p className="mt-2 max-w-3xl text-slate-600">{t("pages.counsel.subtitle")}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -103,7 +102,7 @@ export function CounselPage() {
           </TabsContent>
 
           <TabsContent value="litigation" className="space-y-6">
-            <ActiveParcelBar emptyHint="Select a parcel to file or manage its litigation case." />
+            <ActiveParcelBar emptyHint={t("common.litigationParcelHint")} />
             {projectId ? (
               <ComplaintParcelsValidatePanel projectId={projectId} />
             ) : null}

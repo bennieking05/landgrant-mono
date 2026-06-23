@@ -1,5 +1,6 @@
 import { useState, lazy, Suspense } from "react";
 import { Sparkles, MapPin } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAppContext } from "@/context";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { EmptyState, Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui";
@@ -22,6 +23,7 @@ import { IntakeForm } from "@/components/IntakeForm";
 type WorkbenchTab = "parcels" | "pipeline" | "tasks";
 
 export function WorkbenchPage() {
+  const { t } = useTranslation();
   const { projectId, parcelId, setParcelId, parcels } = useAppContext();
   useDocumentTitle("Workbench", projectId || undefined);
   const [showCopilot, setShowCopilot] = useState(false);
@@ -33,12 +35,9 @@ export function WorkbenchPage() {
       <section className={`flex-1 space-y-6 transition-all ${showCopilot ? "md:mr-96" : ""}`}>
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm uppercase tracking-wide text-brand">Agent workbench</p>
-            <h1 className="mt-2 text-3xl font-semibold">Workbench</h1>
-            <p className="mt-2 max-w-3xl text-slate-600">
-              Review parcels on the map, manage the pre-offer packet, run jurisdiction rules, and
-              advance each parcel through title, appraisal, ROE, and offers.
-            </p>
+            <p className="text-sm uppercase tracking-wide text-brand">{t("pages.workbench.eyebrow")}</p>
+            <h1 className="mt-2 text-3xl font-semibold">{t("pages.workbench.title")}</h1>
+            <p className="mt-2 max-w-3xl text-slate-600">{t("pages.workbench.subtitle")}</p>
           </div>
           <button
             type="button"
@@ -74,13 +73,7 @@ export function WorkbenchPage() {
             />
           ) : null}
 
-          <ActiveParcelBar
-            emptyHint={
-              tab === "tasks"
-                ? "Showing tasks for the whole project. Select a parcel to focus on its tasks."
-                : undefined
-            }
-          />
+          <ActiveParcelBar emptyHint={tab === "tasks" ? t("common.tasksParcelHint") : undefined} />
 
           <TabsContent value="parcels" className="space-y-6">
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">

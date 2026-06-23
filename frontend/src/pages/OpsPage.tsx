@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAppContext } from "@/context";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { RoutePlanPanel } from "@/components/RoutePlanPanel";
@@ -56,6 +57,7 @@ const PROBES: Probe[] = [
 ];
 
 export function OpsPage() {
+  const { t } = useTranslation();
   const { projectId, parcelId } = useAppContext();
   useDocumentTitle("Operations");
 
@@ -107,12 +109,9 @@ export function OpsPage() {
   return (
     <section className="space-y-6">
       <div>
-        <p className="text-sm uppercase tracking-wide text-brand">Operations</p>
-        <h1 className="mt-2 text-3xl font-semibold">Route Planning & Communications</h1>
-        <p className="mt-2 max-w-3xl text-slate-600">
-          Field operations support: optimized visit routes, batch notifications, and live
-          integration diagnostics.
-        </p>
+        <p className="text-sm uppercase tracking-wide text-brand">{t("pages.ops.eyebrow")}</p>
+        <h1 className="mt-2 text-3xl font-semibold">{t("pages.ops.title")}</h1>
+        <p className="mt-2 max-w-3xl text-slate-600">{t("pages.ops.subtitle")}</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
