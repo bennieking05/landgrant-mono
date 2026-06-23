@@ -62,6 +62,12 @@ fi
 . .venv/bin/activate
 pip install --upgrade pip -q
 pip install -r requirements-dev.txt -q
+# Guard the bcrypt pin: passlib 1.7.4 breaks with bcrypt>=4.1 (login returns 500).
+# Auto-correct if a transitive resolution or stale venv drifted past the pin.
+if ! python -c "import bcrypt,sys; v=tuple(int(p) for p in bcrypt.__version__.split('.')[:2]); sys.exit(0 if v < (4,1) else 1)" 2>/dev/null; then
+  echo "  bcrypt drifted past the passlib-compatible pin; reinstalling bcrypt==4.0.1..."
+  pip install "bcrypt==4.0.1" -q
+fi
 deactivate
 cd "$REPO_ROOT"
 echo ""

@@ -1,20 +1,32 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { AppContextProvider, AuthProvider, useAppContext, useAuth } from "@/context";
 import { AppLayout } from "@/components/AppLayout";
 import { PortalLayout } from "@/components/PortalLayout";
 import { PersonaRoute } from "@/components/PersonaRoute";
 import { HomePage } from "@/pages/HomePage";
-import { LoginPage } from "@/pages/LoginPage";
-import { IntakePage } from "@/pages/IntakePage";
-import { PortalPage } from "@/pages/PortalPage";
-import { WorkbenchPage } from "@/pages/WorkbenchPage";
-import { CounselPage } from "@/pages/CounselPage";
-import { OpsPage } from "@/pages/OpsPage";
-import { FirmAdminPage } from "@/pages/FirmAdminPage";
-import { AdminPage } from "@/pages/AdminPage";
-import { ParcelDetailPage } from "@/pages/ParcelDetailPage";
-import { NotFoundPage } from "@/pages/NotFoundPage";
+
+// Route-level code splitting: each page (and its heavy deps — Recharts on the
+// dashboards, the data grid, etc.) loads on demand instead of bloating the
+// initial bundle. HomePage stays eager since it's just the post-login redirect.
+const LoginPage = lazy(() => import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })));
+const IntakePage = lazy(() => import("@/pages/IntakePage").then((m) => ({ default: m.IntakePage })));
+const PortalPage = lazy(() => import("@/pages/PortalPage").then((m) => ({ default: m.PortalPage })));
+const WorkbenchPage = lazy(() => import("@/pages/WorkbenchPage").then((m) => ({ default: m.WorkbenchPage })));
+const CounselPage = lazy(() => import("@/pages/CounselPage").then((m) => ({ default: m.CounselPage })));
+const OpsPage = lazy(() => import("@/pages/OpsPage").then((m) => ({ default: m.OpsPage })));
+const FirmAdminPage = lazy(() => import("@/pages/FirmAdminPage").then((m) => ({ default: m.FirmAdminPage })));
+const AdminPage = lazy(() => import("@/pages/AdminPage").then((m) => ({ default: m.AdminPage })));
+const ParcelDetailPage = lazy(() => import("@/pages/ParcelDetailPage").then((m) => ({ default: m.ParcelDetailPage })));
+const NotFoundPage = lazy(() => import("@/pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })));
+
+function PageLoading() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center text-slate-500" role="status">
+      Loading…
+    </div>
+  );
+}
 
 function ProtectedShell() {
   const { isAuthenticated, me } = useAuth();
@@ -72,7 +84,9 @@ function ProtectedShell() {
   return (
     <AppContextProvider>
       <ShellChrome>
-        <Outlet />
+        <Suspense fallback={<PageLoading />}>
+          <Outlet />
+        </Suspense>
       </ShellChrome>
     </AppContextProvider>
   );
@@ -99,8 +113,9 @@ function PortalEntry() {
 export function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
+      <Suspense fallback={<PageLoading />}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedShell />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/parcels/:parcelId" element={<ParcelDetailPage />} />
@@ -162,7 +177,8 @@ export function App() {
           />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
-      </Routes>
+        </Routes>
+      </Suspense>
     </AuthProvider>
   );
 }

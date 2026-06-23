@@ -9,13 +9,15 @@ import {
   type FirmCaseItem,
   type FirmActivityItem,
 } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { formatDate } from "@/lib/format";
-import { DataGrid, EmptyState, StageBadge } from "@/components/ui";
+import { Alert, DataGrid, EmptyState, StageBadge } from "@/components/ui";
 
 const DEFAULT_PAGE = 50;
 
 export function FirmAdminPage() {
+  const { t } = useTranslation();
   useDocumentTitle("Firm admin");
   const [metrics, setMetrics] = useState<FirmMetrics | null>(null);
   const [cases, setCases] = useState<FirmCaseItem[]>([]);
@@ -215,21 +217,19 @@ export function FirmAdminPage() {
   return (
     <section className="space-y-6">
       <div>
-        <p className="text-sm uppercase tracking-wide text-brand">Firm Administration</p>
-        <h1 className="mt-2 text-3xl font-semibold">Firm Dashboard</h1>
-        <p className="mt-2 max-w-3xl text-slate-600">
-          Rolled-up view of all cases across your firm&apos;s projects. Monitor progress, track litigation, and review
-          activity.
-        </p>
+        <p className="text-sm uppercase tracking-wide text-brand">{t("pages.firmAdmin.eyebrow")}</p>
+        <h1 className="mt-2 text-3xl font-semibold">{t("pages.firmAdmin.title")}</h1>
+        <p className="mt-2 max-w-3xl text-slate-600">{t("pages.firmAdmin.subtitle")}</p>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+        <Alert
+          variant="danger"
+          title="Couldn't load firm dashboard"
+          action={{ label: "Retry", onClick: () => void loadDashboard() }}
+        >
           {error}
-          <button type="button" onClick={() => void loadDashboard()} className="ml-4 text-red-600 underline">
-            Retry
-          </button>
-        </div>
+        </Alert>
       )}
 
       {metrics && (

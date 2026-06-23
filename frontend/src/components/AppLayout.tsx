@@ -137,7 +137,7 @@ export function AppLayout({ children }: Props) {
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4" aria-label="Primary">
         <div className="space-y-1">
           {!collapsed && (
-            <p className="px-3 pb-1 text-caption font-semibold uppercase text-slate-400">Workspace</p>
+            <p className="px-3 pb-1 text-caption font-semibold uppercase text-slate-500">Workspace</p>
           )}
           {workspaceItems.map((item) => (
             <NavLink key={item.path} item={item} />
@@ -146,7 +146,7 @@ export function AppLayout({ children }: Props) {
         {adminItems.length > 0 && (
           <div className="space-y-1">
             {!collapsed && (
-              <p className="px-3 pb-1 text-caption font-semibold uppercase text-slate-400">
+              <p className="px-3 pb-1 text-caption font-semibold uppercase text-slate-500">
                 Administration
               </p>
             )}
@@ -240,7 +240,7 @@ export function AppLayout({ children }: Props) {
           >
             <Search className="h-4 w-4" />
             <span>Search</span>
-            <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-caption">&#8984;K</kbd>
+            <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-caption text-slate-600">&#8984;K</kbd>
           </button>
           <button
             type="button"

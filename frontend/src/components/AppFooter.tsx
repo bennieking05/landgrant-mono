@@ -12,7 +12,7 @@ export function AppFooter() {
           <a href="/privacy" className="hover:text-slate-700">Privacy</a>
           <a href="/security" className="hover:text-slate-700">Security</a>
           <a href="mailto:support@landgrantiq.com" className="hover:text-slate-700">Support</a>
-          <span className="font-id text-slate-400" title="Application version and build">
+          <span className="font-id text-slate-500" title="Application version and build">
             v{VERSION} &middot; {BUILD_SHA}
           </span>
         </nav>

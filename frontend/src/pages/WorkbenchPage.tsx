@@ -1,6 +1,10 @@
 import { useState, lazy, Suspense } from "react";
+import { Sparkles, MapPin } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAppContext } from "@/context";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { EmptyState, Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui";
+import { ActiveParcelBar } from "@/components/ActiveParcelBar";
 
 const ParcelMap = lazy(() => import("@/components/ParcelMap").then(m => ({ default: m.ParcelMap })));
 import { CommsLog } from "@/components/CommsLog";
@@ -12,84 +16,66 @@ import { AppraisalPanel } from "@/components/AppraisalPanel";
 import { ROEPanel } from "@/components/ROEPanel";
 import { NegotiationPanel } from "@/components/NegotiationPanel";
 import { TaskManager } from "@/components/TaskManager";
-import { CopilotPanel } from "@/components/CopilotPanel";
+import { CopilotDrawer } from "@/components/CopilotDrawer";
 import { ProjectHierarchyNav } from "@/components/ProjectHierarchyNav";
 import { IntakeForm } from "@/components/IntakeForm";
 
 type WorkbenchTab = "parcels" | "pipeline" | "tasks";
 
 export function WorkbenchPage() {
+  const { t } = useTranslation();
   const { projectId, parcelId, setParcelId, parcels } = useAppContext();
   useDocumentTitle("Workbench", projectId || undefined);
   const [showCopilot, setShowCopilot] = useState(false);
   const [tab, setTab] = useState<WorkbenchTab>("parcels");
 
-  const tabBtn = (id: WorkbenchTab, label: string) => (
-    <button
-      type="button"
-      key={id}
-      onClick={() => setTab(id)}
-      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-        tab === id ? "bg-brand text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
-      }`}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <div className="flex h-full">
       {/* Main content */}
-      <section className={`flex-1 space-y-6 transition-all ${showCopilot ? "mr-96" : ""}`}>
+      <section className={`flex-1 space-y-6 transition-all ${showCopilot ? "md:mr-96" : ""}`}>
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm uppercase tracking-wide text-brand">Agent workbench</p>
-            <h1 className="mt-2 text-3xl font-semibold">Parcel list, map filters, packet generation</h1>
-            <p className="mt-2 max-w-3xl text-slate-600">
-              Pulls backlog stories for map view, routing, comms log, pre-offer packet QA, and portal dispatch.
-            </p>
+            <p className="text-sm uppercase tracking-wide text-brand">{t("pages.workbench.eyebrow")}</p>
+            <h1 className="mt-2 text-3xl font-semibold">{t("pages.workbench.title")}</h1>
+            <p className="mt-2 max-w-3xl text-slate-600">{t("pages.workbench.subtitle")}</p>
           </div>
           <button
+            type="button"
             onClick={() => setShowCopilot(!showCopilot)}
+            aria-pressed={showCopilot}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
               showCopilot
                 ? "bg-brand text-white border-brand"
                 : "bg-white text-slate-700 border-slate-200 hover:border-brand hover:text-brand"
             }`}
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
+            <Sparkles className="h-5 w-5" aria-hidden />
             <span className="text-sm font-medium">AI Copilot</span>
           </button>
         </div>
 
-        <div
-          className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1"
-          role="tablist"
-          aria-label="Workbench sections"
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as WorkbenchTab)}
+          className="space-y-6"
         >
-          {tabBtn("parcels", "Parcels & packet")}
-          {tabBtn("pipeline", "Title · Appraisal · ROE · Offers")}
-          {tabBtn("tasks", "Tasks")}
-        </div>
+          <TabsList aria-label="Workbench sections">
+            <TabsTrigger value="parcels">Parcels &amp; packet</TabsTrigger>
+            <TabsTrigger value="pipeline">Title · Appraisal · ROE · Offers</TabsTrigger>
+            <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          </TabsList>
 
-        {projectId ? (
-          <ProjectHierarchyNav
-            projectId={projectId}
-            selectedParcelId={parcelId}
-            onSelectParcel={setParcelId}
-          />
-        ) : null}
+          {projectId ? (
+            <ProjectHierarchyNav
+              projectId={projectId}
+              selectedParcelId={parcelId}
+              onSelectParcel={setParcelId}
+            />
+          ) : null}
 
-        {!parcelId && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            Select or create a parcel to view parcel-specific workbench tools.
-          </div>
-        )}
+          <ActiveParcelBar emptyHint={tab === "tasks" ? t("common.tasksParcelHint") : undefined} />
 
-        {tab === "parcels" && (
-          <>
+          <TabsContent value="parcels" className="space-y-6">
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-semibold">Staff intake</h3>
               <p className="mt-1 text-sm text-slate-600">
@@ -123,35 +109,42 @@ export function WorkbenchPage() {
                 <RuleResults parcelId={parcelId} />
               </div>
             )}
-          </>
-        )}
+          </TabsContent>
 
-        {tab === "pipeline" && parcelId && (
-          <>
-            <div className="grid gap-4 lg:grid-cols-3">
-              <TitlePanel parcelId={parcelId} />
-              <AppraisalPanel parcelId={parcelId} />
-              <ROEPanel parcelId={parcelId} projectId={projectId} />
-            </div>
-            <NegotiationPanel parcelId={parcelId} projectId={projectId} />
-          </>
-        )}
+          <TabsContent value="pipeline" className="space-y-6">
+            {parcelId ? (
+              <>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <TitlePanel parcelId={parcelId} />
+                  <AppraisalPanel parcelId={parcelId} />
+                  <ROEPanel parcelId={parcelId} projectId={projectId} />
+                </div>
+                <NegotiationPanel parcelId={parcelId} projectId={projectId} />
+              </>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <EmptyState
+                  icon={MapPin}
+                  title="No parcel selected"
+                  message="Select a parcel from the Parcels &amp; packet tab to view its title, appraisal, ROE, and offers."
+                />
+              </div>
+            )}
+          </TabsContent>
 
-        {tab === "tasks" && <TaskManager projectId={projectId} parcelId={parcelId ?? undefined} />}
+          <TabsContent value="tasks">
+            <TaskManager projectId={projectId} parcelId={parcelId ?? undefined} />
+          </TabsContent>
+        </Tabs>
       </section>
 
-      {/* Copilot Panel */}
-      {showCopilot && (
-        <div className="fixed right-0 top-0 h-screen w-96 shadow-xl z-50">
-          <CopilotPanel
-            caseId={projectId}
-            parcelId={parcelId ?? undefined}
-            jurisdiction="TX"
-            isOpen={showCopilot}
-            onClose={() => setShowCopilot(false)}
-          />
-        </div>
-      )}
+      <CopilotDrawer
+        open={showCopilot}
+        onClose={() => setShowCopilot(false)}
+        caseId={projectId}
+        parcelId={parcelId ?? undefined}
+        jurisdiction="TX"
+      />
     </div>
   );
 }

@@ -73,5 +73,49 @@
     },
     "back": "Back",
     "next": "Continue"
+  },
+  "common": {
+    "activeParcel": "Active parcel",
+    "viewFullDetail": "View full detail",
+    "selectParcelHint": "Select a parcel from the list or map below to open its tools (comms, packet, rules, title, appraisal, ROE, and offers).",
+    "tasksParcelHint": "Showing tasks for the whole project. Select a parcel to focus on its tasks.",
+    "litigationParcelHint": "Select a parcel to file or manage its litigation case."
+  },
+  "pages": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Access your LandGrantIQ workspace.",
+      "email": "Email",
+      "password": "Password",
+      "signIn": "Sign in",
+      "signingIn": "Signing in…",
+      "errorTitle": "Unable to sign in",
+      "demo": "Local demo:"
+    },
+    "workbench": {
+      "eyebrow": "Agent workbench",
+      "title": "Workbench",
+      "subtitle": "Review parcels on the map, manage the pre-offer packet, run jurisdiction rules, and advance each parcel through title, appraisal, ROE, and offers."
+    },
+    "counsel": {
+      "eyebrow": "Counsel controls",
+      "title": "Counsel workbench",
+      "subtitle": "Approve templates before filing, assemble the document binder, track litigation deadlines, and manage budgets — every action audit-logged."
+    },
+    "ops": {
+      "eyebrow": "Operations",
+      "title": "Route Planning & Communications",
+      "subtitle": "Field operations support: optimized visit routes, batch notifications, and live integration diagnostics."
+    },
+    "admin": {
+      "eyebrow": "Platform administration",
+      "title": "Admin Dashboard",
+      "subtitle": "System-wide view of all cases, projects, and services. Search across all data and monitor platform health."
+    },
+    "firmAdmin": {
+      "eyebrow": "Firm administration",
+      "title": "Firm Dashboard",
+      "subtitle": "Rolled-up view of all cases across your firm's projects. Monitor progress, track litigation, and review activity."
+    }
   }
 }

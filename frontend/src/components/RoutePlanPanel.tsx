@@ -96,7 +96,7 @@ export function RoutePlanPanel({ projectId }: Props) {
       )}
 
       {!plan && !loading && (
-        <div className="text-center py-8 text-slate-400 text-sm">
+        <div className="text-center py-8 text-slate-500 text-sm">
           Click "Generate Route" to create an optimized visit plan
         </div>
       )}

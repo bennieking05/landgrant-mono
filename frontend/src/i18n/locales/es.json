@@ -73,5 +73,49 @@
     },
     "back": "Atrás",
     "next": "Continuar"
+  },
+  "common": {
+    "activeParcel": "Parcela activa",
+    "viewFullDetail": "Ver detalle completo",
+    "selectParcelHint": "Seleccione una parcela de la lista o el mapa para abrir sus herramientas (comunicaciones, expediente, reglas, título, tasación, ROE y ofertas).",
+    "tasksParcelHint": "Mostrando tareas de todo el proyecto. Seleccione una parcela para ver sus tareas.",
+    "litigationParcelHint": "Seleccione una parcela para presentar o gestionar su caso de litigio."
+  },
+  "pages": {
+    "login": {
+      "title": "Iniciar sesión",
+      "subtitle": "Acceda a su espacio de trabajo de LandGrantIQ.",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
+      "signIn": "Iniciar sesión",
+      "signingIn": "Iniciando sesión…",
+      "errorTitle": "No se pudo iniciar sesión",
+      "demo": "Demo local:"
+    },
+    "workbench": {
+      "eyebrow": "Mesa de trabajo del agente",
+      "title": "Mesa de trabajo",
+      "subtitle": "Revise parcelas en el mapa, gestione el expediente previo a la oferta, ejecute reglas jurisdiccionales y avance cada parcela por título, tasación, ROE y ofertas."
+    },
+    "counsel": {
+      "eyebrow": "Controles legales",
+      "title": "Mesa de trabajo legal",
+      "subtitle": "Apruebe plantillas antes de presentarlas, arme el expediente de documentos, controle los plazos de litigio y gestione presupuestos: cada acción queda auditada."
+    },
+    "ops": {
+      "eyebrow": "Operaciones",
+      "title": "Planificación de rutas y comunicaciones",
+      "subtitle": "Apoyo a operaciones de campo: rutas de visita optimizadas, notificaciones por lotes y diagnósticos de integración en vivo."
+    },
+    "admin": {
+      "eyebrow": "Administración de la plataforma",
+      "title": "Panel de administración",
+      "subtitle": "Vista global de todos los casos, proyectos y servicios. Busque en todos los datos y supervise el estado de la plataforma."
+    },
+    "firmAdmin": {
+      "eyebrow": "Administración de la firma",
+      "title": "Panel de la firma",
+      "subtitle": "Vista consolidada de todos los casos de los proyectos de su firma. Supervise el progreso, controle litigios y revise la actividad."
+    }
   }
 }
