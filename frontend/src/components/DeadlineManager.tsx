@@ -11,7 +11,7 @@ import {
   type DerivedDeadlineItem,
 } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import { Button, DataGrid, EmptyState, Input, Select, useToast } from "@/components/ui";
+import { Button, DataGrid, EmptyState, Field, Input, Select, useToast } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
 type Props = {
@@ -479,12 +479,13 @@ export function DeadlineManager({ projectId }: Props) {
       {showForm && (
         <form onSubmit={handleSubmit} className="mb-4 space-y-3 rounded-control border border-slate-200 bg-slate-50 p-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Input type="text" placeholder="Deadline title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            <Input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} required />
+            <Input type="text" aria-label="Deadline title" placeholder="Deadline title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <Input type="datetime-local" aria-label="Due date and time" value={dueAt} onChange={(e) => setDueAt(e.target.value)} required />
           </div>
           <div className="flex flex-wrap gap-3">
             <Input
               type="text"
+              aria-label="Parcel ID (optional)"
               placeholder="Parcel ID (optional)"
               value={parcelId}
               onChange={(e) => setParcelId(e.target.value)}
@@ -511,39 +512,41 @@ export function DeadlineManager({ projectId }: Props) {
           </p>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-caption text-slate-600">Jurisdiction</label>
-              <Select value={deriveJurisdiction} onChange={(e) => setDeriveJurisdiction(e.target.value)} className="w-full">
-                <option value="IN">Indiana (IN)</option>
-                <option value="TX">Texas (TX)</option>
-              </Select>
-            </div>
-            <div>
-              <label className="mb-1 block text-caption text-slate-600">Parcel ID (optional)</label>
-              <Input
-                type="text"
-                placeholder="Parcel ID"
-                value={deriveParcelId}
-                onChange={(e) => setDeriveParcelId(e.target.value)}
-              />
-            </div>
+            <Field label="Jurisdiction">
+              {(field) => (
+                <Select {...field} value={deriveJurisdiction} onChange={(e) => setDeriveJurisdiction(e.target.value)} className="w-full">
+                  <option value="IN">Indiana (IN)</option>
+                  <option value="TX">Texas (TX)</option>
+                </Select>
+              )}
+            </Field>
+            <Field label="Parcel ID (optional)">
+              {(field) => (
+                <Input
+                  {...field}
+                  type="text"
+                  placeholder="Parcel ID"
+                  value={deriveParcelId}
+                  onChange={(e) => setDeriveParcelId(e.target.value)}
+                />
+              )}
+            </Field>
           </div>
 
           <div className="border-t border-slate-200 pt-3">
             <p className="mb-2 text-caption font-medium text-slate-700">Anchor events (enter dates as they occur)</p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {anchorFields.map((anchor) => (
-                <div key={anchor.key}>
-                  <label className="mb-1 block text-caption text-slate-600">
-                    {anchor.label}
-                    <span className="ml-1 text-slate-400">({anchor.citation})</span>
-                  </label>
-                  <Input
-                    type="date"
-                    value={anchorEvents[anchor.key] || ""}
-                    onChange={(e) => updateAnchorEvent(anchor.key, e.target.value)}
-                  />
-                </div>
+                <Field key={anchor.key} label={`${anchor.label} (${anchor.citation})`}>
+                  {(field) => (
+                    <Input
+                      {...field}
+                      type="date"
+                      value={anchorEvents[anchor.key] || ""}
+                      onChange={(e) => updateAnchorEvent(anchor.key, e.target.value)}
+                    />
+                  )}
+                </Field>
               ))}
             </div>
           </div>

@@ -52,6 +52,7 @@ export type ParcelFeatureProps = {
   risk_score: number;
   owner?: string | null;
   county_fips?: string | null;
+  next_deadline_at?: string | null;
 };
 
 /** Rough centroid of a polygon/multipolygon ring for point/cluster overlays. */
@@ -97,6 +98,7 @@ export function buildParcelGeo(parcels: ParcelItem[]): BuiltGeo {
       risk_score: p.risk_score,
       owner: p.owner ?? null,
       county_fips: p.county_fips ?? null,
+      next_deadline_at: p.next_deadline_at ?? null,
     };
     if (geom.type === "Polygon" || geom.type === "MultiPolygon") {
       polygons.push({
