@@ -190,20 +190,6 @@ export function FirmAdminPage() {
     </>
   );
 
-  function getStatusColor(status: string): string {
-    const colors: Record<string, string> = {
-      intake: "bg-slate-100 text-slate-700",
-      appraisal: "bg-blue-100 text-blue-700",
-      offer_pending: "bg-amber-100 text-amber-700",
-      offer_sent: "bg-yellow-100 text-yellow-700",
-      negotiation: "bg-orange-100 text-orange-700",
-      closing: "bg-emerald-100 text-emerald-700",
-      litigation: "bg-red-100 text-red-700",
-      closed: "bg-green-100 text-green-700",
-    };
-    return colors[status] || "bg-slate-100 text-slate-700";
-  }
-
   if (loading && !metrics) {
     return (
       <section className="space-y-6">
@@ -275,9 +261,10 @@ export function FirmAdminPage() {
           <h3 className="mb-4 text-lg font-semibold">Parcels by Stage</h3>
           <div className="flex flex-wrap gap-2">
             {Object.entries(metrics.parcels_by_stage).map(([stage, count]) => (
-              <div key={stage} className={`rounded-full px-3 py-1.5 text-sm font-medium ${getStatusColor(stage)}`}>
-                {stage.replace(/_/g, " ")}: {count}
-              </div>
+              <span key={stage} className="inline-flex items-center gap-1.5">
+                <StageBadge stage={stage} />
+                <span className="text-small font-medium tabular-nums text-slate-700">{count}</span>
+              </span>
             ))}
           </div>
         </div>

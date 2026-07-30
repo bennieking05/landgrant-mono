@@ -237,11 +237,11 @@ export function TemplateViewer() {
                       <h4 className="text-sm font-medium text-slate-700 mb-2">
                         Deadline Anchors Detected
                       </h4>
-                      <div className="bg-indigo-50 rounded-lg p-3 space-y-1">
+                      <div className="bg-accent-50 rounded-lg p-3 space-y-1">
                         {Object.entries(renderResult.deadline_anchors).map(([event, date]) => (
                           <div key={event} className="flex justify-between text-xs">
-                            <span className="text-indigo-700 font-medium">{event.replace(/_/g, " ")}</span>
-                            <span className="text-indigo-600">{date}</span>
+                            <span className="text-accent-700 font-medium">{event.replace(/_/g, " ")}</span>
+                            <span className="text-accent-600">{date}</span>
                           </div>
                         ))}
                       </div>
@@ -251,8 +251,8 @@ export function TemplateViewer() {
                           disabled={derivingDeadlines || deadlinesGenerated}
                           className={`mt-3 w-full rounded-md px-4 py-2 text-sm font-medium ${
                             deadlinesGenerated
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-indigo-600 text-white disabled:opacity-50"
+                              ? "bg-success-bg text-success-fg"
+                              : "bg-brand text-white disabled:opacity-50"
                           }`}
                         >
                           {deadlinesGenerated

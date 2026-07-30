@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapIcon, Layers } from "lucide-react";
 import type { ParcelItem } from "@/lib/api";
 import { StageBadge, STAGE_ORDER, STAGE_COLORS, stageLabel } from "@/components/ui";
+import { formatDate } from "@/lib/format";
 import {
   getMapEngine,
   buildParcelGeo,
@@ -178,17 +179,38 @@ export function ParcelMap({
               risk_score: number;
               owner?: string;
               county_fips?: string;
+              next_deadline_at?: string;
             };
             onClickRef.current?.(props.parcel_id);
             popupRef.current?.remove();
+            const stageColor = STAGE_COLORS[props.stage] ?? "#64748b";
+            const stagePill =
+              `<span style="display:inline-flex;align-items:center;gap:4px;border:1px solid ${stageColor}33;` +
+              `background:${stageColor}1a;color:${stageColor};font-size:11px;font-weight:500;padding:1px 8px;border-radius:9999px">` +
+              `<span style="width:6px;height:6px;border-radius:9999px;background:${stageColor};opacity:0.7"></span>` +
+              `${stageLabel(props.stage)}</span>`;
+            const risk =
+              props.risk_score >= 70
+                ? { label: "High", color: "#B42318" }
+                : props.risk_score >= 40
+                  ? { label: "Medium", color: "#B45309" }
+                  : { label: "Low", color: "#15803D" };
+            const riskPill =
+              `<span style="display:inline-flex;align-items:center;gap:4px;border:1px solid ${risk.color}33;` +
+              `background:${risk.color}1a;color:${risk.color};font-size:11px;font-weight:600;padding:1px 8px;border-radius:9999px">` +
+              `${props.risk_score} &middot; ${risk.label}</span>`;
+            const nextDeadline = props.next_deadline_at
+              ? `<div style="color:#475569;font-size:12px;margin-top:4px">Next deadline: ${formatDate(props.next_deadline_at)}</div>`
+              : "";
             popupRef.current = new mapboxgl.Popup({ closeButton: true, offset: 12 })
               .setLngLat(e.lngLat)
               .setHTML(
-                `<div style="font-family:Inter,sans-serif;min-width:160px">
+                `<div style="font-family:Inter,sans-serif;min-width:180px">
                    <div style="font-weight:600;font-family:'IBM Plex Mono',monospace">${props.parcel_id}</div>
-                   <div style="color:#475569;font-size:12px;margin-top:2px">${stageLabel(props.stage)} &middot; Risk ${props.risk_score}</div>
-                   ${props.owner ? `<div style="color:#475569;font-size:12px">${props.owner}</div>` : ""}
-                   <a href="/parcels/${encodeURIComponent(props.parcel_id)}" style="display:inline-block;margin-top:6px;color:#1F4B99;font-size:12px;font-weight:600">Open detail</a>
+                   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${stagePill}${riskPill}</div>
+                   ${props.owner ? `<div style="color:#475569;font-size:12px;margin-top:4px">${props.owner}</div>` : ""}
+                   ${nextDeadline}
+                   <a href="/parcels/${encodeURIComponent(props.parcel_id)}" style="display:inline-block;margin-top:8px;color:#1F4B99;font-size:12px;font-weight:600">Open detail</a>
                  </div>`,
               )
               .addTo(map!);

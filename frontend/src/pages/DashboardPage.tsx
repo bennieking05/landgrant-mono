@@ -77,6 +77,34 @@ function KpiCard({ def }: { def: KpiDef }) {
   );
 }
 
+/**
+ * Executive portfolio metric (UX-3): renders the real server-computed value, or an
+ * honest "Not enough data yet" when the API flags the sample as insufficient —
+ * never a misleading small-sample number.
+ */
+function ExecMetricCard({
+  label,
+  display,
+  insufficient,
+}: {
+  label: string;
+  display: string;
+  insufficient: boolean;
+}) {
+  return (
+    <Card>
+      <CardBody>
+        <p className="text-caption font-medium uppercase text-slate-500">{label}</p>
+        {insufficient ? (
+          <p className="mt-1 text-small text-slate-400">Not enough data yet</p>
+        ) : (
+          <p className="text-h1 tabular-nums text-slate-900">{display}</p>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
 const PERSONA_HEADLINE: Record<Persona, { title: string; subtitle: string }> = {
   landowner: { title: "Your parcel", subtitle: "" },
   land_agent: { title: "Land agent dashboard", subtitle: "Parcels, deadlines, and risk across your assignments." },
@@ -286,7 +314,7 @@ export function DashboardPage() {
             <Card>
               <CardBody>
                 <h2 className="text-h3 text-slate-900">Parcels by stage</h2>
-                {stats.total < 3 ? (
+                {(dash ? !dash.sample_sufficient : stats.total < 3) ? (
                   <p className="mt-2 text-caption text-slate-500">
                     Limited data - showing all {stats.total} parcel{stats.total === 1 ? "" : "s"}.
                   </p>
@@ -366,6 +394,45 @@ export function DashboardPage() {
               </CardBody>
             </Card>
           </div>
+
+          {isExec && dash ? (
+            <div>
+              <h2 className="mb-3 text-h3 text-slate-900">Portfolio metrics</h2>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <ExecMetricCard
+                  label="Median cycle time"
+                  insufficient={dash.cycle_time_insufficient_data}
+                  display={
+                    dash.cycle_time_median_days != null
+                      ? `${dash.cycle_time_median_days} days`
+                      : "-"
+                  }
+                />
+                <ExecMetricCard
+                  label="Litigation rate"
+                  insufficient={dash.litigation_rate_insufficient_data}
+                  display={
+                    dash.litigation_rate != null
+                      ? `${(dash.litigation_rate * 100).toFixed(1)}%`
+                      : "-"
+                  }
+                />
+                <ExecMetricCard
+                  label="Budget utilization"
+                  insufficient={dash.budget_utilization_insufficient_data}
+                  display={
+                    dash.budget_utilization_pct != null ? `${dash.budget_utilization_pct}%` : "-"
+                  }
+                />
+              </div>
+              {!dash.sample_sufficient ? (
+                <p className="mt-2 text-caption text-slate-500">
+                  Portfolio metrics need at least 5 parcels to be meaningful (currently{" "}
+                  {dash.sample_size}).
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div>
             <h2 className="mb-3 text-h3 text-slate-900">Recent parcels</h2>

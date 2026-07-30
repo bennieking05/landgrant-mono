@@ -70,7 +70,7 @@ def _layout(title: str, inner_html: str) -> str:
               <a href="mailto:help@landgrantiq.com" style="color:{MUTED};">Support</a>
             </p>
             <p style="margin:12px 0 0;font-size:11px;line-height:1.45;color:#94a3b8;">
-              LandRight AI, Inc. &middot; 1234 Commerce Drive, Austin, TX 78701 USA.
+              LandGrantIQ &middot; 1234 Commerce Drive, Austin, TX 78701 USA.
               <a href="mailto:privacy@landgrantiq.com?subject=Unsubscribe" style="color:#94a3b8;">Unsubscribe</a>
               from marketing and non-transactional reminders (CAN-SPAM).
             </p>

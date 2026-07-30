@@ -6,7 +6,7 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { Search, X, Bookmark, Trash2 } from "lucide-react";
+import { Search, X, Bookmark, Trash2, UserCheck } from "lucide-react";
 import {
   listParcels,
   exportParcelsCsv,
@@ -18,7 +18,7 @@ import {
   type ParcelGridSavedView,
   type ParcelItem,
 } from "@/lib/api";
-import { useAppContext } from "@/context";
+import { useAppContext, useAuth } from "@/context";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { formatDate } from "@/lib/format";
 import {
@@ -110,7 +110,9 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
   const toast = useToast();
   const navigate = useNavigate();
   const { persona } = useAppContext();
+  const { me } = useAuth();
   const [searchParams] = useSearchParams();
+  const myUserId = me?.sub ?? "";
 
   const [data, setData] = useState<ParcelItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -171,6 +173,17 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
       canceled = true;
     };
   }, [persona]);
+
+  // Default "My parcels" view (UX-4): land agents land on their own queue on first
+  // load. Reversible via the assignee filter chip; skipped if a URL param is set.
+  const myDefaultApplied = useRef(false);
+  useEffect(() => {
+    if (myDefaultApplied.current) return;
+    if (persona !== "land_agent" || !myUserId) return;
+    myDefaultApplied.current = true;
+    if (searchParams.get("assigned_to")) return;
+    setAssignedTo(myUserId);
+  }, [persona, myUserId, searchParams]);
 
   const sortParam = useMemo(() => {
     const s = sorting[0];
@@ -464,7 +477,10 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
     },
     assignedTo && {
       key: "assigned_to",
-      label: `Assignee: ${assignees.find((a) => a.id === assignedTo)?.full_name || assignees.find((a) => a.id === assignedTo)?.email || assignedTo}`,
+      label:
+        assignedTo === myUserId
+          ? "My parcels"
+          : `Assignee: ${assignees.find((a) => a.id === assignedTo)?.full_name || assignees.find((a) => a.id === assignedTo)?.email || assignedTo}`,
       clear: () => setAssignedTo(""),
     },
   ].filter(Boolean) as { key: string; label: string; clear: () => void }[];
@@ -595,6 +611,16 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
           </option>
         ))}
       </Select>
+      {persona !== "landowner" && myUserId ? (
+        <Button
+          variant={assignedTo === myUserId ? "secondary" : "ghost"}
+          size="sm"
+          onClick={() => setAssignedTo(assignedTo === myUserId ? "" : myUserId)}
+          aria-pressed={assignedTo === myUserId}
+        >
+          <UserCheck className="h-4 w-4" /> My parcels
+        </Button>
+      ) : null}
       {persona !== "landowner" ? (
         <Select
           value={assignedTo}
@@ -716,7 +742,7 @@ export function ParcelList({ projectId, onSelectParcel }: Props) {
             message={
               activeFilters.length
                 ? "Try clearing a filter or broadening your search."
-                : "Create a parcel case from intake to populate this grid."
+                : "Create a parcel case from intake, or import parcels in bulk via CSV, to populate this grid."
             }
             action={
               activeFilters.length

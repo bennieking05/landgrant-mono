@@ -46,6 +46,11 @@ import {
   Breadcrumbs,
   type Crumb,
 } from "@/components/ui";
+import { TitlePanel } from "@/components/TitlePanel";
+import { AppraisalPanel } from "@/components/AppraisalPanel";
+import { DocumentExtraction } from "@/components/DocumentExtraction";
+import { LitigationPanel } from "@/components/LitigationPanel";
+import { AIAuditDrawer } from "@/components/AIAuditDrawer";
 
 type TimelineEvent = {
   id: string;
@@ -86,6 +91,7 @@ export function ParcelDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -301,8 +307,15 @@ export function ParcelDetailPage() {
                 <dd>{parcel.owner ?? "-"}</dd>
               </div>
               <div className="flex gap-1">
-                <dt className="text-slate-500">County FIPS:</dt>
-                <dd className="font-id">{parcel.county_fips ?? "-"}</dd>
+                <dt className="text-slate-500">County:</dt>
+                <dd>
+                  {parcel.county ?? "-"}
+                  {parcel.parcel_state ? `, ${parcel.parcel_state}` : ""}
+                </dd>
+              </div>
+              <div className="flex gap-1">
+                <dt className="text-slate-500">Assigned agent:</dt>
+                <dd>{parcel.assignee_name ?? "Unassigned"}</dd>
               </div>
               <div className="flex gap-1">
                 <dt className="text-slate-500">Next deadline:</dt>
@@ -327,8 +340,13 @@ export function ParcelDetailPage() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="offers">Offers ({offers.length})</TabsTrigger>
+          <TabsTrigger value="title">Title &amp; curative</TabsTrigger>
+          <TabsTrigger value="appraisals">Appraisals</TabsTrigger>
           <TabsTrigger value="communications">Communications ({comms.length})</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="deadlines">Deadlines ({deadlines.length})</TabsTrigger>
+          <TabsTrigger value="litigation">Litigation</TabsTrigger>
+          <TabsTrigger value="audit">Audit</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="pt-4">
@@ -395,6 +413,14 @@ export function ParcelDetailPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="title" className="pt-4">
+          <TitlePanel parcelId={parcel.id} />
+        </TabsContent>
+
+        <TabsContent value="appraisals" className="pt-4">
+          <AppraisalPanel parcelId={parcel.id} />
+        </TabsContent>
+
         <TabsContent value="communications" className="pt-4">
           <Card>
             <CardBody>
@@ -413,6 +439,10 @@ export function ParcelDetailPage() {
               )}
             </CardBody>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="documents" className="pt-4">
+          <DocumentExtraction parcelId={parcel.id} />
         </TabsContent>
 
         <TabsContent value="deadlines" className="pt-4">
@@ -434,7 +464,34 @@ export function ParcelDetailPage() {
             </CardBody>
           </Card>
         </TabsContent>
+
+        <TabsContent value="litigation" className="pt-4">
+          <LitigationPanel parcelId={parcel.id} projectId={parcel.project_id} />
+        </TabsContent>
+
+        <TabsContent value="audit" className="pt-4">
+          <Card>
+            <CardBody className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-h3 text-slate-900">AI audit trail</h2>
+                <p className="mt-0.5 text-caption text-slate-500">
+                  Model runs, prompt versions, citations, and escalations recorded for this parcel.
+                </p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => setAuditOpen(true)}>
+                View AI audit
+              </Button>
+            </CardBody>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      <AIAuditDrawer
+        open={auditOpen}
+        onClose={() => setAuditOpen(false)}
+        resourceId={parcel.id}
+        title={`AI audit · ${parcel.id}`}
+      />
     </div>
   );
 }
